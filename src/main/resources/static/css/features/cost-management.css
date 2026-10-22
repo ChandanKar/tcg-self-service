@@ -82,27 +82,6 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.cost-kpi-subtitle {
-    display: block;
-    margin-top: 0.15rem;
-    font-size: var(--font-size-xs, 0.75rem);
-    font-weight: 400;
-    color: var(--text-secondary);
-}
-
-.cost-breakdown-layout {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-lg, 1.5rem);
-    margin-bottom: var(--space-lg, 1.5rem);
-}
-
-@media (max-width: 992px) {
-    .cost-breakdown-layout {
-        grid-template-columns: 1fr;
-    }
-}
-
 .dashboard-chart-panel.dashboard-wide {
     margin-bottom: var(--space-lg, 1.5rem);
 }
@@ -164,9 +143,8 @@
         display: none !important;
     }
 
-    .cost-report .dashboard-kpi,
     .cost-report .dashboard-chart-panel,
-    .cost-report .cost-table-card {
+.cost-report .cost-table-card {
         break-inside: avoid;
     }
 
@@ -197,7 +175,6 @@
 .rightsizing-options-table { font-size: 0.85rem; }
 .rightsizing-options-table th { font-weight: 600; white-space: nowrap; }
 .rightsizing-agreement { font-weight: 500; }
-
 
 /* Apply dialog checks and progress (E30-T07) */
 .rs-checks .rs-check { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }

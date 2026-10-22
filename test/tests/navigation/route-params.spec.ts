@@ -208,6 +208,9 @@ test.describe('Environment settings', () => {
 
     await expect(page.locator('#es-panel h2')).toHaveText('Deactivate', { timeout: 15_000 });
     await expect(page.locator('#es-panel')).toContainText('VMs keep running in AWS; stop them first if you want them off.');
+    // E10-T06: deactivating can be undone, and the page never says otherwise.
+    await expect(page.locator('#es-panel')).toContainText('An administrator can bring it back.');
+    await expect(page.locator('#es-panel')).not.toContainText(/permanent|cannot be undone/i);
     const button = page.locator('#es-deactivate');
     await expect(button).toHaveText(`Deactivate ${env.displayName}`);
     await expect(button).toBeDisabled();

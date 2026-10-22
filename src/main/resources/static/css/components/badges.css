@@ -12,23 +12,10 @@
     border-radius: 9999px;
 }
 
-/* .status-badge size and state colours live in css/theme.css with the chips (U03-T02). */
-.status-badge.starting,
-.status-badge.stopping {
-    animation: pulse-soft 2s infinite;
-}
-
 /* Pulse for transitional states */
 @keyframes pulse-soft {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .status-badge.starting,
-    .status-badge.stopping {
-        animation: none;
-    }
 }
 
 /* ================================================

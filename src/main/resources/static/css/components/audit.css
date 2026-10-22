@@ -78,22 +78,6 @@
     white-space: nowrap;
 }
 
-/* Time filter badge colors */
-.time-badge-24h {
-    background: var(--brand-navy-tint);
-    color: var(--brand-navy-hover);
-}
-
-.time-badge-7d {
-    background: var(--brand-green-tint);
-    color: var(--brand-green);
-}
-
-.time-badge-30d {
-    background: var(--brand-gold-tint);
-    color: var(--brand-gold);
-}
-
 /* Responsive table */
 @media (max-width: 768px) {
     .table-responsive {
@@ -103,12 +87,5 @@
     .log-row td:nth-child(6) {
         display: none;
     }
-}
-
-/* Search highlight */
-.search-highlight {
-    background: var(--brand-gold-tint);
-    padding: 0 2px;
-    border-radius: 2px;
 }
 

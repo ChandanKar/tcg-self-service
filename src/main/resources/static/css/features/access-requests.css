@@ -1,41 +1,4 @@
-/**
- * Access Requests Feature Styles
- * Request access (the requester, U09-T02) and Access requests (the reviewer's cards, U10-T07).
- * Typography and density synced to dashboard baseline.
- */
 
-/* ── Page container: natural-scroll (not flex-fill) ── */
-.request-access-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-}
-
-/* ── Card header density ── */
-.request-access-container .card-header h5,
-.request-access-container .card-header .card-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    margin-bottom: 0;
-}
-.request-access-container .card-header {
-    padding: 0.5rem 0.75rem;
-}
-
-/* ── Table typography — dashboard baseline (uses CSS variables) ── */
-.request-access-container .table td,
-.request-access-container .table th {
-    padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    font-size: var(--table-body-font, 0.81rem);
-    vertical-align: middle;
-    line-height: 1.5;
-}
-.request-access-container .table thead th {
-    font-size: var(--table-header-font, 0.7rem);
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    background: var(--table-header-bg);
-}
 
 /* ── Available Environments table column widths ── */
 #env-list-table {
@@ -85,31 +48,6 @@
 #history-table thead th:nth-child(6),
 #history-table tbody td:nth-child(6) { width: 24%; }
 
-/* Truncate long text in fixed-width cells */
-.request-access-container .table tbody td {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 0;
-}
-/* Allow name/description cells to wrap */
-.request-access-container .table tbody td.ra-wrap {
-    white-space: normal;
-    overflow: visible;
-}
-
-/* ── Action buttons in tables ── */
-.request-access-container .table .btn-sm {
-    height: 26px;
-    padding: 0.15rem 0.45rem;
-    font-size: 0.78rem;
-    line-height: 1;
-}
-.request-access-container .table .btn-group-sm .btn {
-    height: 26px;
-    padding: 0.15rem 0.45rem;
-    font-size: 0.78rem;
-}
 /* Pagination — see components/pagination.css for .pagination-bar-wrap */
 
 /* Request access: environments on the left, the form on the right; your requests (U09-T02, RequestAccess.dc.html) */

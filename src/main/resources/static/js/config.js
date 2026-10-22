@@ -616,24 +616,6 @@ const Config = (function() {
         }
     };
 
-    /**
-     * Render a VM status badge HTML
-     * @param {string} status - VM status (RUNNING, STOPPED, etc.)
-     * @returns {string} - HTML for the status badge
-     */
-    function renderStatusBadge(status) {
-        const config = VM_STATUS_CONFIG[status] || VM_STATUS_CONFIG.UNKNOWN;
-        const spinClass = config.spinning ? 'fa-spin' : '';
-
-        return `
-            <span class="status-badge ${config.cssClass}" role="status"
-                  aria-label="VM status: ${config.text}">
-                <i class="fas ${config.icon} ${spinClass}" aria-hidden="true"></i>
-                <span class="status-text">${config.text}</span>
-            </span>
-        `;
-    }
-
     // Cloud provider icons
     const CLOUD_ICONS = {
         AWS: { icon: 'fab fa-aws', color: '#FF9900', label: 'AWS' },
@@ -690,7 +672,6 @@ const Config = (function() {
         UI,
         STATUS,
         VM_STATUS_CONFIG,
-        renderStatusBadge,
         CLOUD_ICONS,
         ACCESS_LEVELS,
         AWS_REGIONS,

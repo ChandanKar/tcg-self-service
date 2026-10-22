@@ -265,10 +265,6 @@ button.mobile-nav-item.active {
         padding: 0.75rem;
     }
 
-    .metric-card .metric-value {
-        font-size: 1.5rem;
-    }
-
     /* Table adjustments */
     .table-responsive {
         font-size: 0.875rem;
@@ -435,7 +431,6 @@ button.mobile-nav-item.active {
         min-height: 44px;
     }
 }
-
 
 /*
  * U16-T04: on a phone the side panels (My account, Ask, VM details, history…) and the notifications

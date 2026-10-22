@@ -105,21 +105,6 @@
     font-size: 15px;
 }
 
-/* Legend: a single light next to its meaning */
-.power-strip-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 20px;
-    font-size: var(--fs-caption);
-    color: var(--slate);
-}
-
-.power-strip-legend > span {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
 @media (prefers-reduced-motion: reduce) {
     .pip.busy { animation: none; }
 }

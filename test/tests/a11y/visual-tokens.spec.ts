@@ -62,10 +62,10 @@ test.describe('Visual identity tokens', () => {
         <button class="btn btn-outline-danger" data-k="stop">Stop</button>
         <button class="btn btn-danger btn-sm" data-k="stopSm">Stop</button>
         <input class="form-control" data-k="input">
-        <span class="status-badge running" data-k="running">Running</span>
-        <span class="status-badge stopped" data-k="stopped">Stopped</span>
-        <span class="status-badge starting" data-k="starting">Starting</span>
-        <span class="status-badge error" data-k="failed">Failed</span>
+        <span class="chip chip-running" data-k="running">Running</span>
+        <span class="chip chip-stopped" data-k="stopped">Stopped</span>
+        <span class="chip chip-waiting" data-k="starting">Starting</span>
+        <span class="chip chip-failed" data-k="failed">Failed</span>
         <table class="table"><thead><tr><th data-k="th">Name</th></tr></thead><tbody><tr><td data-k="td">web-01</td></tr></tbody></table>`;
       document.querySelector('#content-area')!.appendChild(box);
       const out: Record<string, any> = {};

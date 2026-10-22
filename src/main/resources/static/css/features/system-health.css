@@ -64,10 +64,6 @@
     color: var(--text-secondary);
 }
 
-.sh-pad {
-    padding: 14px 20px;
-}
-
 .sh-mono {
     font-family: var(--font-mono);
 }

@@ -675,18 +675,6 @@
     display: none;
 }
 
-.env-settings-section h3 {
-    margin: 0 0 4px;
-    font-size: var(--fs-body);
-    font-weight: 600;
-}
-
-.env-settings-section p {
-    margin: 0 0 8px;
-    font-size: var(--fs-caption);
-    color: var(--slate);
-}
-
 @media (max-width: 1100px) {
     .env-body {
         grid-template-columns: minmax(0, 1fr);
@@ -831,36 +819,6 @@
     padding: 24px;
     text-align: center !important;
     color: var(--slate);
-}
-
-/* Environment List Container */
-.environments-list-container {
-    flex: 1;
-    overflow-y: auto;
-    padding-right: 0.5rem;
-}
-
-/* Environment Card in List */
-.environment-list-card {
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.environment-list-card:hover {
-    border-color: var(--primary-light);
-    box-shadow: 0 2px 8px rgba(20, 36, 92, 0.1);
-}
-
-.environment-list-card .env-name {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
 }
 
 /* Environment Detail View */

@@ -12,7 +12,6 @@ import { fakeEnvironmentPage, pageBody } from '../../fixtures/mock-api';
  */
 
 declare const ContentRouter: any;
-declare const DestructiveConfirm: any;
 declare const Auth: any;
 
 const group = (name: string, sequencePosition: number, running: number, stopped: number) =>
@@ -150,21 +149,3 @@ test.describe('Environments list', () => {
   });
 });
 
-test.describe('Deactivate environment dialog', () => {
-  test.beforeEach(() => {
-    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
-  });
-
-  test('says deactivate and reactivate, never permanent (E10-T06)', async ({ page }) => {
-    await signIn(page, 'admin');
-    await page.waitForFunction(() => typeof DestructiveConfirm !== 'undefined');
-
-    await page.evaluate(() => DestructiveConfirm.confirmDeleteEnvironment('Payments QA', 3, () => {}));
-
-    const dialog = page.locator('.modal.show');
-    await expect(dialog).toContainText('Deactivate environment');
-    await expect(dialog).toContainText('can be reactivated later');
-    await expect(dialog).toContainText('Its active lock is released');
-    await expect(dialog).not.toContainText(/permanent|cannot be undone/i);
-  });
-});

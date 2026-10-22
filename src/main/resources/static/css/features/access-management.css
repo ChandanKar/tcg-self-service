@@ -21,11 +21,6 @@
     margin-bottom: 0;
 }
 
-#access-management-view .header-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
 /* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* ============================================
@@ -68,67 +63,6 @@
 
 .access-table tbody tr:last-child td {
     border-bottom: none;
-}
-
-.access-table .user-cell {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-width: 0;
-}
-
-.access-table .user-avatar-sm {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-    flex-shrink: 0;
-}
-
-.access-table .user-cell .user-info {
-    min-width: 0;
-    overflow: hidden;
-}
-
-.access-table .user-cell .user-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 0.81rem;
-    line-height: 1.3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.access-table .user-cell .user-email {
-    font-size: 0.70rem;
-    color: var(--text-secondary);
-    line-height: 1.3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* Access Level Badges — see components/badges.css for .access-level-badge / .level-* */
-
-/* ============================================
-   Justification Cell
-   ============================================ */
-.justification-cell {
-    max-width: 200px;
-}
-
-.justification-text {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /* Pagination — see components/pagination.css for .pagination-bar-wrap / .pg-btn */
@@ -183,17 +117,6 @@
 #denyRequestModal .modal-footer {
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--border-color);
-}
-
-/* ============================================
-   Responsive Adjustments
-   ============================================ */
-
-@media (max-width: 768px) {
-
-    .justification-cell {
-        max-width: 120px;
-    }
 }
 
 /* ===== Access management (U10-T04, AccessManagement.dc.html) ===== */

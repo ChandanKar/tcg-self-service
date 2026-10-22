@@ -1,31 +1,4 @@
-/*
- * Sidebar Styles
- */
 
-/* Disabled menu items — not clickable, visually muted */
-.sidebar-menu-link--disabled {
-    opacity: 0.45;
-    cursor: not-allowed !important;
-    pointer-events: none;
-}
-.sidebar-menu-link--disabled:hover {
-    background: transparent !important;
-    color: inherit !important;
-}
-
-/* "Soon" badge on disabled items */
-.coming-soon-badge {
-    margin-left: auto;
-    font-size: 0.6rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: var(--line);
-    color: var(--slate);
-    padding: 0.1rem 0.35rem;
-    border-radius: 4px;
-    flex-shrink: 0;
-}
 
 /* Side menu (SideNav.dc.html): 240 px, four sections that never collapse, 30 px rows. The active
    page has the navy tint, navy 600 text and a gold marker on its left edge. */
@@ -171,12 +144,5 @@
 .submenu-item .btn-sm {
     font-size: 0.7rem;
     padding: 0.125rem 0.5rem;
-}
-
-/* Bottom section */
-.sidebar-bottom {
-    border-top: 1px solid var(--border-color);
-    padding: 1rem 0;
-    margin-top: auto;
 }
 

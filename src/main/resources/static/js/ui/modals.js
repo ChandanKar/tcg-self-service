@@ -823,60 +823,6 @@ const DestructiveConfirm = (function() {
     }
 
     /**
-     * Convenience method for Stop all VMs
-     */
-    function confirmStopAll(environmentName, vmCount, onConfirm) {
-        show({
-            title: 'Stop all VMs',
-            message: `This will stop all VMs in "${environmentName}".`,
-            impact: [
-                `${vmCount} VM(s) will be stopped`,
-                'Running applications will be interrupted',
-                'This action cannot be undone automatically'
-            ],
-            confirmText: environmentName,
-            actionText: 'Stop all VMs',
-            onConfirm
-        });
-    }
-
-    /**
-     * Convenience method for Break the lock
-     */
-    function confirmBreakLock(environmentName, lockHolder, onConfirm) {
-        show({
-            title: 'Break the lock',
-            message: `This will forcibly break the lock on "${environmentName}".`,
-            impact: [
-                `Lock held by ${lockHolder} will be released`,
-                'Any in-progress operations may be interrupted',
-                'The lock holder will be notified'
-            ],
-            confirmText: environmentName,
-            actionText: 'Break the lock',
-            onConfirm
-        });
-    }
-
-    /**
-     * Convenience method for Delete Environment
-     */
-    function confirmDeleteEnvironment(environmentName, vmCount, onConfirm) {
-        show({
-            title: 'Deactivate environment',
-            message: `This will deactivate "${environmentName}". It disappears from lists and schedules, and can be reactivated later.`,
-            impact: [
-                `${vmCount} VM(s) stop being synced and operated`,
-                'Its active lock is released',
-                'Access grants stay but cannot be used while it is inactive'
-            ],
-            confirmText: environmentName,
-            actionText: 'Deactivate',
-            onConfirm
-        });
-    }
-
-    /**
      * Convenience method for Delete the automation rule (TASK-034)
      */
     function confirmDeleteAutomationRule(ruleName, onConfirm) {
@@ -888,16 +834,13 @@ const DestructiveConfirm = (function() {
                 'This action cannot be undone'
             ],
             confirmText: ruleName,
-            actionText: 'Delete Rule',
+            actionText: 'Delete rule',
             onConfirm
         });
     }
 
     return {
         show,
-        confirmStopAll,
-        confirmBreakLock,
-        confirmDeleteEnvironment,
         confirmDeleteAutomationRule
     };
 })();

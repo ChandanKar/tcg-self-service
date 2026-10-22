@@ -89,7 +89,7 @@ test('loading: outlines shaped like the content, delayed 300 ms by the ui-loadin
     assert.equal((S.loading('cards').match(/ui-outline-card/g) || []).length, 3);
     assert.match(S.loading('lines'), /Loading…/);
     const css = readFileSync(STATIC + 'css/components/states.css', 'utf8');
-    assert.match(css, /\.ui-loading,[\s\S]*?animation: ui-loading-appear 0s linear 300ms both;/);
+    assert.match(css, /\.ui-loading \{\s*animation: ui-loading-appear 0s linear 300ms both;/);
     assert.match(css, /prefers-reduced-motion: reduce/);
 });
 

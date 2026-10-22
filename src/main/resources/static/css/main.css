@@ -217,12 +217,9 @@ a:hover {
 
 /* Shared "thin" scrollbar (4px, no hover) for dense table/list wrappers across the
    app — single definition replacing ~10 previously copy-pasted per-page rules. */
-#dashboard-view .env-table-wrapper::-webkit-scrollbar,
 #env-groups-container::-webkit-scrollbar,
 .group-vm-table-wrapper::-webkit-scrollbar,
 .vm-registry-table-wrapper::-webkit-scrollbar,
-.all-logs-table-wrapper::-webkit-scrollbar,
-.ra-env-table-wrapper::-webkit-scrollbar,
 #system-health-view::-webkit-scrollbar,
 .sh-table-wrapper::-webkit-scrollbar,
 .sh-compliance-wrapper::-webkit-scrollbar,
@@ -230,12 +227,9 @@ a:hover {
     width: 4px;
 }
 
-#dashboard-view .env-table-wrapper::-webkit-scrollbar-thumb,
 #env-groups-container::-webkit-scrollbar-thumb,
 .group-vm-table-wrapper::-webkit-scrollbar-thumb,
 .vm-registry-table-wrapper::-webkit-scrollbar-thumb,
-.all-logs-table-wrapper::-webkit-scrollbar-thumb,
-.ra-env-table-wrapper::-webkit-scrollbar-thumb,
 #system-health-view::-webkit-scrollbar-thumb,
 .sh-table-wrapper::-webkit-scrollbar-thumb,
 .sh-compliance-wrapper::-webkit-scrollbar-thumb,

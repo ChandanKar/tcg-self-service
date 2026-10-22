@@ -204,27 +204,6 @@
     }
 }
 
-/* Operation status colors */
-.operation-status-completed {
-    color: var(--success-color);
-}
-
-.operation-status-failed {
-    color: var(--danger-color);
-}
-
-.operation-status-in-progress {
-    color: var(--info-color);
-}
-
-.operation-status-pending {
-    color: var(--slate);
-}
-
-.operation-status-cancelled {
-    color: var(--slate);
-}
-
 /* Operation history side panel (U08-T04, OperationHistory.dc.html) */
 .op-history-sub {
     margin: 0 0 8px;
@@ -425,15 +404,6 @@
     }
 }
 
-/* ================================================
-   Operation Step Progress UI (TASK-019)
-   Shows step-by-step progress during multi-VM operations
-   ================================================ */
-.operation-steps {
-    display: flex;
-    flex-direction: column;
-}
-
 .step {
     display: flex;
     align-items: flex-start;
@@ -455,87 +425,6 @@
 
 .step.completed:not(:last-child)::after {
     background: var(--success-color);
-}
-
-/* Step indicator circle */
-.step-indicator {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.875rem;
-    flex-shrink: 0;
-}
-
-.step.pending .step-indicator {
-    background: var(--surface-muted);
-    color: var(--text-secondary);
-}
-
-.step.active .step-indicator {
-    background: var(--primary-color);
-    color: white;
-}
-
-.step.completed .step-indicator {
-    background: var(--success-color);
-    color: white;
-}
-
-.step.failed .step-indicator {
-    background: var(--danger-color);
-    color: white;
-}
-
-.step.skipped .step-indicator {
-    background: var(--line);
-    color: var(--slate-light);
-}
-
-/* Step content */
-.step-content {
-    flex: 1;
-    padding-top: 0.25rem;
-}
-
-.step-title {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.step-status {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-.step.active .step-status {
-    color: var(--primary-color);
-}
-
-.step.failed .step-status {
-    color: var(--danger-color);
-}
-
-/* Step details (expandable) */
-.step-details {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background: var(--surface-subtle);
-    border-radius: 4px;
-    font-size: 0.8rem;
-}
-
-.step-details ul {
-    margin: 0;
-    padding-left: 1.25rem;
-}
-
-.step-details li {
-    margin-bottom: 0.25rem;
 }
 
 /* Operation progress banner (fixed bottom) */

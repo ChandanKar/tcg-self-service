@@ -13,104 +13,13 @@
     margin-bottom: 0.55rem;
 }
 
-
-
-#dashboard-view .dashboard-body {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    padding: 0 0.75rem 0.75rem;
-}
-
-.dashboard-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0.65rem;
-    margin-bottom: 0.75rem;
-}
-
-.dashboard-kpi {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    min-width: 0;
-    min-height: 72px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: var(--shadow-sm);
-    padding: 0.7rem;
-}
-
-.dashboard-kpi-action {
-    cursor: pointer;
-}
-
-.dashboard-kpi-action:hover {
-    border-color: var(--brand-navy-line);
-    box-shadow: 0 8px 18px rgba(20, 36, 92, 0.12);
-}
-
-.dashboard-kpi i {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    color: var(--brand-navy);
-    background: var(--brand-navy-tint);
-    flex-shrink: 0;
-}
-
-.dashboard-kpi div {
-    min-width: 0;
-}
-
-.dashboard-kpi strong,
-.dashboard-kpi span {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dashboard-kpi strong {
-    color: var(--text-primary);
-    font-size: 1.18rem;
-    line-height: 1.15;
-}
-
-.dashboard-kpi span {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.dashboard-layout {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.75rem;
-}
-
-.dashboard-chart-panel,
-.dashboard-table-panel,
-.dashboard-list-panel {
+.dashboard-chart-panel {
     min-width: 0;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background: #fff;
     box-shadow: var(--shadow-sm);
     padding: 0.7rem;
-}
-
-.dashboard-list-panel-scroll {
-    max-height: 300px;
-    overflow: auto;
-}
-
-.dashboard-list-panel-prominent {
-    max-height: 300px;
 }
 
 /* Scheduler Health and Risk & Compliance sit side by side (both dashboard-wide) — force them
@@ -149,23 +58,6 @@
     grid-column: span 2;
 }
 
-.dashboard-full {
-    grid-column: 1 / -1;
-}
-
-.dashboard-trio-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-}
-
-.dashboard-trio-item h3 {
-    margin: 0 0 0.3rem;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
 .dashboard-panel-head {
     display: flex;
     align-items: center;
@@ -195,169 +87,15 @@
     height: 220px;
 }
 
-.dashboard-env-table {
-    max-height: 300px;
-    overflow: auto;
-}
-
-.dashboard-env-table table {
-    font-size: 0.78rem;
-}
-
-.dashboard-env-table thead {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--surface-subtle);
-}
-
-.dashboard-env-table td strong,
-.dashboard-env-table td small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dashboard-env-table td small {
-    color: var(--text-secondary);
-    font-size: 0.68rem;
-}
-
-.dashboard-list-row,
-.dashboard-scheduler-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.55rem;
-    min-height: 40px;
-    border-bottom: 1px solid var(--surface-muted);
-    padding: 0.38rem 0;
-}
-
-.dashboard-list-row:last-child,
-.dashboard-scheduler-row:last-child {
-    border-bottom: 0;
-}
-
-.dashboard-list-row strong,
-.dashboard-list-row small,
-.dashboard-scheduler-row strong,
-.dashboard-scheduler-row small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dashboard-list-row strong,
-.dashboard-scheduler-row strong {
-    font-size: 0.76rem;
-}
-
-.dashboard-list-row small,
-.dashboard-scheduler-row small {
-    color: var(--text-secondary);
-    font-size: 0.66rem;
-}
-
-.dashboard-list-row em,
-.dashboard-scheduler-row em {
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-    font-style: normal;
-    font-weight: 700;
-}
-
-.dashboard-scheduler-row em.success { color: var(--success-color); }
-.dashboard-scheduler-row em.primary { color: var(--primary-color); }
-.dashboard-scheduler-row em.warning { color: var(--warning-color); }
-.dashboard-scheduler-row em.danger { color: var(--danger-color); }
-.dashboard-scheduler-row em.info { color: var(--info-color); }
-.dashboard-list-row em.success { color: var(--success-color); }
-.dashboard-list-row em.primary { color: var(--primary-color); }
-.dashboard-list-row em.warning { color: var(--warning-color); }
-.dashboard-list-row em.danger { color: var(--danger-color); }
-.dashboard-list-row em.info { color: var(--info-color); }
-
-.dashboard-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    background: var(--primary-color);
-}
-
-.dashboard-dot.success { background: var(--success-color); }
-.dashboard-dot.warning { background: var(--warning-color); }
-.dashboard-dot.danger { background: var(--danger-color); }
-.dashboard-dot.info { background: var(--info-color); }
-.dashboard-dot.primary { background: var(--primary-color); }
-
-.dashboard-empty-small {
-    min-height: 92px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    font-size: 0.78rem;
-}
-
-@media (max-width: 1280px) {
-    .dashboard-kpi-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .dashboard-layout {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
 @media (max-width: 768px) {
-    #dashboard-view .dashboard-body {
-        padding: 0 0.5rem 0.75rem;
-    }
-
-    .dashboard-kpi-grid,
-    .dashboard-layout {
-        grid-template-columns: 1fr;
-    }
 
     .dashboard-wide {
         grid-column: span 1;
     }
 
-    .dashboard-trio-grid {
-        grid-template-columns: 1fr;
-    }
-
     .dashboard-panel-head .form-control {
         width: 150px;
     }
-}
-
-/* Refresh controls sit together on the right of the page title. */
-.dashboard-header-actions {
-    display: flex;
-    gap: 0.25rem;
-    flex-shrink: 0;
-}
-
-/* Users see four KPIs (storage and metric coverage are admin concerns). */
-@media (min-width: 769px) {
-    .dashboard-kpi-grid.dashboard-kpi-grid-4 {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-
-.dashboard-env-link {
-    color: inherit;
-    text-decoration: none;
-}
-
-.dashboard-env-link:hover strong,
-.dashboard-env-link:focus-visible strong {
-    color: var(--primary-color);
-    text-decoration: underline;
 }
 
 /* ================================================

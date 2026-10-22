@@ -1,20 +1,4 @@
-/*
- * Access Request Styles
- */
 
-/* Request cards */
-.access-request-card {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    background: white;
-    transition: box-shadow 0.2s;
-}
-
-.access-request-card:hover {
-    box-shadow: var(--shadow-md);
-}
 
 /* Request status badges: the style guide's tinted chips */
 .badge.bg-PENDING {
@@ -37,19 +21,6 @@
     color: #4a5368;
 }
 
-/* Reason text truncation */
-.reason-text {
-    max-width: 200px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.reason-text:hover {
-    white-space: normal;
-    word-break: break-word;
-}
-
 /* Access level badges — see components/badges.css for .access-level-badge (unused .viewer/.user/.admin
    modifiers removed here; the live markup uses .level-viewer/.level-user/.level-admin) */
 
@@ -63,25 +34,6 @@
     font-weight: 600;
     font-size: 0.75rem;
     color: var(--slate);
-}
-
-/* Access expiration warning */
-.access-expiring-soon {
-    color: var(--brand-gold);
-}
-
-.access-expired {
-    color: var(--brand-red);
-    text-decoration: line-through;
-}
-
-/* Environment row in request list */
-.env-row {
-    transition: background 0.15s;
-}
-
-.env-row:hover {
-    background: var(--surface-subtle);
 }
 
 /* Request access form */

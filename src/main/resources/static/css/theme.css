@@ -358,8 +358,7 @@ a:hover {
 }
 
 /* ── Status chips ──────────────────────────────────────────────────────── */
-.chip,
-.status-badge {
+.chip {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
@@ -371,40 +370,27 @@ a:hover {
     line-height: 18px;
     white-space: nowrap;
 }
-.chip-running,
-.status-badge.running {
+.chip-running {
     background: var(--brand-green-tint);
     color: var(--brand-green-text);
 }
-.chip-waiting,
-.status-badge.partial,
-.status-badge.starting,
-.status-badge.stopping,
-.status-badge.pending,
-.status-badge.drift {
+.chip-waiting {
     background: var(--brand-gold-tint);
     color: var(--brand-gold-text);
 }
-.chip-failed,
-.status-badge.error {
+.chip-failed {
     background: var(--brand-red-tint);
     color: var(--brand-red-text);
     border: 0;
     font-weight: 500;
 }
-.chip-stopped,
-.status-badge.stopped,
-.status-badge.unknown {
+.chip-stopped {
     background: #eceff5;
     color: #4a5368;
 }
-.chip-admin,
-.status-badge.review {
+.chip-admin {
     background: var(--brand-navy-tint);
     color: var(--brand-navy);
-}
-.status-badge i {
-    font-size: 0.6875rem;
 }
 
 /* Bootstrap badges read as the same chips */

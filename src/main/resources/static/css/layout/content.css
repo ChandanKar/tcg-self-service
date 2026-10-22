@@ -50,16 +50,6 @@ body.app-shell {
     margin-bottom: 0.4rem;
 }
 
-/* Dashboard body: flex column, gaps between sections */
-#dashboard-view .dashboard-body {
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    gap: 0.35rem;
-}
-
 /* ── Metric cards: number only + tiny label ── */
 #dashboard-view .metric-card {
     padding: 0.6rem 0.75rem;
@@ -70,99 +60,8 @@ body.app-shell {
 #dashboard-view .metric-card:hover {
     transform: none;
 }
-#dashboard-view .metric-card .metric-value {
-    font-size: var(--font-size-2xl, 1.5rem);
-    font-weight: 700;
-    line-height: 1.2;
-    margin-bottom: 0;
-}
-#dashboard-view .metric-label-hint {
-    font-size: 0.63rem;
-    color: var(--text-caption);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-/* ── Env table card: fills all remaining height ── */
-#dashboard-view .env-table-card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    padding: 0.4rem 0.6rem 0.3rem;
-}
-
-/* Table wrapper: takes all space, scrolls only when > PAGE_SIZE rows */
-#dashboard-view .env-table-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-}
-/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
-
-/* Make the table itself fill full wrapper height so filler row expands */
-#dashboard-view .env-table-wrapper .table {
-    table-layout: fixed;
-    width: 100%;
-    height: 100%;
-}
-#dashboard-view .env-table-wrapper .table tbody {
-    height: 100%;
-}
-
-/* Compact table rows - DASHBOARD BASELINE */
-#dashboard-view .env-table-wrapper .table td,
-#dashboard-view .env-table-wrapper .table th {
-    padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    font-size: var(--table-body-font, 0.81rem);
-    vertical-align: middle;
-    line-height: 1.5;
-}
-#dashboard-view .env-table-wrapper .table thead th {
-    font-size: var(--table-header-font, 0.7rem);
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    background: var(--table-header-bg);
-}
-
-/* Environment col */
-#dashboard-view .env-table-wrapper .table thead th:nth-child(1),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(1) {
-    width: 38%;
-    text-align: left;
-}
-/* Type col */
-#dashboard-view .env-table-wrapper .table thead th:nth-child(2),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(2) {
-    width: 42px;
-    text-align: center;
-}
-/* Total VMs, Running, Lock Status, Cloud */
-#dashboard-view .env-table-wrapper .table thead th:nth-child(3),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(3),
-#dashboard-view .env-table-wrapper .table thead th:nth-child(4),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(4),
-#dashboard-view .env-table-wrapper .table thead th:nth-child(5),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(5),
-#dashboard-view .env-table-wrapper .table thead th:nth-child(6),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(6) {
-    width: 14%;
-}
-
-/* Single filler row expands to fill leftover space */
-#dashboard-view .env-table-filler {
-    height: 100%;
-}
-#dashboard-view .env-table-filler td {
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    pointer-events: none;
-}
 
 /* Pagination — see components/pagination.css for .pagination-bar-wrap */
-
 
 /* Pushes the shared .pagination-bar-wrap to the bottom of this flex-column card;
    see components/pagination.css for the bar's own chrome. */
@@ -372,53 +271,6 @@ body.app-shell {
     justify-content: center;
     font-size: 0.72rem;
     border-radius: 4px;
-}
-
-/* VM Registry styles moved to css/features/vm-registry.css */
-
-/* ================================================
-   Breadcrumb Navigation (TASK-018)
-   ================================================ */
-.content-breadcrumb {
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.content-breadcrumb .breadcrumb {
-    background: none;
-    padding: 0;
-    margin: 0;
-    font-size: 0.875rem;
-}
-
-.content-breadcrumb .breadcrumb-item a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-.content-breadcrumb .breadcrumb-item a:hover {
-    color: var(--primary-color);
-}
-
-.content-breadcrumb .breadcrumb-item.active {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.content-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
-    color: var(--text-secondary);
-}
-
-/* Compact breadcrumb for nested views */
-.content-breadcrumb.compact {
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.5rem;
-}
-
-.content-breadcrumb.compact .breadcrumb {
-    font-size: 0.8rem;
 }
 
 /* ================================================
