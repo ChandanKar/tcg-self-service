@@ -164,8 +164,9 @@ const Teams = (function() {
                 <div class="mb-3"><label class="form-label" for="team-name">Short name</label>
                     <input type="text" class="form-control" id="team-name" maxlength="100" value="${team ? team.name : ''}" placeholder="made from the display name">
                     <div class="form-text">Letters, digits and dashes; used in tags and reports.</div></div>
-                <div class="mb-0"><label class="form-label" for="team-cost-center">Cost centre</label>
-                    <input type="text" class="form-control" id="team-cost-center" maxlength="100" value="${team ? (team.costCenter || '') : ''}"></div>`,
+                <div class="mb-0"><label class="form-label" for="team-cost-center">Cost centre</label>${Utils.raw(InfoTip.markup('team-cc-tip', 'Cost centre', InfoTip.TERMS.costCentre))}
+                    <input type="text" class="form-control" id="team-cost-center" maxlength="100" value="${team ? (team.costCenter || '') : ''}"
+                        placeholder="e.g. CC-4410"></div>`,
             buttons: [{ text: 'Cancel', class: 'btn-secondary', dismiss: true },
                 { text: team ? 'Save' : 'Create team', class: 'btn-primary', id: 'team-save-btn' }],
             onShow: () => $('#team-display').trigger('focus')

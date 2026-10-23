@@ -25,6 +25,20 @@ test.describe('Teams', () => {
     await openTeams(page);
     await page.locator('[data-action="team-new"]').click();
     await page.locator('#team-display').fill(name);
+    // U20-T08: Cost centre explains itself, on hover and on focus; Escape hides it.
+    const tip = page.locator('#team-cc-tip');
+    await expect(tip).toBeHidden();
+    await page.getByRole('button', { name: 'What Cost centre means' }).hover();
+    await expect(tip).toBeVisible();
+    await expect(tip).toContainText('The finance code this team');
+    await expect(tip).toContainText('cost-center tag');
+    await page.mouse.move(0, 0);
+    await expect(tip).toBeHidden();
+    await page.getByRole('button', { name: 'What Cost centre means' }).focus();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(page.locator('#teamModal')).toBeVisible(); // the first Escape closes the tip only
     await page.locator('#team-cost-center').fill('CC-42');
     await page.locator('#team-save-btn').click();
 
