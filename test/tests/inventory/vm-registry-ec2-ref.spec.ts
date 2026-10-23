@@ -183,4 +183,34 @@ test.describe('Found in AWS (U19-T03)', () => {
     await expect(page.locator('#fia [data-fia="ignored"]')).toHaveText('Ignored (1)');
     await expect(page.locator('#fia .ui-state-filtered, #fia .ui-state-empty')).toBeVisible();
   });
+
+  test('the pager always counts what is shown and follows the search; the ignored list is paged too (U20-T06)', async ({ page }) => {
+    const items = Array.from({ length: 23 }, (_, i) => ({ kind: 'EC2', ref: `ref-${i}`, name: `${i < 12 ? 'web' : 'batch'}-${String(i).padStart(2, '0')}`,
+      accountRef: 'd', accountName: 'Default account', region: 'eu-west-1', zone: 'eu-west-1a', size: 't3.medium', state: 'running' }));
+    const ignored = Array.from({ length: 13 }, (_, i) => ({ id: `ig-${i}`, kind: 'EC2', name: `old-${i}`, region: 'eu-west-1',
+      accountName: 'Default account' }));
+    await page.route(/\/api\/v1\/discovery\/found/, route => json(route, {
+      items, scannedAt: new Date().toISOString(), unreachable: [], ignored: ignored.length }));
+    await page.route(/\/api\/v1\/discovery\/ignored$/, route => json(route, ignored));
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+    await page.getByRole('button', { name: 'Found in AWS' }).click();
+
+    const range = page.locator('#fia-pager .pager-range');
+    await expect(range).toHaveText('1–10 of 23', { timeout: 15_000 });
+    await page.locator('#fia-search').fill('batch');
+    await expect(range).toHaveText('1–10 of 11');
+    await page.locator('#fia-search').fill('web-01');
+    await expect(page.locator('#fia tbody tr')).toHaveCount(1);
+    await expect(range).toHaveText('1–1 of 1');
+    await page.locator('#fia-search').fill('nothing-like-this');
+    await expect(range).toHaveCount(0);
+
+    await page.locator('#fia [data-fia="ignored"]').click();
+    await expect(page.locator('#fia-ignored li')).toHaveCount(10);
+    await page.locator('#fia-ignored [data-action="fia-ignored-page"]', { hasText: 'Next' }).click();
+    await expect(page.locator('#fia-ignored li')).toHaveCount(3);
+    await expect(page.locator('#fia-ignored .pager-range')).toHaveText('11–13 of 13');
+  });
 });

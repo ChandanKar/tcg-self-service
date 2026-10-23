@@ -51,7 +51,7 @@ const FoundInAws = (function() {
     // ------------------------------------------------------------------ panel
 
     function open() {
-        s = { data: null, page: 1, region: '', kind: '', search: '', showIgnored: false, ignored: null };
+        s = { data: null, page: 1, region: '', kind: '', search: '', showIgnored: false, ignored: null, ignoredPage: 1 };
         Slideout.open('Found in AWS', '<div class="fia" id="fia"></div>', { variant: 'found-in-aws', width: 920 });
         bind();
         load(false);
@@ -100,12 +100,17 @@ const FoundInAws = (function() {
             </div>
             <div id="fia-list">${Utils.raw(listHtml(rows))}</div>
             <div class="fia-foot">
-                ${Utils.raw(rows.length > PAGE_SIZE ? Pagination.buildPager({ page: s.page, pageSize: PAGE_SIZE, totalItems: rows.length,
-                    action: 'fia-page', key: 'found' }) : '')}
+                <span id="fia-pager">${Utils.raw(pagerHtml(rows))}</span>
                 <button type="button" class="vr-link" data-fia="ignored" aria-expanded="${s.showIgnored ? 'true' : 'false'}">Ignored (${s.data.ignored || 0})</button>
             </div>
             <div id="fia-ignored"${Utils.raw(s.showIgnored ? '' : ' hidden')}></div>`);
         if (s.showIgnored) drawIgnored();
+    }
+
+    /** Always "1–10 of 23" while anything is listed, and it follows the filters and the search (U20-T06). */
+    function pagerHtml(rows) {
+        return rows.length ? Pagination.buildPager({ page: s.page, pageSize: PAGE_SIZE, totalItems: rows.length,
+            action: 'fia-page', key: 'found' }) : '';
     }
 
     function listHtml(rows) {
@@ -169,9 +174,15 @@ const FoundInAws = (function() {
                 return;
             }
         }
-        $box.html(s.ignored.length ? `<ul class="fia-ignored">${s.ignored.map(r => Utils.html`<li>
+        // Ten a page, like the list above (U20-T06).
+        const pages = Math.max(1, Math.ceil(s.ignored.length / PAGE_SIZE));
+        s.ignoredPage = Math.min(Math.max(1, s.ignoredPage), pages);
+        const shown = Pagination.slice(s.ignored, s.ignoredPage, PAGE_SIZE);
+        $box.html(s.ignored.length ? `<ul class="fia-ignored">${shown.map(r => Utils.html`<li>
                 <span>${r.name || (r.kind === 'EKS' ? 'Cluster' : '(no name tag)')} · ${r.kind === 'EKS' ? 'EKS cluster' : 'EC2 instance'} · ${r.region} · ${r.accountName || ''}</span>
-                <button type="button" class="vr-link" data-fia="unignore" data-id="${r.id}">Bring back</button></li>`).join('')}</ul>`
+                <button type="button" class="vr-link" data-fia="unignore" data-id="${r.id}">Bring back</button></li>`).join('')}</ul>
+                ${s.ignored.length > PAGE_SIZE ? Pagination.buildPager({ page: s.ignoredPage, pageSize: PAGE_SIZE, totalItems: s.ignored.length,
+                    action: 'fia-ignored-page', key: 'found-ignored' }) : ''}`
             : '<p class="fia-note">Nothing is ignored.</p>');
     }
 
@@ -273,6 +284,11 @@ const FoundInAws = (function() {
                 s.page = Number(this.dataset.page) || 1;
                 draw();
             })
+            .on('click.fia', '#fia [data-action="fia-ignored-page"]', function() {
+                if (this.disabled) return;
+                s.ignoredPage = Number(this.dataset.page) || 1;
+                drawIgnored();
+            })
             .on('change.fia', '#fia-region', function() { s.region = this.value; s.page = 1; draw(); })
             .on('change.fia', '#fia-kind', function() { s.kind = this.value; s.page = 1; draw(); })
             .on('input.fia', '#fia-search', Utils.debounce ? Utils.debounce(function() { s.search = this.value; s.page = 1; redrawList(); }, 200)
@@ -283,6 +299,7 @@ const FoundInAws = (function() {
     function redrawList() {
         const rows = filterItems(s.data.items || [], s);
         $('#fia-list').html(listHtml(rows));
+        $('#fia-pager').html(pagerHtml(rows));
     }
 
     return { open, model: { filterItems, regionsOf, summaryText, nameOf, PAGE_SIZE } };

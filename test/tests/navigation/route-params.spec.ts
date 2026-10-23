@@ -270,6 +270,11 @@ test.describe('Environment settings', () => {
     await expect(page).toHaveURL(/#\/vm-registry$/, { timeout: 10_000 });
     const admin = await api(playwright, devIds.admin);
     expect((await (await admin.get(`/api/v1/environments/${env.environmentId}`)).json()).isActive).toBe(false);
+
+    // U20-T06: the message offers Undo to an administrator, which brings it straight back.
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(page.getByText(`${env.displayName} is active again.`)).toBeVisible();
+    expect((await (await admin.get(`/api/v1/environments/${env.environmentId}`)).json()).isActive).toBe(true);
     await admin.dispose();
   });
 

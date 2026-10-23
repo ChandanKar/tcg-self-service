@@ -383,8 +383,11 @@ test.describe('Every registry action', () => {
     await page.evaluate(() => { location.hash = '#/vm-registry'; });
     await expect(page.locator('#vr-env-list')).toContainText('No environments yet', { timeout: 15_000 });
 
-    await page.locator('#filterStatus').selectOption('inactive');
+    // U20-T06: two clicks from the registry: Deactivated (n), then Reactivate.
+    await page.getByRole('button', { name: 'Deactivated (1)' }).click();
+    await expect(page.locator('#filterStatus')).toHaveValue('inactive');
     await expect(page.locator('#vr-sel-title')).toHaveText('Old Env');
+    await expect(page.getByRole('button', { name: 'Active environments' })).toBeVisible();
     await expect(page.locator('#vr-detail-head [data-action="vr-delete-environment"]')).toHaveCount(0);
     await page.locator('#vr-detail-head [data-action="vr-reactivate-environment"]').click();
 

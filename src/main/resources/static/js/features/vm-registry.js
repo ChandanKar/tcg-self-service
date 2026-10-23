@@ -154,6 +154,23 @@ const VmRegistry = (function() {
                     Utils.html`<option value="${r}"${Utils.raw(r === state.region ? ' selected' : '')}>${label(r)}</option>`).join(''))}</select>`);
     }
 
+    /**
+     * A link to the other list (U20-T06): "Deactivated (3)" under Active, so an environment to bring back
+     * is two clicks away (this link, then Reactivate on it); "Active environments" from there.
+     */
+    function drawShowOther(inactiveCount) {
+        const state = window.VmRegistryState;
+        $('#vr-show-other').html(state.show === 'inactive'
+            ? '<button type="button" class="vr-link" data-action="vr-show-list" data-show="active">Active environments</button>'
+            : inactiveCount ? Utils.html`<button type="button" class="vr-link" data-action="vr-show-list" data-show="inactive">Deactivated (${String(inactiveCount)})</button>` : '');
+    }
+
+    function showList(which) {
+        $('#filterStatus').val(which === 'inactive' ? 'inactive' : 'active');
+        window.VmRegistryState.currentPage = 1;
+        loadEnvironmentsData();
+    }
+
     // =========================================================================
     // Template
     // =========================================================================
@@ -177,6 +194,7 @@ const VmRegistry = (function() {
                                 <option value="inactive">Deactivated</option>
                             </select>
                             <span class="vr-region-filter" id="vr-region-filter"></span>
+                            <span class="vr-show-other" id="vr-show-other"></span>
                         </div>
                         <div class="vr-env-list" id="vr-env-list" data-scroll-label="Environments"><div class="vr-empty">Loading environments…</div></div>
                         <div class="vr-master-pager" id="vm-registry-pagination"></div>
@@ -198,12 +216,13 @@ const VmRegistry = (function() {
         const state = window.VmRegistryState;
         const show = $('#filterStatus').val() || 'active';
         try {
-            const environments = await ApiClient.get(
-                `/api/v1/environments?includeInactive=${show === 'inactive'}&includeGroups=true`);
+            // Both lists at once, so the other one's count can be offered (U20-T06: Deactivated (n)).
+            const environments = await ApiClient.get('/api/v1/environments?includeInactive=true&includeGroups=true');
             if (!isActive()) return;
-            state.environments = (environments || []).filter(env =>
-                show === 'inactive' ? env.isActive === false : env.isActive !== false);
+            const all = environments || [];
+            state.environments = all.filter(env => show === 'inactive' ? env.isActive === false : env.isActive !== false);
             state.show = show;
+            drawShowOther(all.filter(env => env.isActive === false).length);
             drawRegionFilter();
             applyFilter();
         } catch (error) {
@@ -955,6 +974,7 @@ const VmRegistry = (function() {
         addVmsFromAws,
         openCreateEnvironmentModal,
         reactivateEnvironment,
+        showList,
         manageGroups,
         syncEksNow,
         changeGroupVmPage,
@@ -994,6 +1014,7 @@ if (typeof Actions !== 'undefined') {
         'vr-edit-environment': el => { window.location.hash = `#/environments/${encodeURIComponent(el.dataset.envId)}/settings`; },
         'vr-delete-environment': el => { window.location.hash = `#/environments/${encodeURIComponent(el.dataset.envId)}/settings/deactivate`; },
         'vr-reactivate-environment': el => VmRegistry.reactivateEnvironment(el.dataset.envId),
+        'vr-show-list': el => VmRegistry.showList(el.dataset.show),
         'vr-sync-eks': () => VmRegistry.syncEksNow(),
         'vr-edit-vm': el => VmRegistry.editVm(el.dataset.vmId),
         'vr-delete-vm': el => VmRegistry.deleteVm(el.dataset.vmId),

@@ -745,3 +745,13 @@
 .vr-master-tools .vr-region-filter .form-select {
     width: 100%;
 }
+
+/* "Deactivated (3)" / "Active environments" under the list's tools (U20-T06). */
+.vr-show-other {
+    flex-basis: 100%;
+    font-size: var(--fs-small);
+}
+
+.vr-show-other:empty {
+    display: none;
+}

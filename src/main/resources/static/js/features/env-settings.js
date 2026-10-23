@@ -488,8 +488,19 @@ const EnvSettings = (function() {
         $('#es-deactivate-error').text('');
         $('#es-deactivate').prop('disabled', true).text('Deactivating…');
         try {
-            await ApiClient.delete(Config.API.environments.delete(s.env.environmentId), { suppressGlobalError: true });
-            Notifications.success(`${envName()} deactivated.`);
+            const id = s.env.environmentId;
+            const name = envName();
+            await ApiClient.delete(Config.API.environments.delete(id), { suppressGlobalError: true });
+            // U20-T06: an administrator can take it back at once (reactivating is theirs).
+            const undo = typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin() ? { action: { label: 'Undo', onClick: () => {
+                ApiClient.post(Config.API.environments.reactivate(id), undefined, { suppressGlobalError: true })
+                    .done(() => {
+                        Notifications.success(`${name} is active again.`);
+                        if (typeof ContentRouter !== 'undefined' && ContentRouter.reload) ContentRouter.reload();
+                    })
+                    .fail(() => Notifications.error(`${name} wasn't reactivated. Bring it back from VM registry › Deactivated.`));
+            } } } : {};
+            Notifications.success(`${name} deactivated.`, undefined, undo);
             window.location.hash = '#/vm-registry';
         } catch (xhr) {
             $('#es-deactivate-error').text((xhr && xhr.responseJSON && xhr.responseJSON.message) || "It wasn't deactivated. Try again.");
