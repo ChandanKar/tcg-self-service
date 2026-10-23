@@ -71,3 +71,18 @@ test('U19-T06/T08 Regions: one row per account and region, failures first, the c
     assert.equal(M.noteKind('WRONG_REGION'), 'In another region');
     assert.equal(M.noteKind('SOMETHING'), 'Failed');
 });
+
+test('U20-T09: Check VM states now says what it found', () => {
+    assert.equal(M.syncResultText({ totalVmsSynced: 42, driftDetected: 2, syncErrors: 0 }), 'Checked 42 VMs: 2 changed outside the platform.');
+    assert.equal(M.syncResultText({ totalVmsSynced: 1, driftDetected: 0, syncErrors: 0 }), 'Checked 1 VM: nothing changed outside the platform.');
+    assert.equal(M.syncResultText({ totalVmsSynced: 9, driftDetected: 1, syncErrors: 3 }),
+        "Checked 9 VMs: 1 changed outside the platform, 3 couldn't be read.");
+});
+
+test('U20-T09: one state-changes list; where each change came from; only outside the platform', () => {
+    const list = [{ changeSource: 'operation', changedByUsername: 'Asha Rao' }, { changeSource: 'state_sync', drift: true },
+        { changeSource: 'operation' }];
+    assert.deepEqual(list.map(M.sourceText), ['Platform, by Asha Rao', 'Outside the platform', 'Platform']);
+    assert.equal(M.changeRows(list, false).length, 3);
+    assert.deepEqual(M.changeRows(list, true).map(c => c.changeSource), ['state_sync']);
+});

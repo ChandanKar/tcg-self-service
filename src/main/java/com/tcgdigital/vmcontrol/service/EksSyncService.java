@@ -61,6 +61,14 @@ public class EksSyncService {
     @Autowired
     private EksSyncService self;
 
+    /** U20-T09: a node group's drift goes into state history like a VM's, so System health shows it. */
+    private com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository stateHistory;
+
+    @Autowired(required = false)
+    void setStateHistory(com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository stateHistory) {
+        this.stateHistory = stateHistory;
+    }
+
     public EksSyncService(EnvironmentRepository environmentRepository,
                           VmGroupRepository groupRepository,
                           VmRepository vmRepository,
@@ -473,7 +481,8 @@ public class EksSyncService {
         VmStatus liveStatus = nodegroup != null ? eksService.mapNodegroupForSync(nodegroup, currentStatus) : VmStatus.UNKNOWN;
 
         // Drift detection
-        if (liveStatus != VmStatus.UNKNOWN && currentStatus != liveStatus) {
+        boolean drifted = liveStatus != VmStatus.UNKNOWN && currentStatus != liveStatus;
+        if (drifted) {
             log.info("EKS node group {}/{} drift detected: {} → {}", clusterName, nodeGroupName, currentStatus, liveStatus);
             vm.setStateDriftDetected(true);
             auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
@@ -487,7 +496,17 @@ public class EksSyncService {
 
         vm.setStatus(liveStatus != VmStatus.UNKNOWN ? liveStatus : currentStatus);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-        vmRepository.save(vm);
+        Vm saved = vmRepository.save(vm);
+        if (drifted && !vmCreated && stateHistory != null) {
+            stateHistory.save(com.tcgdigital.vmcontrol.model.VmStateHistory.builder()
+                    .historyId(java.util.UUID.randomUUID().toString())
+                    .vm(saved != null ? saved : vm)
+                    .previousStatus(currentStatus)
+                    .newStatus(liveStatus)
+                    .changeSource("state_sync")
+                    .details("EKS node group " + clusterName + "/" + nodeGroupName + " changed outside the platform")
+                    .build());
+        }
         if (groupCreated || vmCreated) {
             changes.created++;
         }

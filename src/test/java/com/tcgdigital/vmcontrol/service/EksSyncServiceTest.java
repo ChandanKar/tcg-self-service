@@ -362,6 +362,9 @@ class EksSyncServiceTest {
         when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.of(existingVm));
         ArgumentCaptor<Vm> vmCaptor = ArgumentCaptor.forClass(Vm.class);
         when(vmRepository.save(vmCaptor.capture())).thenAnswer(i -> i.getArgument(0));
+        com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository history =
+                mock(com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository.class);
+        service.setStateHistory(history);
 
         service.syncEksEnvironment(env);
 
@@ -369,6 +372,14 @@ class EksSyncServiceTest {
         assertTrue(saved.getStateDriftDetected(), "Drift must be flagged when DB and live status differ");
         assertEquals(VmStatus.RUNNING, saved.getStatus());
         verify(auditService).logAction(any(), eq(AuditAction.STATE_DRIFT_DETECTED), any(), any(), any(), any());
+        // U20-T09: and it is in state history, as drift (found by the sync), for System health.
+        ArgumentCaptor<com.tcgdigital.vmcontrol.model.VmStateHistory> row =
+                ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.VmStateHistory.class);
+        verify(history).save(row.capture());
+        assertEquals("state_sync", row.getValue().getChangeSource());
+        assertEquals(VmStatus.STOPPED, row.getValue().getPreviousStatus());
+        assertEquals(VmStatus.RUNNING, row.getValue().getNewStatus());
+        assertEquals("vm-drift", row.getValue().getVm().getVmId());
     }
 
     // ---- E09-T07: UPDATING by current status, the transitional guard, AWS before the transaction ----
@@ -398,11 +409,16 @@ class EksSyncServiceTest {
         Vm vm = existingVm(VmStatus.RUNNING, null);
         when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(updating(3));
 
+        com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository history =
+                mock(com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository.class);
+        service.setStateHistory(history);
+
         service.syncEksEnvironment(buildEnvironment());
 
         assertEquals(VmStatus.RUNNING, vm.getStatus());
         assertFalse(vm.getStateDriftDetected());
         verify(auditService, never()).logAction(any(), eq(AuditAction.STATE_DRIFT_DETECTED), any(), any(), any(), any());
+        verify(history, never()).save(any());
     }
 
     @Test

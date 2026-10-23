@@ -546,3 +546,13 @@
     font-size: var(--fs-small);
     color: var(--text-secondary);
 }
+
+/* State changes (U20-T09): one table; a change found outside the platform is marked at its edge. */
+.sh-changes-count {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.sh-change-outside td:first-child {
+    box-shadow: inset 3px 0 var(--brand-gold);
+}

@@ -72,7 +72,36 @@ test.describe('System Health', () => {
 
     await page.getByRole('tab', { name: 'Now' }).click();
     await page.locator('#trigger-sync-btn').click();
-    await expect(page.getByText('Failed to trigger sync')).toBeVisible();
+    await expect(page.getByText("The VM states couldn't be checked. Try again.")).toBeVisible();
+  });
+
+  test('U20-T09: Check VM states now says what it found; one state-changes table with where each came from', async ({ page }) => {
+    await page.route('**/api/v1/monitoring/sync', route => route.fulfill({ json: { totalVmsSynced: 42, driftDetected: 2, syncErrors: 0 } }));
+    const at = (min: number) => new Date(Date.now() - min * 60000).toISOString();
+    const change = (i: number, outside: boolean) => ({ historyId: `h${i}`, vmId: `vm-${i}`, vmName: `web-${String(i).padStart(2, '0')}`,
+      previousStatus: outside ? 'RUNNING' : 'STOPPED', newStatus: outside ? 'STOPPED' : 'RUNNING',
+      changeSource: outside ? 'state_sync' : 'operation', drift: outside, changedByUsername: outside ? null : 'Asha Rao', changedAt: at(i) });
+    await page.route('**/api/v1/monitoring/state-changes', route => route.fulfill({
+      json: Array.from({ length: 14 }, (_, i) => change(i + 1, i % 4 === 0)) }));
+    await page.route(/\/api\/v1\/monitoring\/drift-events\?/, route => route.fulfill({
+      json: { content: [], page: { size: 20, number: 0, totalElements: 4, totalPages: 1 } } }));
+    await openHealth(page);
+
+    await expect(page.getByRole('button', { name: 'Check VM states now' })).toHaveAttribute('title', /EC2, EKS node groups and RDS/);
+    await page.getByRole('button', { name: 'Check VM states now' }).click();
+    await expect(page.getByText('Checked 42 VMs: 2 changed outside the platform.')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Reports' }).click();
+    const table = page.locator('#sh-changes-table');
+    await expect(table.locator('tbody tr')).toHaveCount(10, { timeout: 10_000 });
+    await expect(page.getByText('Drift Events (24h)')).toHaveCount(0); // one table, not two
+    await expect(page.locator('.sh-changes-count')).toHaveText('4 changes outside the platform in 24 hours');
+    await expect(table.locator('tbody tr').first()).toContainText('Outside the platform');
+    await expect(table.locator('tbody tr').nth(1)).toContainText('Platform, by Asha Rao');
+    await expect(page.locator('#sh-changes .pager-range')).toHaveText('1–10 of 14');
+    await page.getByLabel('Only outside the platform').check();
+    await expect(table.locator('tbody tr')).toHaveCount(4);
+    await expect(table.locator('tbody tr.sh-change-outside')).toHaveCount(4);
   });
 
   test('now: four figures and the jobs, problems first; All follows the catalog; 10 a page', async ({ page }) => {
@@ -110,7 +139,7 @@ test.describe('System Health', () => {
     await expect(rows.nth(1)).toContainText('Metrics sync');
   });
 
-  test('Sync EKS now shows only when an EKS environment exists', async ({ page }) => {
+  test('Sync EKS clusters shows only when an EKS environment exists', async ({ page }) => {
     let eks = false;
     await page.route(/\/api\/v1\/environments$/, async route => {
       if (route.request().method() !== 'GET') return route.continue();
@@ -118,12 +147,12 @@ test.describe('System Health', () => {
     });
     await openHealth(page);
     await expect(page.locator('#sh-jobs-table, #sh-jobs-body .sh-note').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: 'Sync VM state now' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Check VM states now' })).toBeVisible();
     await expect(page.locator('#trigger-eks-sync-btn')).toBeHidden();
 
     eks = true;
     await page.evaluate(() => ContentRouter.reload());
-    await expect(page.getByRole('button', { name: 'Sync EKS now' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Sync EKS clusters' })).toBeVisible({ timeout: 10_000 });
   });
 
   test('Fleet use: asked for only when opened; lines, fleet state, coverage and risk rows that link to their fix (U14-T09)', async ({ page }) => {

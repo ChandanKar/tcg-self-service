@@ -2,12 +2,13 @@
  * VM Self-Service Platform - System health (U14-T02, SystemHealth.dc.html), administrators only.
  * Now: four figures (VM state sync, drift in 24 h, actions in 24 h with the success rate, scheduled
  * jobs on time) and the scheduled jobs (GET /monitoring/scheduler-health: Job, Runs, Last run,
- * Status), problems first or all, 10 a page. Header: Sync VM state now, and Sync EKS now when an
- * EKS environment exists. Fleet use (?tab=fleet, U14-T09, fleet-use.js) shows CPU, memory and network
+ * Status), problems first or all, 10 a page. Header (U20-T09): Check VM states now (every VM, EC2,
+ * EKS node groups and RDS, read from AWS; says what it found), and Sync EKS clusters when an EKS
+ * environment exists (node groups found, added and updated). Fleet use (?tab=fleet, U14-T09, fleet-use.js) shows CPU, memory and network
  * over 24 hours, the fleet's state, metrics coverage and risk and compliance, asked for only when
- * opened. Reports (?tab=reports) keeps the earlier 24-hour tables (audit summary,
- * state changes, drift, lock compliance, VM operations, email log) and asks for them only when
- * opened. Every window is the last 24 hours as exact instants (E12-T06).
+ * opened. Reports (?tab=reports) keeps the earlier 24-hour tables (audit summary, state changes:
+ * one table with where each change came from and 'Only outside the platform' for drift, lock
+ * compliance, VM operations, email log) and asks for them only when opened. Every window is the last 24 hours as exact instants (E12-T06).
  */
 
 const SystemHealth = (function () {
@@ -220,8 +221,10 @@ const SystemHealth = (function () {
                 summaryHtml: SUMMARY[s.tab] || SUMMARY.now,
                 // The syncs belong to Now; the boards show no actions on Fleet use.
                 actionsHtml: `<span id="sh-now-actions" class="sh-now-actions"${s.tab === 'now' ? '' : ' hidden'}>
-                    <button type="button" class="btn btn-secondary" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync" hidden>Sync EKS now</button>
-                    <button type="button" class="btn btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">Sync VM state now</button></span>`,
+                    <button type="button" class="btn btn-secondary" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync" hidden
+                        title="Reads each EKS cluster's node groups from AWS: adds new ones and updates their size and state">Sync EKS clusters</button>
+                    <button type="button" class="btn btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync"
+                        title="Reads every VM's state from AWS (EC2, EKS node groups and RDS) and records what changed outside the platform">Check VM states now</button></span>`,
                 helpPage: typeof HelpLink !== 'undefined' ? 'system-health' : null, helpLabel: 'System health' })}
             <div class="sh-tabs" role="tablist" aria-label="System health">${tabs.map(([key, label]) => `<button type="button" role="tab"
                 class="sh-tab" id="sh-tab-${key}" data-sh-tab="${key}" aria-controls="sh-panel-${key}" aria-selected="${key === s.tab}">${label}</button>`).join('')}</div>
@@ -450,7 +453,7 @@ const SystemHealth = (function () {
         const range = lastDay();
         const canAdmin = Auth.isEnvAdmin();
         const [stateChanges, drift, auditReport, lockReport, vmOpsReport, emailLog] = await Promise.all([
-            fetchStateChanges(),
+            canAdmin ? fetchStateChanges() : Promise.resolve([]),
             canAdmin ? fetchDriftEvents(range) : Promise.resolve({ events: [], total: 0 }),
             canAdmin ? fetchAuditReport(range) : Promise.resolve(null),
             canAdmin ? fetchLockReport(range) : Promise.resolve([]),
@@ -458,8 +461,59 @@ const SystemHealth = (function () {
             fetchEmailLog()
         ]);
         if (!ContentRouter.isCurrent(token)) return;
-        $('#sh-panel-reports').html(reportsHtml({ canAdmin, stateChanges, driftEvents: drift.events,
-            driftCount: drift.total || 0, auditReport, lockReport, vmOpsReport, emailLog }));
+        s.changes = { list: Array.isArray(stateChanges) ? stateChanges : [], outsideOnly: false, page: 1 };
+        $('#sh-panel-reports').html(reportsHtml({ canAdmin, driftCount: drift.total || 0, auditReport, lockReport, vmOpsReport, emailLog }));
+        drawChanges();
+    }
+
+    // ─── state changes (U20-T09: one table; drift is a change found outside the platform) ─────
+
+    /** Where a change came from, in words. */
+    function sourceText(c) {
+        if (c.drift || c.changeSource === 'state_sync') return 'Outside the platform';
+        if (c.changeSource === 'operation') return c.changedByUsername ? `Platform, by ${c.changedByUsername}` : 'Platform';
+        return c.changedByUsername || 'Platform';
+    }
+
+    /** The rows shown: everything, or only what changed outside the platform. */
+    function changeRows(list, outsideOnly) {
+        return (list || []).filter(c => !outsideOnly || c.drift || c.changeSource === 'state_sync');
+    }
+
+    function drawChanges() {
+        const c = s.changes;
+        const $box = $('#sh-changes');
+        if (!c || !$box.length) return;
+        const rows = changeRows(c.list, c.outsideOnly);
+        const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+        c.page = Math.min(Math.max(1, c.page), pages);
+        const shown = Pagination.slice(rows, c.page, PAGE_SIZE);
+        $box.html(rows.length ? `<div class="sh-table-wrapper"><table class="table table-hover mb-0" id="sh-changes-table">
+                <thead><tr><th scope="col">VM</th><th scope="col">From</th><th scope="col"><span class="visually-hidden">to</span></th>
+                    <th scope="col">To</th><th scope="col">Where it came from</th><th scope="col">When</th></tr></thead>
+                <tbody>${shown.map(r => `<tr${r.drift || r.changeSource === 'state_sync' ? ' class="sh-change-outside"' : ''}>
+                    <td>${Utils.escapeHtml(r.vmName || r.vmId || '—')}</td>
+                    <td>${stateBadge(r.previousStatus)}</td>
+                    <td class="text-center text-muted px-0"><i class="fas fa-arrow-right" aria-hidden="true"></i></td>
+                    <td>${stateBadge(r.newStatus)}</td>
+                    <td>${Utils.escapeHtml(sourceText(r))}</td>
+                    <td class="text-muted" title="${absTime(r.changedAt)}">${relativeTime(r.changedAt)}</td></tr>`).join('')}</tbody></table></div>
+            ${rows.length > PAGE_SIZE ? Pagination.buildPager({ page: c.page, pageSize: PAGE_SIZE, totalItems: rows.length,
+                action: 'sh-changes-page', key: 'changes' }) : ''}`
+            : UiStates.empty({ title: c.outsideOnly ? 'Nothing changed outside the platform' : 'No recent state changes' }));
+    }
+
+    function setChangesOutsideOnly(on) {
+        if (!s.changes) return;
+        s.changes.outsideOnly = !!on;
+        s.changes.page = 1;
+        drawChanges();
+    }
+
+    function changesPage(page) {
+        if (!s.changes) return;
+        s.changes.page = Number(page) || 1;
+        drawChanges();
     }
 
     // ─── trigger sync ─────────────────────────────────────────────────────────
@@ -473,50 +527,60 @@ const SystemHealth = (function () {
         ContentRouter.onLeave(() => clearTimeout(id));
     }
 
+    /** "Checked 42 VMs: 2 changed outside the platform, 1 couldn't be read." (U20-T09: the check has finished). */
+    function syncResultText(r) {
+        const n = Number(r && r.totalVmsSynced) || 0;
+        const drift = Number(r && r.driftDetected) || 0;
+        const errors = Number(r && r.syncErrors) || 0;
+        const parts = [drift ? `${plural(drift, 'changed', 'changed')} outside the platform` : 'nothing changed outside the platform'];
+        if (errors) parts.push(`${errors} couldn't be read`);
+        return `Checked ${plural(n, 'VM', 'VMs')}: ${parts.join(', ')}.`;
+    }
+
     function triggerSync() {
         const $btn = $('#trigger-sync-btn');
-        $btn.prop('disabled', true).text('Syncing…');
+        $btn.prop('disabled', true).text('Checking…');
 
         apiPost(Config.API.monitoring.triggerSync)
-            .done(() => {
-                Notifications.show('State sync started. Refreshing in 3 s…', 'success');
-                reloadLaterIfCurrent(3000);
+            .done(result => {
+                Notifications.show(syncResultText(result), result && result.syncErrors ? 'warning' : 'success');
+                reloadLaterIfCurrent(1000);
             })
             .fail(xhr => {
                 if (xhr && xhr.status === 409) {
-                    Notifications.show('A sync is already running.', 'warning');
+                    Notifications.show('A check is already running. Its result shows here when it ends.', 'warning');
                 } else {
-                    Notifications.show('Failed to trigger sync', 'error');
+                    Notifications.show("The VM states couldn't be checked. Try again.", 'error');
                 }
-                $btn.prop('disabled', false).text('Sync VM state now');
+                $btn.prop('disabled', false).text('Check VM states now');
             });
     }
 
     function triggerEksSync() {
         const $btn = $('#trigger-eks-sync-btn');
-        $btn.prop('disabled', true).text('Syncing EKS…');
+        $btn.prop('disabled', true).text('Syncing EKS clusters…');
 
         apiPost(Config.API.monitoring.triggerEksSync)
             .done(data => {
                 const n = data && data.nodeGroupsSynced != null ? data.nodeGroupsSynced : 0;
-                Notifications.show(`EKS sync done: ${n} node group${n === 1 ? '' : 's'} checked.`, 'success');
-                reloadLaterIfCurrent(2000);
+                Notifications.show(`EKS clusters synced: ${plural(n, 'node group', 'node groups')} read from AWS.`, 'success');
+                reloadLaterIfCurrent(1000);
             })
             .fail(xhr => {
                 if (xhr && xhr.status === 503) {
                     Notifications.show('EKS is not available: check the AWS credentials.', 'warning');
                 } else {
-                    Notifications.show('EKS sync failed', 'error');
+                    Notifications.show("The EKS clusters couldn't be synced. Try again.", 'error');
                 }
             })
             .always(() => {
-                $btn.prop('disabled', false).text('Sync EKS now');
+                $btn.prop('disabled', false).text('Sync EKS clusters');
             });
     }
 
     // ─── Reports ──────────────────────────────────────────────────────────────
 
-    function reportsHtml({ canAdmin, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
+    function reportsHtml({ canAdmin, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
 
         const auditTotal    = auditReport ? (auditReport.totalActions || 0) : 0;
         // Counted by the server over the whole window (E12-T06), not from the 20-row sample.
@@ -565,34 +629,18 @@ const SystemHealth = (function () {
                 </div>
             </div>` : ''}
 
-            <!-- State Changes + Drift side-by-side -->
-            <div class="row g-2 mb-3">
-                <div class="col-md-6">
-                    <div class="card sh-table-card h-100">
-                        <div class="card-header d-flex align-items-center gap-2">
-                            <i class="fas fa-exchange-alt text-info"></i>
-                            <strong>Recent State Changes</strong>
-                            <span class="badge bg-secondary ms-auto">${stateChanges.length}</span>
-                        </div>
-                        <div class="card-body">
-                            ${buildStateChangesTable(stateChanges)}
-                        </div>
-                    </div>
+            ${canAdmin ? `
+            <!-- State changes (U20-T09): the platform's and those found outside it, in one table -->
+            <div class="card sh-table-card mb-3">
+                <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                    <i class="fas fa-exchange-alt text-info" aria-hidden="true"></i>
+                    <strong>State changes</strong>
+                    <span class="sh-changes-count">${Utils.escapeHtml(plural(driftCount, 'change', 'changes'))} outside the platform in 24 hours</span>
+                    <label class="re-check ms-auto"><input type="checkbox" id="sh-changes-outside" data-action-change="sh-changes-outside">
+                        Only outside the platform</label>
                 </div>
-                ${canAdmin ? `
-                <div class="col-md-6">
-                    <div class="card sh-table-card h-100">
-                        <div class="card-header d-flex align-items-center gap-2">
-                            <i class="fas fa-exclamation-triangle text-warning"></i>
-                            <strong>Drift Events (24h)</strong>
-                            <span class="badge bg-warning text-dark ms-auto">${driftCount}</span>
-                        </div>
-                        <div class="card-body">
-                            ${buildDriftTable(driftEvents)}
-                        </div>
-                    </div>
-                </div>` : ''}
-            </div>
+                <div class="card-body" id="sh-changes"></div>
+            </div>` : ''}
 
             ${canAdmin ? `
             <!-- Lock Compliance Report -->
@@ -635,49 +683,6 @@ const SystemHealth = (function () {
     }
 
     // ─── table builders ───────────────────────────────────────────────────────
-
-    function buildStateChangesTable(changes) {
-        if (!changes || changes.length === 0) {
-            return UiStates.empty({ title: 'No recent state changes' });
-        }
-        const rows = changes.slice(0, 20).map(c => `
-            <tr>
-                <td>${Utils.escapeHtml(c.vmName || c.vmId || '—')}</td>
-                <td>${stateBadge(c.previousStatus)}</td>
-                <td class="text-center text-muted px-0"><i class="fas fa-arrow-right"></i></td>
-                <td>${stateBadge(c.newStatus)}</td>
-                <td class="text-muted">${Utils.escapeHtml(c.changedByUsername || 'System')}</td>
-                <td class="text-muted" title="${absTime(c.changedAt)}">${relativeTime(c.changedAt)}</td>
-            </tr>`).join('');
-        return `
-            <div class="sh-table-wrapper">
-                <table class="table table-hover mb-0">
-                    <thead><tr><th>VM</th><th>From</th><th></th><th>To</th><th>Changed By</th><th>When</th></tr></thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>`;
-    }
-
-    function buildDriftTable(events) {
-        if (!events || events.length === 0) {
-            return UiStates.empty({ title: 'No drift events in last 24 hours' });
-        }
-        const rows = events.slice(0, 20).map(e => `
-            <tr>
-                <td>${Utils.escapeHtml(e.vmName || e.vmId || '—')}</td>
-                <td>${stateBadge(e.previousStatus)}</td>
-                <td class="text-center text-muted px-0"><i class="fas fa-arrow-right"></i></td>
-                <td>${stateBadge(e.newStatus)}</td>
-                <td class="text-muted" title="${absTime(e.changedAt)}">${relativeTime(e.changedAt)}</td>
-            </tr>`).join('');
-        return `
-            <div class="sh-table-wrapper">
-                <table class="table table-hover mb-0">
-                    <thead><tr><th>VM</th><th>Expected</th><th></th><th>Actual</th><th>When</th></tr></thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>`;
-    }
 
     function buildComplianceTable(logs, columns) {
         if (!logs || logs.length === 0) {
@@ -742,7 +747,8 @@ const SystemHealth = (function () {
 
     // ─── shared ──────────────────────────────────────────────────────────────
 
-    return { load, triggerSync, triggerEksSync, model: { span, lastRun, status, ordered, tiles, regionRows, foundText, noteKind } };
+    return { load, triggerSync, triggerEksSync, setChangesOutsideOnly, changesPage,
+        model: { span, lastRun, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows } };
 })();
 
 if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;
@@ -750,5 +756,7 @@ if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;
 if (typeof Actions !== 'undefined') Actions.registerAll({
     'sh-trigger-sync': () => SystemHealth.triggerSync(),
     'sh-trigger-eks-sync': () => SystemHealth.triggerEksSync(),
-    'sh-reload': () => ContentRouter.reload()
+    'sh-reload': () => ContentRouter.reload(),
+    'sh-changes-page': el => SystemHealth.changesPage(el.dataset.page)
 });
+if (typeof Actions !== 'undefined') Actions.register('sh-changes-outside', el => SystemHealth.setChangesOutsideOnly(el.checked), 'change');
