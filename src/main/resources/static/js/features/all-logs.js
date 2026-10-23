@@ -5,7 +5,9 @@
  * Environment and a Done / Failed chip; 10 a page. The counts ("230 actions in 7 days", "99%
  * succeeded", "2 failed", "busiest: CRM UAT") come from /audit/logs/stats for the same filters:
  * period (exact instants; Dates… for local days), person, environment, action category (GET
- * /audit/categories) and result. Export CSV pages through the filtered rows and neutralises formulas.
+ * /audit/categories) and result, in one compact row (U20-T04). Export CSV pages through the filtered
+ * rows and neutralises formulas; a preset period is re-read at the click, the list refreshed to match,
+ * and the file named after the filters.
  */
 
 const AllLogs = (function() {
@@ -86,6 +88,25 @@ const AllLogs = (function() {
         if (filters.category) params.append('category', filters.category);
         if (filters.resultStatus === 'false') params.append('success', 'false');
         return params;
+    }
+
+    /** The filters in words, for the export's file name and message: ["Last 7 days", "Ana Ruiz", "Failed only"]. */
+    function filterWords(f, names = {}) {
+        const words = [f.timeRange === 'custom' && f.customStart && f.customEnd
+            ? (f.customStart === f.customEnd ? f.customStart : `${f.customStart} to ${f.customEnd}`)
+            : (PERIODS.find(([k]) => k === f.timeRange) || PERIODS[0])[1]];
+        if (f.userId) words.push(names.person || 'One person');
+        if (f.environmentId) words.push(names.environment || 'One environment');
+        if (f.category) words.push(names.action || f.category);
+        if (f.resultStatus === 'false') words.push('Failed only');
+        return words;
+    }
+
+    /** "audit-log-2026-10-23-last-7-days-crm-uat-failed-only.csv" */
+    function exportFileName(words, today) {
+        const slug = words.join(' ').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+            .replace(/-+$/, '');
+        return `audit-log-${today}${slug ? '-' + slug : ''}.csv`;
     }
 
     // ---- page ----
@@ -356,10 +377,32 @@ const AllLogs = (function() {
         ContentRouter.onLeave(() => $(document).off(NS));
     }
 
-    /** Page through the filtered rows (500 at a time, at most 10,000) and download a CSV. */
+    /** The chosen person, environment and action by name, for the export. */
+    function chosenNames() {
+        const person = filters.userId ? (users.find(u => u.id === filters.userId) || {}).name
+            || String(filters.userLabel || '').replace(/\s*<[^>]*>\s*$/, '') : '';
+        const environment = filters.environmentId ? (environments.find(e => e.id === filters.environmentId) || {}).name : '';
+        const action = filters.category ? (categories.find(c => c.category === filters.category) || {}).label : '';
+        return { person, environment, action };
+    }
+
+    /**
+     * Page through the filtered rows (500 at a time, at most 10,000) and download a CSV. A preset period
+     * ("Last 7 days") ends now: it is re-read at the click and the list refreshed, so the file holds
+     * what the filters select now and the screen shows the same (U20-T04).
+     */
     async function exportAuditLogs() {
         const t = token;
-        const fileName = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+        if (filters.timeRange !== 'custom') {
+            setPresetRange(filters.timeRange);
+            filters.page = 0;
+            await reload(false);
+            if (!ContentRouter.isCurrent(t)) return;
+        }
+        const words = filterWords(filters, chosenNames());
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const fileName = exportFileName(words, today);
         const headers = ['When', 'Who', 'What', 'Environment', 'Result', 'Note', 'Action', 'Target', 'Details'];
         const rows = [];
         try {
@@ -377,7 +420,7 @@ const AllLogs = (function() {
             if (!ContentRouter.isCurrent(t)) return;
             const list = rows.slice(0, EXPORT_MAX_ROWS);
             Utils.downloadCsv(fileName, headers, list);
-            Notifications.show(`Exported ${plural(list.length, 'action')}.`, 'success');
+            Notifications.show(`Exported ${plural(list.length, 'action')}: ${words.join(' · ')}.`, 'success');
         } catch (error) {
             Notifications.show("Couldn't export the audit log. Try again.", 'danger');
         }
@@ -386,7 +429,7 @@ const AllLogs = (function() {
     return {
         loadAllAuditLogs,
         reload: () => reload(false),
-        model: { statsParts, whenText, environmentOf, filterParams }
+        model: { statsParts, whenText, environmentOf, filterParams, filterWords, exportFileName }
     };
 })();
 

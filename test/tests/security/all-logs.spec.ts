@@ -140,6 +140,32 @@ test.describe('Global audit page', () => {
     expect(csv).toContain(`"'+SUM(A1)"`);
   });
 
+  test('the filters take one row; the export re-reads the period, follows the filters and is named after them (U20-T04)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 657 });
+    const logs: Request[] = [];
+    await open(page, logs, []);
+    const tops = await page.locator('.audit-filters > select, .audit-filters > input').evaluateAll(els =>
+      [...new Set(els.map(e => Math.round(e.getBoundingClientRect().top)))]);
+    expect(tops).toHaveLength(1);
+
+    await page.locator('#result-filter').selectOption('false');
+    await expect.poll(() => params(logs[logs.length - 1]).get('success')).toBe('false');
+    const before = logs.length;
+    const clicked = Date.now();
+    const download = page.waitForEvent('download');
+    await page.locator('#export-logs-btn').click();
+    const file = await download;
+    // The list is refreshed with a period ending at the click, and the export asks the same.
+    const after = logs.slice(before).map(params);
+    expect(after.length).toBeGreaterThanOrEqual(2);
+    after.forEach(p => {
+      expect(p.get('success')).toBe('false');
+      expect(Date.parse(p.get('to')!)).toBeGreaterThanOrEqual(clicked - 1000);
+    });
+    expect(file.suggestedFilename()).toMatch(/^audit-log-\d{4}-\d{2}-\d{2}-last-7-days-failed-only\.csv$/);
+    await expect(page.getByText('Exported 1 action: Last 7 days · Failed only.')).toBeVisible();
+  });
+
   test('an ENV_ADMIN never calls the ADMIN-only user list and gets a user search box', async ({ page }) => {
     // Present the signed-in admin as an ENV_ADMIN (role flags only) to the UI.
     await page.route(/\/api\/v1\/users\/me(\?.*)?$/, async route => {

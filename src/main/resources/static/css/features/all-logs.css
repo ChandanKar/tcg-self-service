@@ -16,19 +16,24 @@
     font-weight: 600;
 }
 
+/* One compact row (U20-T04): the five filters share the width, none wider than 15rem, so long
+   environment or person names no longer push the row onto a second line. Dates… adds a second row. */
 .audit-filters {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .audit-filters > .form-select,
 .audit-filters > .form-control {
+    flex: 1 1 0;
     width: auto;
-    min-width: 11rem;
-    max-width: 100%;
+    min-width: 8rem;
+    max-width: 15rem;
+    text-overflow: ellipsis;
 }
+
 
 .audit-filters .activity-dates[hidden] {
     display: none;
@@ -58,6 +63,7 @@
     .audit-filters > .form-control {
         flex: 1 1 100%;
         min-width: 0;
+        max-width: none;
     }
 
     .audit-who {
