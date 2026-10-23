@@ -522,6 +522,12 @@
         max-height: 100%;
         overflow-y: auto;
     }
+
+    /* The column scrolls; its panels keep their height (Start order was squeezed and cut off). */
+    .env-detail-page:not(.phone-env) .env-main > *,
+    .env-detail-page:not(.phone-env) .env-aside > * {
+        flex-shrink: 0;
+    }
 }
 
 /* The About facts of a large environment, at the top of Insights */

@@ -315,6 +315,31 @@ test.describe('Everyday pages on the page frame', () => {
     await expect(page.locator('#ra-env-list .ra-env').first()).toContainText(/\d/);
   });
 
+  test('Environment page at 1366 x 657: Start order and every panel keep their height; the column scrolls instead', async ({ page, playwright }) => {
+    const admin = await api(playwright, devIds.admin!);
+    const stamp = Date.now();
+    const env = await (await admin.post('/api/v1/environments', { data: { name: `start-order-${stamp}`, displayName: `Start order ${stamp}`,
+      cloudProvider: 'AWS', region: 'ap-south-1' } })).json();
+    const group = await (await admin.post(`/api/v1/environments/${env.environmentId}/groups`, { data: { name: 'default-group',
+      displayName: 'Default Group', sequencePosition: 1 } })).json();
+    for (let i = 1; i <= 9; i++) {
+      await admin.post(`/api/v1/environments/${env.environmentId}/vms`, { data: { groupId: group.groupId, name: `so-${stamp}-${i}`,
+        displayName: `so-vm-${i}`, provider: 'AWS', region: 'ap-south-1', providerVmId: `i-0${String(stamp).slice(-8)}${String(i).padStart(8, '0')}`,
+        sequencePosition: i } });
+    }
+    await admin.dispose();
+    await openAs(page, 1366, 657, `#/environments/${env.environmentId}`, '.env-start-order');
+    await expect(page.locator('.env-start-order')).toContainText('Default Group');
+    // U20 follow-up: no panel is squeezed below its content (Start order was cut off at the bottom).
+    const cut = await page.evaluate(() => [...document.querySelectorAll('.env-main > *, .env-aside > *')]
+      .filter(el => (el as HTMLElement).offsetParent !== null && el.scrollHeight > el.clientHeight + 1)
+      .map(el => el.className));
+    expect(cut).toEqual([]);
+    const strip = await page.locator('.env-start-order .env-stage').boundingBox();
+    const panel = await page.locator('.env-start-order').boundingBox();
+    expect(strip!.y + strip!.height).toBeLessThanOrEqual(panel!.y + panel!.height);
+  });
+
   test('Home and My activity hold to a 1366 x 657 window', async ({ page }) => {
     await openAs(page, 1366, 657, '#/dashboard', '#dashboard-view');
     const fits = () => page.evaluate(() => { const m = document.getElementById('mainContent')!; return m.scrollHeight <= m.clientHeight + 1; });
