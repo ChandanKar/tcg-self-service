@@ -11,6 +11,10 @@ test.describe('Login page', () => {
     // U09-T01: two sections, the platform and signing in.
     await expect(page.getByRole('region', { name: 'About the platform' })).toBeVisible();
     await expect(page.getByRole('img', { name: /A rack of environments/ })).toBeVisible();
+    // U20-T11: our environments, each name in full.
+    const names = page.locator('.login-rack-name');
+    await expect(names).toHaveText(['nxtgen', 'TCG-Northstar', 'TCG-Crest', 'hpl-agentic-ai-qa', 'datascience-sandbox']);
+    expect(await names.evaluateAll(els => els.filter(e => e.scrollWidth > e.clientWidth).length)).toBe(0);
     const signIn = page.getByRole('region', { name: 'Sign in' });
     await expect(signIn.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
@@ -58,6 +62,8 @@ test.describe('Login page', () => {
     expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight
       && document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.locator('.login-rack-name').evaluateAll(els => els.filter(e => e.scrollWidth > e.clientWidth).length)).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     const signInTop = await page.getByRole('region', { name: 'Sign in' }).evaluate(el => el.getBoundingClientRect().top);
     const aboutTop = await page.getByRole('region', { name: 'About the platform' }).evaluate(el => el.getBoundingClientRect().top);
     expect(signInTop).toBeLessThan(aboutTop);

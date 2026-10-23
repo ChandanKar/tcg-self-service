@@ -59,7 +59,10 @@
 }
 
 .login-rack-name {
-    width: 120px;
+    /* U20-T11: as wide as the longest name (monospace, so 19 characters), never cut off */
+    flex: none;
+    width: 19ch;
+    white-space: nowrap;
     font-family: var(--font-mono);
     font-size: var(--fs-small);
     color: rgba(255, 255, 255, 0.62);
