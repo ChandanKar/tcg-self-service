@@ -20,22 +20,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Logout ends the Entra session too: POST /logout (with CSRF token) sends Entra users to the
- * tenant end-session endpoint; GET /logout no longer logs anyone out (E03-T12).
+ * POST /logout (with CSRF token) ends the app session and shows the sign-in page; a Microsoft user
+ * stays signed in to Microsoft (U20-T12; the end-session redirect is behind a switch, see
+ * EntraLogoutSuccessHandlerTest). GET /logout no longer logs anyone out (E03-T12).
  */
 class EntraLogoutTest extends SecuredWebTestBase {
 
     @Test
-    void entraUserIsSentToTheEntraEndSessionEndpoint() throws Exception {
+    void anEntraUserLandsOnTheSignInPageAndStaysSignedInToMicrosoft() throws Exception {
         MockHttpSession session = new MockHttpSession();
 
         mockMvc.perform(post("/logout").with(asUser()).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", startsWith("https://login.microsoftonline.com/")))
-                .andExpect(header().string("Location", containsString("/oauth2/v2.0/logout?")))
-                .andExpect(header().string("Location",
-                        containsString("post_logout_redirect_uri=http://localhost/login?logout%3Dtrue")))
-                .andExpect(header().string("Location", containsString("id_token_hint=")));
+                .andExpect(redirectedUrl("/login?logout=true"));
 
         assertThat(session.isInvalid()).isTrue();
     }

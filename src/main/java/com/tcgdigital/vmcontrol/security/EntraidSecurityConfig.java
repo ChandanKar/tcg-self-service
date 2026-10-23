@@ -37,13 +37,14 @@ public class EntraidSecurityConfig {
                                  @Value("${security.session.absolute-timeout:PT12H}") Duration sessionAbsoluteTimeout,
                                  @Value("${entraid.end-session-uri:}") String endSessionUri,
                                  @Value("${entraid.post-logout-redirect-uri:}") String postLogoutRedirectUri,
+                                 @Value("${entraid.logout.end-microsoft-session:false}") boolean endMicrosoftSession,
                                  com.tcgdigital.vmcontrol.service.ApiTokenService apiTokenService,
                                  ApiScopeRegistry apiScopeRegistry) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.cspReportOnly = cspReportOnly;
         this.userRepository = userRepository;
         this.sessionAbsoluteTimeout = sessionAbsoluteTimeout;
-        this.logoutSuccessHandler = new EntraLogoutSuccessHandler(endSessionUri, postLogoutRedirectUri);
+        this.logoutSuccessHandler = new EntraLogoutSuccessHandler(endSessionUri, postLogoutRedirectUri, endMicrosoftSession);
         this.apiTokenService = apiTokenService;
         this.apiScopeRegistry = apiScopeRegistry;
     }
@@ -69,7 +70,8 @@ public class EntraidSecurityConfig {
                 .defaultSuccessUrl("/home", true)
             )
             // POST /logout only (CSRF is on, so LogoutFilter ignores GET); Entra users are then
-            // sent to the Entra end-session endpoint so the Microsoft session ends too.
+            // sent to the sign-in page; the Microsoft session ends too only with
+            // entraid.logout.end-microsoft-session on (U20-T12).
             .logout(logout -> logout
                 .logoutUrl("/logout")
                 .logoutSuccessHandler(logoutSuccessHandler)

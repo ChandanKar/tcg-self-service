@@ -34,7 +34,8 @@ public final class SecurityHeaders {
             "object-src 'none'",
             "base-uri 'self'",
             "frame-ancestors 'none'",
-            // Logout POSTs to /logout, which redirects to Entra's end-session endpoint.
+            // Logout POSTs to /logout, which may redirect to Entra's end-session endpoint
+            // (entraid.logout.end-microsoft-session).
             "form-action 'self' https://login.microsoftonline.com",
             "report-uri " + REPORT_PATH);
 
