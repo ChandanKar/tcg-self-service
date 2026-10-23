@@ -828,6 +828,21 @@ const CostManagement = (function() {
         return '$' + Math.round(Number(v) || 0).toLocaleString('en-US');
     }
 
+    /**
+     * A change in monthly cost, in words and an arrow (U20-T03): a saving is a green down arrow and
+     * "saves $X"; extra cost (a larger size) a red up arrow and "costs $X more". The colour never
+     * carries the meaning alone. format turns the amount into text (whole dollars unless given).
+     */
+    function savingHtml(amount, format = money0) {
+        const n = Number(amount);
+        if (amount === null || amount === undefined || amount === '' || !Number.isFinite(n)) return '<span class="text-muted">—</span>';
+        const shown = format(Math.abs(n));
+        if (n === 0 || /^\$0(\.0+)?$/.test(shown)) return `<span class="cost-delta">${shown}</span>`;
+        return n > 0
+            ? `<span class="cost-delta cost-delta-save"><span class="cost-delta-arrow" aria-hidden="true">↓</span> saves ${shown}</span>`
+            : `<span class="cost-delta cost-delta-more"><span class="cost-delta-arrow" aria-hidden="true">↑</span> costs ${shown} more</span>`;
+    }
+
     // ---- the five figures (U15-T02) ----
 
     function buildKpiStrip(summary) {
@@ -903,9 +918,9 @@ const CostManagement = (function() {
                 <div class="cost-card-head"><h2 id="cost-savings-title">Biggest savings to act on</h2>
                     ${Utils.raw(all ? Utils.html`<a href="${Config.API.costManagement.rightsizingExport()}" download="rightsizing-${todayStamp()}.xlsx">All ${all} suggestion${all === 1 ? '' : 's'}, Excel</a>` : '')}</div>
                 ${Utils.raw(rows.length ? Utils.html`<div class="cost-scroll"><table class="cost-savings-table" id="cost-savings-table">
-                    <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Suggestion</th><th scope="col" class="cost-num">Saves a month</th></tr></thead>
+                    <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Suggestion</th><th scope="col" class="cost-num">A month</th></tr></thead>
                     <tbody>${Utils.raw(rows.map(r => Utils.html`<tr><td class="cost-strong">${r.what}</td><td>${r.where}</td><td>${r.suggestion}</td>
-                        <td class="cost-num cost-mono">${money0(r.saves)}</td></tr>`).join(''))}</tbody></table></div>`
+                        <td class="cost-num cost-mono">${Utils.raw(savingHtml(r.saves))}</td></tr>`).join(''))}</tbody></table></div>`
                     : '<p class="cost-note">Nothing to save right now: no VM is too large or sitting idle.</p>')}
             </section>`;
     }
@@ -1146,14 +1161,14 @@ const CostManagement = (function() {
                    <a href="#/cost-setup">Check Cost setup</a></p>`
             : Utils.html`<div class="cost-scroll"><table class="cost-table commit-table" id="cost-commitments-table">
                 <thead><tr><th scope="col">Type</th><th scope="col">Term · payment</th><th scope="col" class="cost-num">Commit / hour</th>
-                    <th scope="col" class="cost-num">Upfront</th><th scope="col" class="cost-num">Saves a month</th></tr></thead>
+                    <th scope="col" class="cost-num">Upfront</th><th scope="col" class="cost-num">A month</th></tr></thead>
                 <tbody>${Utils.raw(recs.map(r => Utils.html`<tr data-rec="${r.type}">
                     <td><b class="commit-type">${REC_NAMES[r.type] || r.type}</b><span class="rs-sub">${recommendationDetail(r)}</span>
                         ${Utils.raw(overCommit.has(r.type) ? Utils.html`<span class="commit-risk" data-flag="OVER_COMMIT">${OVER_COMMIT}</span>` : '')}</td>
                     <td class="commit-term">${termText(r)}</td>
                     <td class="cost-num cost-mono">${r.hourlyCommitment == null ? '—' : Utils.formatCurrency(Number(r.hourlyCommitment))}</td>
                     <td class="cost-num cost-mono">${r.upfrontCost == null ? '—' : money0(r.upfrontCost)}</td>
-                    <td class="cost-num cost-mono rs-saves">${r.estimatedMonthlySavings == null ? '—' : money0(r.estimatedMonthlySavings)}<span class="rs-sub">${r.estimatedSavingsPercent == null ? '' : `${Math.round(Number(r.estimatedSavingsPercent))}%`}</span></td>
+                    <td class="cost-num cost-mono rs-saves">${Utils.raw(savingHtml(r.estimatedMonthlySavings))}<span class="rs-sub">${r.estimatedSavingsPercent == null ? '' : `${Math.round(Number(r.estimatedSavingsPercent))}%`}</span></td>
                 </tr>`).join(''))}</tbody></table></div>`;
         const hours = c.scheduledAvoidedHours == null ? null : Math.round(Number(c.scheduledAvoidedHours));
         const schedules = hours == null || c.grossScheduledSaving == null
@@ -1539,7 +1554,7 @@ const CostManagement = (function() {
                     <div class="cost-card rs-table-card">
                         <div class="cost-scroll"><table class="cost-table rs-table" id="cost-rightsizing-table">
                             <thead><tr><th scope="col">VM</th><th scope="col">Change</th><th scope="col">Peak CPU / memory</th>
-                                <th scope="col" class="cost-num">Saves a month</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+                                <th scope="col" class="cost-num">A month</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
                             <tbody id="cost-rightsizing-table-body">${buildRightsizingRows(state.rightsizing.content)}</tbody>
                         </table></div>
                         <div id="cost-rightsizing-pagination">${rightsizingPager()}</div>
@@ -1599,7 +1614,7 @@ const CostManagement = (function() {
         if (row.estimatedMonthlySavings == null) return '<span class="text-muted">Unknown</span>';
         const approx = row.priceApproximate ? '<span title="Rate from another region — approximate">&asymp;</span>' : '';
         const partial = row.costKnown === false ? ' <i class="fas fa-triangle-exclamation cost-partial-icon" title="Instance pricing unknown for this VM — storage cost only"></i>' : '';
-        return approx + money0(row.estimatedMonthlySavings) + partial;
+        return approx + savingHtml(row.estimatedMonthlySavings) + partial;
     }
 
     /** The VM, linked to its details in its environment (EKS node groups have no VM page). */
@@ -1705,7 +1720,7 @@ const CostManagement = (function() {
                 <td>${Utils.escapeHtml(o.architecture || '-')}${o.requiresArchitectureChange
                     ? ' <i class="fas fa-exclamation-triangle text-warning rightsizing-arch-warning" title="Requires an image built for this architecture" aria-label="Requires another CPU architecture"></i>' : ''}</td>
                 <td class="cost-num">${o.monthlyCostAfter != null ? Utils.formatCurrency(Number(o.monthlyCostAfter)) : '<span class="text-muted">Unknown</span>'}</td>
-                <td class="cost-num">${o.monthlySavings != null ? Utils.formatCurrency(Number(o.monthlySavings)) : '<span class="text-muted">-</span>'}</td>
+                <td class="cost-num">${savingHtml(o.monthlySavings, v => Utils.formatCurrency(v))}</td>
                 <td class="cost-num">${o.performanceRisk != null ? Number(o.performanceRisk).toFixed(1) : '-'}</td>
                 <td>${optionApply(row, o)}</td>
             </tr>`).join('');
@@ -1713,7 +1728,7 @@ const CostManagement = (function() {
             <td colspan="5">
                 <table class="table table-sm mb-0 rightsizing-options-table" aria-label="Options for ${Utils.escapeHtml(row.vmName || row.vmId)}">
                     <thead><tr><th>Type</th><th>Option</th><th>Architecture</th><th class="cost-num">Cost after</th>
-                        <th class="cost-num">Saving</th><th class="cost-num">AWS risk</th><th>Action</th></tr></thead>
+                        <th class="cost-num">A month</th><th class="cost-num">AWS risk</th><th>Action</th></tr></thead>
                     <tbody>${body}</tbody>
                 </table>
             </td>
@@ -2112,7 +2127,7 @@ const CostManagement = (function() {
         navHtml,
         watchReport,
         idleRowsHtml: rows => buildIdleRows(rows || []),
-        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars }
+        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars, savingHtml }
     };
 })();
 

@@ -84,3 +84,12 @@ test('carbon: the last six months as stacked bars', () => {
     assert.equal(bars[0].at, 19);
     assert.deepEqual(plain(M.carbonBars([])), []);
 });
+
+test('a saving reads as a saving and extra cost as extra cost: arrow, words, colour (U20-T03)', () => {
+    assert.equal(M.savingHtml(120.4), '<span class="cost-delta cost-delta-save"><span class="cost-delta-arrow" aria-hidden="true">↓</span> saves $120</span>');
+    assert.equal(M.savingHtml(-45), '<span class="cost-delta cost-delta-more"><span class="cost-delta-arrow" aria-hidden="true">↑</span> costs $45 more</span>');
+    assert.doesNotMatch(M.savingHtml(-45), /\$-|cost-delta-save/, 'a scale-up is never a green or negative saving');
+    assert.equal(M.savingHtml(0.2), '<span class="cost-delta">$0</span>');
+    assert.match(M.savingHtml(null), /—/);
+    assert.match(M.savingHtml(-3.5, v => `$${v.toFixed(2)}`), /costs \$3\.50 more/);
+});

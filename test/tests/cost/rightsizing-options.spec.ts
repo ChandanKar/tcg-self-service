@@ -82,7 +82,7 @@ test.describe('Rightsizing suggestions (U15-T03)', () => {
     await expect(quiet.locator('.rs-change')).toContainText('Smaller · AWS disagrees');
     await expect(quiet.locator('[data-agreement="DISAGREE"]')).toHaveText('AWS disagrees');
     await expect(quiet.locator('.rs-peak')).toHaveText('9% / —');
-    await expect(quiet.locator('.rs-saves')).toHaveText('$60');
+    await expect(quiet.locator('.rs-saves')).toHaveText('↓ saves $60');
     await expect(quiet.getByRole('button', { name: 'Resize safely…' })).toBeEnabled();
     await expect(quiet.getByRole('link', { name: 'quiet' })).toHaveAttribute('href', '#/environments/e?vm=vm-d');
     await expect(body.locator('tr[data-rs-vm="vm-g"] .rs-change')).toContainText('Smaller, Graviton · AWS agrees');
@@ -133,6 +133,10 @@ test('the kind filter and alternatives with a Graviton option', async ({ page })
   await expect(graviton).toContainText('Requires an ARM64 image');
   await expect(graviton.locator('.rightsizing-apply-btn')).toHaveCount(0);
   await expect(options.locator('tr[data-option="m7i.large"] .rightsizing-apply-btn')).toBeEnabled();
+  // U20-T03: a larger bill reads as extra cost (red up arrow, words), never as a green negative saving.
+  await expect(options.locator('tr[data-option="m7i.large"] .cost-delta-more')).toHaveText('↑ costs $3.50 more');
+  await expect(options.locator('tr[data-option="m6a.large"] .cost-delta-save')).toHaveText('↓ saves $7.00');
+  await expect(options).not.toContainText('$-');
 
   // back to all
   await page.locator('#rs-kind').selectOption({ label: 'All suggestions' });

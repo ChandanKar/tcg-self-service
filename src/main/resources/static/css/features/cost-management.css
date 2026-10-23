@@ -450,6 +450,23 @@
     color: var(--success-color);
 }
 
+/* A change in monthly cost (U20-T03): the arrow and words say which way, the colour repeats it. */
+.cost-delta {
+    white-space: nowrap;
+}
+
+.cost-delta-save {
+    color: var(--success-color);
+}
+
+.cost-delta-more {
+    color: var(--brand-red-text);
+}
+
+.cost-delta-arrow {
+    font-weight: 700;
+}
+
 .rs-controls {
     display: flex;
     flex-wrap: wrap;
