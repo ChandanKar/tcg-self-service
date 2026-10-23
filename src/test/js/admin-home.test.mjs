@@ -60,6 +60,22 @@ test('spend: this month added up, forecast from the last 7 days, the plan only w
     const svg = M.spendSvg(m);
     assert.match(svg, /class="ah-plan"/);
     assert.doesNotMatch(M.spendSvg(M.spend(points, 6284, null, NOW)), /ah-plan/);
+    assert.equal(M.sourceText(m, NOW), 'Estimated from instance prices');
+    assert.equal(M.forecastText(m), 'Spent so far plus the average of the last 7 days ($350 a day) for the 12 days left.');
+});
+
+test('U20-T10: AWS billing where it has arrived, the estimate for the rest, and the first day with data', () => {
+    const points = Array.from({ length: 9 }, (_, i) => ({ date: `2026-10-${String(i + 11).padStart(2, '0')}`,
+        estimatedCost: 100, actualCost: i < 6 ? 90 : null }));
+    const m = M.spend(points, 900, null, NOW);
+    assert.equal(m.billedDays, 6);
+    assert.equal(m.estimatedDays, 3);
+    assert.equal(m.spent, 6 * 90 + 3 * 100); // the days' sum, not the estimate-only month to date
+    assert.equal(m.firstDay, 11);
+    assert.equal(M.sourceText(m, NOW), 'AWS billing for 6 days, estimated for 3 · data from 11 Oct');
+    const all = M.spend(points.map(p => ({ ...p, actualCost: 80 })), null, null, NOW);
+    assert.equal(M.sourceText(all, NOW), 'From AWS billing · data from 11 Oct');
+    assert.equal(M.sourceText(M.spend([], null, null, NOW), NOW), '');
 });
 
 test('health: healthy, a late job named (red when a day late or never ran), or a stale state sync', () => {

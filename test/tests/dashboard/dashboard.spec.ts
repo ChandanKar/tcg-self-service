@@ -134,6 +134,9 @@ test.describe('Administrator Home', () => {
     await expect(legend).toContainText('Spent $6,284');
     await expect(legend).toContainText('Forecast $');
     await expect(legend).not.toContainText('Budgets');
+    // U20-T10: where the figure comes from and how the forecast is made.
+    await expect(page.locator('#ah-spend-source')).toContainText('Estimated from instance prices.');
+    await expect(page.locator('#ah-spend-source')).toContainText('Spent so far plus the average of the last');
     await expect(page.locator('.ah-spend-chart .ah-plan')).toHaveCount(0);
     await expect(page.locator('.ah-top-row')).toHaveCount(2);
     await expect(page.locator('.ah-top-row').first()).toContainText('Data Lake Dev');

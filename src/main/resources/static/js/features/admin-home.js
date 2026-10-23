@@ -111,28 +111,61 @@ const AdminHome = (function() {
     }
 
     /**
-     * The month so far and where it is heading: daily estimates of this month added up day by day,
-     * spent (the server's month to date, else the days' sum), and the forecast: spent plus the
-     * average of the last 7 days with data for every day left in the month.
+     * The month so far and where it is heading: this month's days added up day by day, each from AWS
+     * billing where it has arrived, else the estimate (U20-T10); spent (with billing, the days' sum;
+     * else the server's month to date, else the days' sum); and the forecast: spent plus the average
+     * of the last 7 days with data for every day left in the month. Also where the figure comes from
+     * and the first day with data, so a month that started without data says so.
      */
     function spend(points, monthToDate, plan, now = new Date()) {
         const year = now.getFullYear();
         const month = now.getMonth();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const today = now.getDate();
-        const days = (points || []).map(p => ({ date: dateOf(p.date), cost: Number(p.estimatedCost) || 0 }))
+        const billed = p => p.actualCost !== null && p.actualCost !== undefined && Number.isFinite(Number(p.actualCost));
+        const days = (points || []).map(p => ({ date: dateOf(p.date), billed: billed(p),
+                cost: billed(p) ? Number(p.actualCost) : Number(p.estimatedCost) || 0 }))
             .filter(p => p.date && p.date.getFullYear() === year && p.date.getMonth() === month)
             .sort((a, b) => a.date - b.date);
         let running = 0;
         const cumulative = days.map(p => { running += p.cost; return { day: p.date.getDate(), value: running }; });
+        const billedDays = days.filter(p => p.billed).length;
         const known = monthToDate !== null && monthToDate !== undefined && Number.isFinite(Number(monthToDate));
-        const spent = known ? Number(monthToDate) : running;
+        const spent = billedDays || !known ? running : Number(monthToDate);
         const recent = days.slice(-7);
         const daily = recent.length ? recent.reduce((sum, p) => sum + p.cost, 0) / recent.length : (today ? spent / today : 0);
-        const forecast = spent + daily * Math.max(0, daysInMonth - today);
+        const daysLeft = Math.max(0, daysInMonth - today);
+        const forecast = spent + daily * daysLeft;
         const planAmount = plan && Number(plan.amount) > 0 ? Number(plan.amount) : null;
         return { spent, forecast, plan: planAmount, budgetCount: plan ? Number(plan.budgetCount) || 0 : 0,
-            today, daysInMonth, cumulative, hasData: days.length > 0 || spent > 0 };
+            today, daysInMonth, cumulative, hasData: days.length > 0 || spent > 0,
+            billedDays, estimatedDays: days.length - billedDays, firstDay: days.length ? days[0].date.getDate() : null,
+            averagedDays: recent.length, daily, daysLeft };
+    }
+
+    /**
+     * Where the figure comes from (U20-T10): "Estimated from instance prices", "From AWS billing" or
+     * "AWS billing for 12 days, estimated for 3"; then "data from 11 Oct" when the month's first days
+     * have none.
+     */
+    function sourceText(m, now = new Date()) {
+        if (!m || !m.hasData) return '';
+        const parts = [m.billedDays === 0 ? 'Estimated from instance prices'
+            : m.estimatedDays === 0 ? 'From AWS billing'
+                : `AWS billing for ${plural(m.billedDays, 'day')}, estimated for ${m.estimatedDays}`];
+        if (m.firstDay && m.firstDay > 1) {
+            parts.push(`data from ${new Date(now.getFullYear(), now.getMonth(), m.firstDay)
+                .toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`);
+        }
+        return parts.join(' · ');
+    }
+
+    /** How the forecast is made: "Spent so far plus the average of the last 7 days ($312 a day) for the 12 days left." */
+    function forecastText(m) {
+        if (!m || !m.hasData) return '';
+        if (!m.daysLeft) return 'The month ends today: the forecast is what is spent.';
+        const basis = m.averagedDays ? `the average of the last ${plural(m.averagedDays, 'day')}` : 'the average so far';
+        return `Spent so far plus ${basis} (${whole(m.daily)} a day) for the ${plural(m.daysLeft, 'day')} left.`;
     }
 
     /** The spend chart: spent so far (navy), the forecast to month end (gold, dashed), the plan pace (grey, dashed). */
@@ -301,9 +334,10 @@ const AdminHome = (function() {
             body = spendSvg(m)
                 + Utils.html`<div class="ah-legend">
                     <span><span class="ah-key ah-key-spent"></span> Spent <span class="mono">${whole(m.spent)}</span></span>
-                    <span><span class="ah-key ah-key-forecast"></span> Forecast <span class="mono">${whole(m.forecast)}</span></span>`
+                    <span title="${forecastText(m)}"><span class="ah-key ah-key-forecast"></span> Forecast <span class="mono">${whole(m.forecast)}</span></span>`
                 + (m.plan ? Utils.html`<span><span class="ah-key ah-key-plan"></span> Budgets, <span class="mono">${whole(m.plan)}</span></span>` : '')
                 + '</div>'
+                + Utils.html`<p class="ah-spend-source" id="ah-spend-source">${sourceText(m, now)}. ${forecastText(m)}</p>`
                 + (top.length ? `<div class="ah-top">${top.map(c => Utils.html`<a class="ah-top-row" href="#/environments/${encodeURIComponent(c.environmentId)}">
                         <span>${c.displayName || c.name}</span><span class="mono">${whole(c.monthToDateCost)}</span></a>`).join('')}</div>` : '');
         }
@@ -320,7 +354,7 @@ const AdminHome = (function() {
         extras = null;
     }
 
-    return { html, fill, reset, model: { tiles, fleet, topSpenders, spend, spendSvg, health, span, jobText } };
+    return { html, fill, reset, model: { tiles, fleet, topSpenders, spend, spendSvg, health, span, jobText, sourceText, forecastText } };
 })();
 
 if (typeof window !== 'undefined') window.AdminHome = AdminHome;
