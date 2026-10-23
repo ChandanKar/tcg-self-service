@@ -20,8 +20,8 @@ test.describe('Login page', () => {
     await page.keyboard.press('Tab');
     await expect(microsoft).toBeFocused();                       // the first thing to tab to
     await expect(page.locator('#loginDivider')).toHaveText('or with a username');
-    await expect(page.getByLabel('Username')).toBeVisible();
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Username or email')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(page.getByText('Trouble signing in? Ask your platform administrator to check your account.')).toBeVisible();
   });
@@ -79,6 +79,34 @@ test.describe('Login page', () => {
     // Regression guard: the message must not reveal whether the username exists
     // (see AuthController — deliberately generic message).
     await expect(page.locator('#errorMessage')).not.toHaveText(/user not found\.?$/i);
+  });
+
+  test('U20-T07: an initial password asks for their own, which then signs them in', async ({ page }) => {
+    const changes: any[] = [];
+    await page.route('**/api/auth/login', route => route.fulfill({ json: { success: false, passwordChangeRequired: true,
+      message: 'Choose your own password to finish signing in.' } }));
+    await page.route('**/api/auth/change-password', route => {
+      changes.push(route.request().postDataJSON());
+      return route.fulfill({ json: { success: true, message: 'Password changed' } });
+    });
+    await page.route('**/home', route => route.fulfill({ contentType: 'text/html', body: '<h1>Home</h1>' }));
+    await page.locator('#username').fill('pia@onboard.test');
+    await page.locator('#password').fill('given-by-admin-123');
+    await page.locator('#submitBtn').click();
+
+    const form = page.locator('#changeForm');
+    await expect(form.getByRole('heading', { name: 'Choose your password' })).toBeVisible();
+    await expect(page.locator('#loginForm')).toBeHidden();
+    await expect(page.getByRole('link', { name: 'Sign in with Microsoft' })).toBeHidden();
+    await expect(page.getByLabel('New password')).toBeFocused();
+    await page.getByLabel('New password').fill('pia-chose-this-one');
+    await page.getByLabel('The same again').fill('pia-chose-another');
+    await page.getByRole('button', { name: 'Save and sign in' }).click();
+    await expect(page.locator('#changeError')).toHaveText("The two passwords don't match.");
+    await page.getByLabel('The same again').fill('pia-chose-this-one');
+    await page.getByRole('button', { name: 'Save and sign in' }).click();
+    await page.waitForURL('**/home');
+    expect(changes).toEqual([{ username: 'pia@onboard.test', password: 'given-by-admin-123', newPassword: 'pia-chose-this-one' }]);
   });
 
   test('logs in with valid credentials and reaches the app shell', async ({ page }) => {

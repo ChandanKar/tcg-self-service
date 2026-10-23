@@ -35,10 +35,32 @@ test('the request: people, role, access rows (groups, days or no end)', () => {
             { environmentId: 'e2', groupIds: ['g1'], level: 'VIEWER', days: '' }]
     }));
     assert.deepEqual(body, {
-        people: [{ directoryObjectId: 'oid', email: 'a@x.com', displayName: 'A', department: 'Eng', projectCode: 'DLK-204', teamId: 't1' }],
+        people: [{ directoryObjectId: 'oid', email: 'a@x.com', displayName: 'A', department: 'Eng', projectCode: 'DLK-204', teamId: 't1',
+            initialPassword: null }],
         role: 'ENV_ADMIN',
         access: [{ environmentId: 'e1', scopeType: 'ENVIRONMENT', groupIds: [], accessLevel: 'USER', durationDays: 30 },
             { environmentId: 'e2', scopeType: 'GROUP', groupIds: ['g1'], accessLevel: 'VIEWER', durationDays: null }],
         emailPeople: false
     });
+});
+
+test('U20-T07: a generated initial password is 16 characters from the clear set, and differs each time', () => {
+    let seed = 7;
+    const random = n => Array.from({ length: n }, () => (seed = (seed * 1103515245 + 12345) % 2147483648) % 256);
+    const a = M.generatePassword(random);
+    const b = M.generatePassword(random);
+    assert.equal(a.length, 16);
+    assert.ok([...a].every(c => M.PASSWORD_CHARS.includes(c)));
+    assert.notEqual(a, b);
+    assert.doesNotMatch(M.PASSWORD_CHARS, /[0O1lI]/, 'no look-alikes');
+    assert.equal(M.generatePassword(n => new Array(n).fill(255).map((v, i) => (i % 2 ? 3 : 255))).length, 16, 'biased bytes are skipped');
+});
+
+test('U20-T07: an initial password is for one person, 12 to 72 characters', () => {
+    assert.equal(M.passwordProblem('x'.repeat(12), 1), '');
+    assert.match(M.passwordProblem('x'.repeat(11), 1), /at least 12/);
+    assert.match(M.passwordProblem('x'.repeat(73), 1), /at most 72/);
+    assert.match(M.passwordProblem('x'.repeat(16), 2), /one person at a time/);
+    const body = plain(M.requestOf({ role: 'USER', people: [{ email: 'p@x.com', initialPassword: 'given-by-admin-123' }], access: [] }));
+    assert.equal(body.people[0].initialPassword, 'given-by-admin-123');
 });

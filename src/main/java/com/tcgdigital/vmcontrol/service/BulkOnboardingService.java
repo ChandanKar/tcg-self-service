@@ -64,6 +64,10 @@ public class BulkOnboardingService {
     @Value("${chat.public-base-url:}")
     private String appUrl;
 
+    /** Initial passwords (U20-T07). */
+    @org.springframework.beans.factory.annotation.Autowired
+    private AuthenticationService authentication;
+
     public BulkOnboardingService(UserService userService, UserRepository userRepository,
                                  GraphDirectoryService graphDirectoryService, BulkAccessGrantService bulkGrants,
                                  TeamService teamService, TeamRepository teamRepository,
@@ -87,6 +91,7 @@ public class BulkOnboardingService {
         String department;
         String projectCode;
         String teamId;
+        String initialPassword;
         Outcome outcome;
         String reason;
         User user;
@@ -128,6 +133,9 @@ public class BulkOnboardingService {
             if (p.outcome == Outcome.NEW) {
                 p.user = userService.createOnboardedUser(p.email, p.displayName, p.azureAdObjectId, admin, envAdmin,
                         actorUserId, p.department, p.projectCode);
+                if (p.initialPassword != null) {
+                    authentication.setInitialPassword(p.user, p.initialPassword, actorUserId);
+                }
             }
             if (p.teamId != null) {
                 teamService.addMember(p.teamId, p.user.getUserId(), actorUserId);
@@ -196,6 +204,11 @@ public class BulkOnboardingService {
     }
 
     private String signInText(User user) {
+        if (user.isPasswordChangeRequired()) {
+            // U20-T07: the password itself is never emailed; the administrator gives it.
+            return "sign in with your email, " + user.getEmail() + ", and the password your administrator gives you; "
+                    + "you then choose your own.";
+        }
         if (entraEnabled) {
             return "choose Sign in with Microsoft and use your work account, " + user.getEmail() + ".";
         }
@@ -213,6 +226,7 @@ public class BulkOnboardingService {
         for (BulkOnboardRequestDTO.Person person : input) {
             Resolved r = new Resolved();
             r.teamId = blankToNull(person.teamId());
+            r.initialPassword = person.initialPassword() == null || person.initialPassword().isEmpty() ? null : person.initialPassword();
             String directoryId = blankToNull(person.directoryObjectId());
             String directoryDepartment = null;
             if (directoryId != null && graphDirectoryService.isEnabled()) {
@@ -249,6 +263,13 @@ public class BulkOnboardingService {
             } catch (ValidationException e) {
                 throw new ValidationException(r.email + ": " + e.getMessage());
             }
+            if (r.initialPassword != null) {
+                try {
+                    AuthenticationService.validateLength(r.initialPassword);
+                } catch (ValidationException e) {
+                    throw new ValidationException(r.email + ": the initial password must be 12 to 72 characters");
+                }
+            }
             if (r.teamId != null && teamRepository.findById(r.teamId).isEmpty()) {
                 throw new ValidationException(r.email + ": team not found");
             }
@@ -267,6 +288,9 @@ public class BulkOnboardingService {
                 r.outcome = Outcome.EXISTING;
                 r.reason = "Already a user: access and team only";
             } else {
+                if (r.initialPassword != null && userRepository.existsByUsername(r.email)) {
+                    throw new ValidationException(r.email + " is already someone's username");
+                }
                 r.outcome = Outcome.NEW;
             }
             out.add(r);

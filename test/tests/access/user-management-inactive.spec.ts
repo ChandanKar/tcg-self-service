@@ -309,6 +309,46 @@ test.describe('Add people', () => {
     await expect(added.first().locator('.um-not-yet')).toHaveText('Not signed in yet');
   });
 
+  test('U20-T07: by hand with an initial password; it is shown once, works once, and the person chooses their own', async ({ page, playwright }) => {
+    const email = `pia.${Date.now()}@onboard.test`;
+    await openAdd(page);
+    await page.locator('#adp-email').fill(email);
+    await page.locator('#adp-name').fill('Pia Sen');
+    await page.getByRole('radio', { name: 'Email and a password' }).check();
+    const password = page.locator('#adp-password');
+    await expect(password).toBeVisible();
+    await expect(password).toHaveValue(/^.{16}$/); // generated on choosing it
+    await password.fill('short');
+    await page.getByRole('button', { name: 'Add to list' }).click();
+    await expect(page.locator('#adp-manual-error')).toContainText('at least 12 characters');
+    await page.getByRole('button', { name: 'Generate' }).click();
+    const given = await password.inputValue();
+    expect(given).toHaveLength(16);
+    await page.getByRole('button', { name: 'Add to list' }).click();
+    await expect(page.locator('#adp-people tbody tr').first().locator('.adp-signin-cell')).toHaveText('Email and password');
+
+    const sent = page.waitForResponse(r => r.url().includes('/users/bulk-onboard?dryRun=false'));
+    await expect(page.locator('#adp-submit')).toHaveText('Add 1 person', { timeout: 10_000 });
+    await page.locator('#adp-submit').click();
+    expect((await sent).request().postDataJSON().people[0].initialPassword).toBe(given);
+    const dialog = page.locator('#adp-passwords');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('tbody tr')).toHaveText([`${email}${given}`]);
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await expect(page).toHaveURL(/#\/user-management$/, { timeout: 10_000 });
+
+    // The given password signs nobody in; it asks for their own, which then works.
+    const anon = await playwright.request.newContext({ baseURL: process.env.BASE_URL });
+    const first = await (await anon.post('/api/auth/login', { data: { username: email, password: given } })).json();
+    expect(first).toMatchObject({ success: false, passwordChangeRequired: true });
+    const changed = await anon.post('/api/auth/change-password', { data: { username: email, password: given, newPassword: 'pia-chose-this-one' } });
+    expect(changed.status()).toBe(200);
+    expect(await (await anon.post('/api/auth/login', { data: { username: email, password: given } })).status()).toBe(401);
+    expect(await (await anon.post('/api/auth/login', { data: { username: email, password: 'pia-chose-this-one' } })).json())
+      .toMatchObject({ success: true });
+    await anon.dispose();
+  });
+
   test('from the directory: two people, a team for one, two environments', async ({ page, playwright }) => {
     const admin = await api(playwright);
     const team = await (await admin.post('/api/v1/teams', { data: { displayName: `Data ${Date.now()}` } })).json();

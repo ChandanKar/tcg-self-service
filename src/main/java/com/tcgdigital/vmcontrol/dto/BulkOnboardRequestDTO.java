@@ -19,7 +19,8 @@ import java.util.List;
  * (directoryObjectId) or typed (email, name), with an optional department, project code and team;
  * one role for the new ones; optional access on environments or groups; previewed first
  * (dryRun). People who already use the app keep their role and profile: only access and team
- * are added for them.
+ * are added for them. U20-T07: a new person may get an initial password (12 to 72 characters):
+ * they then sign in with their email and it, and choose their own before anything else.
  */
 public record BulkOnboardRequestDTO(
         @NotEmpty(message = "Add at least one person") @Size(max = 100, message = "At most 100 people at once")
@@ -40,7 +41,20 @@ public record BulkOnboardRequestDTO(
             @Size(max = 50, message = "Project code can be at most 50 characters.")
             @Pattern(regexp = "^$|[A-Za-z0-9._-]+", message = "Project code can only use letters, digits, dot, dash and underscore.")
             String projectCode,
-            @Size(max = 100) String teamId) {
+            @Size(max = 100) String teamId,
+            @Size(max = 72, message = "The initial password can be at most 72 characters.") String initialPassword) {
+
+        /** Without an initial password: the person signs in with Microsoft. */
+        public Person(String directoryObjectId, String email, String displayName, String department, String projectCode,
+                      String teamId) {
+            this(directoryObjectId, email, displayName, department, projectCode, teamId, null);
+        }
+
+        /** Never in logs. */
+        @Override
+        public String toString() {
+            return "Person[email=" + email + ", initialPassword=" + (initialPassword == null ? "none" : "set") + "]";
+        }
     }
 
     /** One environment, whole (ENVIRONMENT) or some of its groups (GROUP with groupIds), at a level for some days. */

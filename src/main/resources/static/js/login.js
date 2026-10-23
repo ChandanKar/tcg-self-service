@@ -2,6 +2,8 @@
  * Sign-in page: Sign in with Microsoft (Entra ID) is always offered first; the username form follows
  * unless the server reports password login as disabled (GET /api/auth/options), when the form and
  * its divider are hidden (U09-T01). Messages stay until the user acts: no timers (WCAG 2.2.1).
+ * U20-T07: a right initial password signs nobody in; the page asks for the person's own password
+ * (POST /api/auth/change-password with the one given) and that signs them in.
  * Loaded only by login.html, so it is not part of the dist bundle.
  */
 (function () {
@@ -93,6 +95,11 @@
             });
 
             if (response.ok) {
+                const data = await response.json().catch(() => ({}));
+                if (data && data.passwordChangeRequired) {
+                    askForOwnPassword(username, password);
+                    return;
+                }
                 window.location.href = '/home';
                 return;
             }
@@ -105,6 +112,63 @@
             showError('Signing in did not work. Try again.');
         } finally {
             setButtonLoading(false);
+        }
+    }
+
+    // ---- U20-T07: choose your own password ----
+
+    let pending = null; // {username, password} of the initial sign-in, kept only in memory
+
+    function askForOwnPassword(username, password) {
+        pending = { username: username, password: password };
+        ['signInHead', 'loginForm', 'loginDivider', 'logoutMessage'].forEach(id => hide(document.getElementById(id)));
+        document.querySelectorAll('.btn-entraid').forEach(hide);
+        show(document.getElementById('changeForm'));
+        document.getElementById('password').value = '';
+        document.getElementById('newPassword').focus();
+    }
+
+    function changeError(message) {
+        const box = document.getElementById('changeError');
+        box.textContent = message;
+        show(box);
+    }
+
+    /** "" when the two fields make a password, else what to fix. */
+    function newPasswordProblem(chosen, again) {
+        if (!chosen || chosen.length < 12) return 'Use at least 12 characters.';
+        if (chosen.length > 72) return 'Use at most 72 characters.';
+        if (chosen !== again) return "The two passwords don't match.";
+        return '';
+    }
+
+    async function submitChange(e) {
+        e.preventDefault();
+        if (!pending) return;
+        const chosen = document.getElementById('newPassword').value;
+        const problem = newPasswordProblem(chosen, document.getElementById('confirmPassword').value);
+        if (problem) { changeError(problem); return; }
+        hide(document.getElementById('changeError'));
+        const button = document.getElementById('changeBtn');
+        button.disabled = true;
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            const csrf = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+            if (csrf) headers['X-XSRF-TOKEN'] = decodeURIComponent(csrf[1]);
+            const response = await fetch('/api/auth/change-password', {
+                method: 'POST', headers: headers, credentials: 'same-origin',
+                body: JSON.stringify({ username: pending.username, password: pending.password, newPassword: chosen })
+            });
+            if (response.ok) {
+                pending = null;
+                window.location.href = '/home';
+                return;
+            }
+            changeError((await readMessage(response)) || 'Your password was not saved. Try again.');
+        } catch (error) {
+            changeError('Your password was not saved. Try again.');
+        } finally {
+            button.disabled = false;
         }
     }
 
@@ -133,6 +197,8 @@
         applySignInOptions();
         const loginForm = document.getElementById('loginForm');
         if (loginForm) loginForm.addEventListener('submit', submitLogin);
+        const changeForm = document.getElementById('changeForm');
+        if (changeForm) changeForm.addEventListener('submit', submitChange);
         ['username', 'password'].forEach(function (id) {
             const field = document.getElementById(id);
             if (field) field.addEventListener('input', function () {

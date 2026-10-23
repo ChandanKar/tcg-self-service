@@ -257,6 +257,78 @@
     font-size: var(--fs-small);
 }
 
+/* U20-T07: who, then details, then how they sign in. */
+.adp-manual-who {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.adp-signin {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: var(--fs-small);
+}
+
+.adp-signin legend {
+    float: left;
+    width: auto;
+    margin: 0 6px 0 0;
+    font-size: inherit;
+    font-weight: 600;
+}
+
+.adp-password {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 6px 8px;
+}
+
+.adp-password[hidden] {
+    display: none;
+}
+
+.adp-password .ap-field {
+    font-size: var(--fs-small);
+}
+
+.adp-password .adp-note {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+.adp-mono {
+    font-family: var(--font-mono);
+}
+
+.adp-manual-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.adp-signin-cell {
+    font-size: var(--fs-small);
+    white-space: nowrap;
+}
+
+.adp-pass-table {
+    width: 100%;
+    margin: 8px 0;
+    border-collapse: collapse;
+    font-size: var(--fs-small);
+}
+
+.adp-pass-table th,
+.adp-pass-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: left;
+}
+
 .adp-roles {
     display: flex;
     flex-direction: column;

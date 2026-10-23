@@ -50,6 +50,10 @@ public class User {
     @Column(name = "password_updated_at")
     private Timestamp passwordUpdatedAt;
 
+    /** U20-T07: set with an initial password; the person chooses their own before their first session. */
+    @Column(name = "password_change_required", nullable = false)
+    private Boolean passwordChangeRequired = false;
+
     @Column(nullable = false)
     private Boolean admin = false;
 
@@ -229,6 +233,14 @@ public class User {
 
     public Timestamp getPasswordUpdatedAt() {
         return passwordUpdatedAt;
+    }
+
+    public boolean isPasswordChangeRequired() {
+        return Boolean.TRUE.equals(passwordChangeRequired);
+    }
+
+    public void setPasswordChangeRequired(boolean passwordChangeRequired) {
+        this.passwordChangeRequired = passwordChangeRequired;
     }
 
     public void setPasswordUpdatedAt(Timestamp passwordUpdatedAt) {

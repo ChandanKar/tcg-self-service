@@ -93,21 +93,11 @@ public class AuthController {
         try {
             User user = authenticationService.authenticateUser(username, loginRequest.getPassword());
             loginThrottleService.recordSuccess(username);
-
-            // Rotate the session id so a pre-login session id cannot be reused (session fixation).
-            if (request.getSession(false) != null) {
-                request.changeSessionId();
-            } else {
-                request.getSession(true);
+            if (user.isPasswordChangeRequired()) {
+                // U20-T07: an initial password signs nobody in; the page asks for their own first.
+                return ResponseEntity.ok(LoginResponse.changeRequired());
             }
-
-            SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
-            securityContext.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
-                    user.getUserId(), null, authoritiesFor(user)));
-            SecurityContextHolder.setContext(securityContext);
-            securityContextRepository.saveContext(securityContext, request, response);
-            request.getSession().setAttribute(CurrentUserRefreshFilter.ISSUED_AT, System.currentTimeMillis());
-
+            startSession(user, request, response);
             log.info("User {} logged in successfully via username/password", user.getUsername());
             return ResponseEntity.ok(new LoginResponse(true, "Login successful", user));
 
@@ -122,6 +112,52 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new LoginResponse(false, "Sign-in didn't work because of a server problem. Try again in a moment."));
         }
+    }
+
+    /**
+     * First sign-in with an initial password (U20-T07): username (or email), the password given and
+     * the one the person chooses. Throttled like a sign-in; on success the person is signed in.
+     */
+    @PostMapping("/change-password")
+    public ResponseEntity<LoginResponse> changeInitialPassword(@RequestBody LoginRequest body, HttpServletRequest request,
+                                                               HttpServletResponse response) {
+        if (!authenticationService.isPasswordLoginEnabled()) {
+            return ResponseEntity.notFound().build();
+        }
+        String username = body.getUsername();
+        String ip = request.getRemoteAddr();
+        Optional<Duration> blocked = loginThrottleService.blockedFor(username, ip);
+        if (blocked.isPresent()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, blocked.get().toSeconds())))
+                    .body(new LoginResponse(false, "Too many failed attempts. Try again later."));
+        }
+        try {
+            User user = authenticationService.changeInitialPassword(username, body.getPassword(), body.getNewPassword());
+            loginThrottleService.recordSuccess(username);
+            startSession(user, request, response);
+            return ResponseEntity.ok(new LoginResponse(true, "Password changed", user));
+        } catch (UnauthorizedException e) {
+            loginThrottleService.recordFailure(username, ip);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new LoginResponse(false, INVALID_CREDENTIALS));
+        } catch (com.tcgdigital.vmcontrol.exception.ValidationException e) {
+            return ResponseEntity.badRequest().body(new LoginResponse(false, e.getMessage()));
+        }
+    }
+
+    /** A new session id (no session fixation) holding only the user id and roles. */
+    private void startSession(User user, HttpServletRequest request, HttpServletResponse response) {
+        if (request.getSession(false) != null) {
+            request.changeSessionId();
+        } else {
+            request.getSession(true);
+        }
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                user.getUserId(), null, authoritiesFor(user)));
+        SecurityContextHolder.setContext(securityContext);
+        securityContextRepository.saveContext(securityContext, request, response);
+        request.getSession().setAttribute(CurrentUserRefreshFilter.ISSUED_AT, System.currentTimeMillis());
     }
 
     private static List<GrantedAuthority> authoritiesFor(User user) {

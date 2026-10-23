@@ -6,6 +6,8 @@ package com.tcgdigital.vmcontrol.dto;
 public class LoginRequest {
     private String username;
     private String password;
+    /** POST /api/auth/change-password only: the password the person chooses (U20-T07). */
+    private String newPassword;
 
     public LoginRequest() {
     }
@@ -29,6 +31,14 @@ public class LoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getNewPassword() {
+        return newPassword;
+    }
+
+    public void setNewPassword(String newPassword) {
+        this.newPassword = newPassword;
     }
 
     @Override

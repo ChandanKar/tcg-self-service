@@ -168,6 +168,32 @@ class BulkOnboardIntegrationTest extends SecuredWebTestBase {
     }
 
     @Test
+    void aNewPersonWithAnInitialPasswordSignsInWithTheirEmailAndMustChooseTheirOwn() throws Exception {
+        String json = "{\"people\":[{\"email\":\"" + email("Pia").toUpperCase() + "\",\"displayName\":\"Pia Sen\","
+                + "\"initialPassword\":\"given-by-admin-123\"},{\"email\":\"" + email("mo") + "\"}],\"role\":\"USER\"}";
+        send(false, asAdmin(), json).andExpect(status().isOk()).andExpect(jsonPath("$.newPeople").value(2));
+
+        User pia = userRepository.findByEmail(email("pia")).orElseThrow();
+        assertThat(pia.getUsername()).isEqualTo(email("pia"));
+        assertThat(pia.getPassword()).startsWith("$2");
+        assertThat(pia.isPasswordChangeRequired()).isTrue();
+        // Without a password: Microsoft sign-in, as before.
+        User mo = userRepository.findByEmail(email("mo")).orElseThrow();
+        assertThat(mo.getUsername()).isNull();
+        assertThat(mo.getPassword()).isNull();
+        assertThat(mo.isPasswordChangeRequired()).isFalse();
+    }
+
+    @Test
+    void aShortInitialPasswordNamesThePersonAndAddsNoOne() throws Exception {
+        String json = "{\"people\":[{\"email\":\"" + email("neha") + "\",\"initialPassword\":\"short\"}],\"role\":\"USER\"}";
+        send(true, asAdmin(), json)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(email("neha") + ": the initial password must be 12 to 72 characters"));
+        assertThat(userRepository.findByEmail(email("neha"))).isEmpty();
+    }
+
+    @Test
     void onlyAdministratorsAddPeople() throws Exception {
         expectError(send(true, asEnvAdmin(), body("USER", "")), 403);
         expectError(send(false, asUser(), body("USER", "")), 403);

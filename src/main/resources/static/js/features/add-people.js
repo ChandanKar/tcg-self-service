@@ -8,6 +8,9 @@
  * The confirm bar previews the whole step on the server (POST /users/bulk-onboard?dryRun=true):
  * "Add 2 new people as Environment admin, 4 access grants", who is skipped and why; "Add N people"
  * applies it in one go (U13-T02) and returns to Users.
+ * U20-T07: a person added by hand signs in with Microsoft, or with their email and an initial
+ * password (typed or generated) that they replace at first sign-in; the passwords are shown once,
+ * after adding, to be passed on.
  */
 const AddPeople = (function() {
     'use strict';
@@ -21,6 +24,8 @@ const AddPeople = (function() {
     const DURATIONS = [['30', '30 days'], ['7', '7 days'], ['90', '90 days'], ['', 'No end']];
     const SOURCES = { DIRECTORY: 'Directory', EXISTING: 'Already a user', MANUAL: 'By hand' };
     const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+    /** No look-alikes (0/O, 1/l/I) so a password read aloud or copied by hand stays right. */
+    const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_.!';
 
     let s = null; // page state
 
@@ -38,6 +43,31 @@ const AddPeople = (function() {
             }
         });
         return out;
+    }
+
+    /** A 16-character initial password; random(n) gives n random bytes (crypto in the browser). */
+    function generatePassword(random, length = 16) {
+        const bytes = random(length * 2);
+        let out = '';
+        for (let i = 0; i < bytes.length && out.length < length; i++) {
+            // drop bytes that would bias the pick towards the first characters
+            if (bytes[i] < 256 - (256 % PASSWORD_CHARS.length)) out += PASSWORD_CHARS[bytes[i] % PASSWORD_CHARS.length];
+        }
+        return out.length === length ? out : generatePassword(random, length);
+    }
+
+    /** What is wrong with an initial password for these addresses, or ''. */
+    function passwordProblem(password, emailCount) {
+        if (emailCount > 1) return 'A password is for one person at a time: add them one by one, or let them use Microsoft.';
+        if (!password || password.length < 12) return 'The initial password needs at least 12 characters. Generate one, or type it.';
+        if (password.length > 72) return 'The initial password can be at most 72 characters.';
+        return '';
+    }
+
+    function cryptoBytes(n) {
+        const bytes = new Uint8Array(n);
+        window.crypto.getRandomValues(bytes);
+        return bytes;
     }
 
     function roleLabel(role) {
@@ -65,7 +95,8 @@ const AddPeople = (function() {
                 displayName: p.name || null,
                 department: p.department || null,
                 projectCode: p.projectCode || null,
-                teamId: p.teamId || null
+                teamId: p.teamId || null,
+                initialPassword: p.initialPassword || null
             })),
             role: state.role,
             access: state.access.map(a => ({
@@ -106,7 +137,7 @@ const AddPeople = (function() {
         const token = ContentRouter.token();
         s = { token, people: [], role: 'USER', access: [], teams: [], environments: [], groups: {}, result: null, problem: '',
             previewSeq: 0, previewTimer: null, searchTimer: null, sending: false, results: [], nextKey: 1,
-            directory: typeof Capabilities !== 'undefined' && Capabilities.has('directory') };
+            directory: typeof Capabilities !== 'undefined' && Capabilities.has('directory'), passwordLogin: true };
         window.addEventListener('beforeunload', guardUnload);
         ContentRouter.onLeave(() => {
             window.removeEventListener('beforeunload', guardUnload);
@@ -114,11 +145,13 @@ const AddPeople = (function() {
             if (s) { clearTimeout(s.previewTimer); clearTimeout(s.searchTimer); }
         });
         Loading.showPage('Loading…');
-        const [teams, envs] = await Promise.all([
+        const [teams, envs, options] = await Promise.all([
             call('GET', Config.API.teams.list()).catch(() => []),
-            call('GET', Config.API.environments.list).catch(() => [])
+            call('GET', Config.API.environments.list).catch(() => []),
+            call('GET', '/api/auth/options').catch(() => null)
         ]);
         if (!current()) return;
+        s.passwordLogin = !(options && options.passwordLoginEnabled === false);
         s.teams = (Array.isArray(teams) ? teams : []).filter(t => t.active !== false)
             .sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
         s.environments = (Array.isArray(envs) ? envs : []).filter(e => e.viewerCanManageAccess !== false && e.isActive !== false)
@@ -152,21 +185,34 @@ const AddPeople = (function() {
                     <section class="adp-card adp-who" aria-labelledby="adp-who-title">
                         <div class="adp-who-head"><h2 id="adp-who-title">1 · Who</h2>${search}</div>
                         <div class="adp-table-wrap"><table class="adp-table" id="adp-people">
-                            <thead><tr><th scope="col">Person</th><th scope="col">Department</th><th scope="col">Team</th>
+                            <thead><tr><th scope="col">Person</th><th scope="col">Signs in with</th><th scope="col">Department</th><th scope="col">Team</th>
                                 <th scope="col">Project code</th><th scope="col">Source</th></tr></thead>
                             <tbody></tbody></table></div>
                         <form class="adp-manual" id="adp-manual" novalidate aria-labelledby="adp-manual-title">
                             <h3 id="adp-manual-title">${s.directory ? 'Not in the directory? Add by hand' : 'Add by hand'}</h3>
-                            <div class="adp-manual-grid">
+                            <div class="adp-manual-grid adp-manual-who">
                                 <label class="ap-field">Email *<input type="text" class="form-control" id="adp-email" placeholder="name@company.com" autocomplete="off"></label>
                                 <label class="ap-field">Name<input type="text" class="form-control" id="adp-name" maxlength="255"></label>
+                            </div>
+                            <div class="adp-manual-grid">
                                 <label class="ap-field">Department<input type="text" class="form-control" id="adp-dept" maxlength="100"></label>
                                 <label class="ap-field">Team<select class="form-select" id="adp-team">${teamOptions('')}</select></label>
                                 <label class="ap-field">Project code<input type="text" class="form-control" id="adp-project" maxlength="50"></label>
-                                <button type="submit" class="btn btn-secondary">Add to list</button>
                             </div>
+                            ${s.passwordLogin ? `<fieldset class="adp-signin">
+                                <legend>Signs in with</legend>
+                                <label class="re-check"><input type="radio" name="adp-signin" value="MICROSOFT" checked> Microsoft account</label>
+                                <label class="re-check"><input type="radio" name="adp-signin" value="PASSWORD"> Email and a password</label>
+                            </fieldset>
+                            <div class="adp-password" id="adp-password-row" hidden>
+                                <label class="ap-field">Initial password<input type="text" class="form-control adp-mono" id="adp-password"
+                                    maxlength="72" autocomplete="off" spellcheck="false" aria-describedby="adp-password-note"></label>
+                                <button type="button" class="btn btn-outline-secondary" id="adp-generate">Generate</button>
+                                <p class="adp-note" id="adp-password-note">Their username is their email. You give them this password; they choose their own the first time they sign in.</p>
+                            </div>` : ''}
+                            <div class="adp-manual-actions"><button type="submit" class="btn btn-secondary">Add to list</button></div>
                             <div class="re-error" id="adp-manual-error" role="alert" hidden></div>
-                            <p class="adp-note">People added by hand are marked unverified until they sign in with Microsoft. You can also paste several addresses at once.</p>
+                            <p class="adp-note">People who use Microsoft are marked unverified until their first Microsoft sign-in. You can paste several addresses at once for them.</p>
                         </form>
                     </section>
                     <div class="adp-side">
@@ -200,9 +246,12 @@ const AddPeople = (function() {
             const outcome = outcomeOf(p);
             const source = outcome && outcome.outcome === 'EXISTING' ? 'EXISTING' : p.source;
             const label = p.name || p.email;
+            const signIn = outcome && outcome.outcome === 'EXISTING' ? 'Keeps their sign-in'
+                : p.initialPassword ? 'Email and password' : 'Microsoft';
             return Utils.html`<tr data-key="${p.key}"${Utils.raw(outcome && outcome.outcome === 'SKIPPED' ? ' class="adp-row-skip"' : '')}>
                 <td><div class="adp-name">${label}</div>${Utils.raw(p.name ? Utils.html`<div class="adp-email">${p.email}</div>` : '')}${Utils.raw(outcome && outcome.outcome === 'SKIPPED'
                     ? Utils.html`<div class="adp-skip">Skipped: ${outcome.reason}</div>` : '')}</td>
+                <td class="adp-signin-cell">${signIn}</td>
                 <td><input type="text" class="form-control form-control-sm" data-adp-field="department" maxlength="100" value="${p.department || ''}" aria-label="Department for ${label}"></td>
                 <td><select class="form-select form-select-sm" data-adp-field="teamId" aria-label="Team for ${label}">${Utils.raw(teamOptions(p.teamId))}</select></td>
                 <td><input type="text" class="form-control form-control-sm" data-adp-field="projectCode" maxlength="50" value="${p.projectCode || ''}" aria-label="Project code for ${label}"></td>
@@ -210,7 +259,7 @@ const AddPeople = (function() {
                     <button type="button" class="adp-remove" data-adp-remove="${p.key}" aria-label="Remove ${label}">×</button></div></td>
             </tr>`;
         }).join('');
-        $('#adp-people tbody').html(rows || `<tr class="adp-empty"><td colspan="5">${s.directory
+        $('#adp-people tbody').html(rows || `<tr class="adp-empty"><td colspan="6">${s.directory
             ? 'Find people in the directory above, or add them by hand below.' : 'Add people by hand below.'}</td></tr>`);
     }
 
@@ -259,9 +308,20 @@ const AddPeople = (function() {
         }
         const name = emails.length === 1 ? $('#adp-name').val().trim() : '';
         const extra = { department: $('#adp-dept').val().trim(), teamId: $('#adp-team').val(), projectCode: $('#adp-project').val().trim() };
+        const withPassword = $('input[name="adp-signin"]:checked').val() === 'PASSWORD';
+        if (withPassword) {
+            const problem = passwordProblem($('#adp-password').val(), emails.length);
+            if (problem) {
+                $error.text(problem).prop('hidden', false);
+                $('#adp-password').trigger('focus');
+                return;
+            }
+            extra.initialPassword = $('#adp-password').val();
+        }
         const already = emails.filter(email => !addPerson(Object.assign({ name, email, source: 'MANUAL' }, extra)));
         if (already.length) $error.text(`Already in the list: ${already.join(', ')}`).prop('hidden', false);
         $('#adp-email, #adp-name').val('');
+        if (withPassword) $('#adp-password').val(generatePassword(cryptoBytes));
         $('#adp-email').trigger('focus');
         changed();
     }
@@ -395,15 +455,44 @@ const AddPeople = (function() {
             const result = await call('POST', Config.API.users.bulkOnboard(false), requestOf(s));
             if (!current()) return;
             const added = (result.newPeople || 0) + (result.existingPeople || 0);
+            const created = new Set((result.people || []).filter(p => p.outcome === 'NEW').map(p => String(p.email).toLowerCase()));
+            const passwords = s.people.filter(p => p.initialPassword && created.has(p.email.toLowerCase()));
             s.people = [];
             Notifications.success(`Added ${added} ${added === 1 ? 'person' : 'people'}.`);
-            window.location.hash = '#/user-management';
+            if (passwords.length) showPasswords(passwords);
+            else window.location.hash = '#/user-management';
         } catch (error) {
             if (!current()) return;
             s.sending = false;
             s.problem = serverMessage(error, 'Nobody was added. Try again.');
             drawConfirm();
         }
+    }
+
+    /**
+     * The initial passwords, once (U20-T07): they are not shown again and never emailed, so the
+     * administrator copies them here to give to each person. Closing goes on to Users.
+     */
+    function showPasswords(people) {
+        const text = people.map(p => `${p.email}\t${p.initialPassword}`).join('\n');
+        Modals.show({
+            id: 'adp-passwords',
+            title: people.length === 1 ? 'Their initial password' : 'Their initial passwords',
+            body: Utils.html`<p>Give each person their password. They sign in with their email and it, and choose their own straight away.
+                    This is the only time it is shown.</p>
+                <table class="adp-pass-table"><thead><tr><th scope="col">Email (username)</th><th scope="col">Initial password</th></tr></thead>
+                <tbody>${Utils.raw(people.map(p => Utils.html`<tr><td>${p.email}</td><td class="adp-mono">${p.initialPassword}</td></tr>`).join(''))}</tbody></table>
+                <p class="adp-note" id="adp-copy-note" role="status"></p>`,
+            buttons: [{ text: 'Copy all', class: 'btn-outline-secondary', id: 'adp-copy-passwords' },
+                { text: 'Done', class: 'btn-primary', dismiss: true }],
+            onHide: () => { window.location.hash = '#/user-management'; }
+        });
+        $('#adp-copy-passwords').on('click', () => {
+            const done = () => $('#adp-copy-note').text('Copied.');
+            const fail = () => $('#adp-copy-note').text("Couldn't copy: select the table and copy it.");
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
+            else fail();
+        });
     }
 
     // ---- events
@@ -435,6 +524,12 @@ const AddPeople = (function() {
             })
             .on('click' + NS, '#add-people-view .adp-option', function() { pickResult(Number(this.dataset.idx)); })
             .on('submit' + NS, '#adp-manual', e => { e.preventDefault(); addManual(); })
+            .on('change' + NS, 'input[name="adp-signin"]', function() {
+                const withPassword = this.value === 'PASSWORD' && this.checked;
+                $('#adp-password-row').prop('hidden', !withPassword);
+                if (withPassword && !$('#adp-password').val()) $('#adp-password').val(generatePassword(cryptoBytes));
+            })
+            .on('click' + NS, '#adp-generate', () => $('#adp-password').val(generatePassword(cryptoBytes)).trigger('focus'))
             .on('change' + NS, '#adp-people [data-adp-field]', function() {
                 const p = s.people.find(x => x.key === $(this).closest('tr').data('key').toString());
                 if (p) { p[this.dataset.adpField] = this.value.trim(); changed(); }
@@ -497,7 +592,7 @@ const AddPeople = (function() {
         if (side) Modals.watchScroll(side, side, 'Role and access');
     }
 
-    return { load, model: { parseAddresses, summaryText, requestOf, roleLabel } };
+    return { load, model: { parseAddresses, summaryText, requestOf, roleLabel, generatePassword, passwordProblem, PASSWORD_CHARS } };
 })();
 
 if (typeof window !== 'undefined') window.AddPeople = AddPeople;

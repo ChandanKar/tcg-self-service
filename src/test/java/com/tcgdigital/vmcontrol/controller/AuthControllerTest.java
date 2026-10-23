@@ -168,6 +168,92 @@ class AuthControllerTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 
+    // ---- U20-T07: an initial password is changed at first sign-in ----
+
+    private static final String INITIAL = "given-by-admin-123";
+    private static final String CHOSEN = "my-own-choice-456";
+
+    private User withInitialPassword(String name) {
+        User user = newUser(name + "@example.com", false, false);
+        user.setUsername(name + "@example.com");
+        user.setPassword(passwordEncoder.encode(INITIAL));
+        user.setPasswordChangeRequired(true);
+        return userRepository.save(user);
+    }
+
+    private static MockHttpServletRequestBuilder change(String username, String current, String chosen) {
+        String ip = "10.98." + (UUID.randomUUID().hashCode() & 0xff) + "." + (UUID.randomUUID().hashCode() & 0xff);
+        return post("/api/auth/change-password")
+                .with(csrf())
+                .with(request -> {
+                    request.setRemoteAddr(ip);
+                    return request;
+                })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"" + username + "\",\"password\":\"" + current + "\",\"newPassword\":\"" + chosen + "\"}");
+    }
+
+    @Test
+    void anInitialPasswordAsksForANewOneAndSignsNobodyIn() throws Exception {
+        User user = withInitialPassword("first.timer");
+
+        MvcResult result = mockMvc.perform(login(user.getEmail(), INITIAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.passwordChangeRequired").value(true))
+                .andExpect(jsonPath("$.user").doesNotExist())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        if (session != null) {
+            assertThat(session.getAttribute("SPRING_SECURITY_CONTEXT")).isNull();
+        }
+        assertThat(userRepository.findById(user.getUserId()).orElseThrow().getLastLoginAt()).isNull();
+    }
+
+    @Test
+    void choosingANewPasswordSignsInAndOnlyTheNewOneWorksAfter() throws Exception {
+        User user = withInitialPassword("chooser");
+
+        MvcResult result = mockMvc.perform(change(user.getEmail(), INITIAL, CHOSEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andReturn();
+        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        mockMvc.perform(get("/api/v1/users/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(user.getEmail()));
+
+        User saved = userRepository.findById(user.getUserId()).orElseThrow();
+        assertThat(saved.isPasswordChangeRequired()).isFalse();
+        assertThat(passwordEncoder.matches(CHOSEN, saved.getPassword())).isTrue();
+        mockMvc.perform(login(user.getEmail(), INITIAL)).andExpect(status().isUnauthorized());
+        mockMvc.perform(login(user.getEmail(), CHOSEN)).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void theNewPasswordMustBeLongEnoughAndNotTheOneGiven() throws Exception {
+        User user = withInitialPassword("picky");
+
+        mockMvc.perform(change(user.getEmail(), "not-the-initial-one", CHOSEN)).andExpect(status().isUnauthorized());
+        mockMvc.perform(change(user.getEmail(), INITIAL, "short"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Password must be between 12 and 72 characters"));
+        mockMvc.perform(change(user.getEmail(), INITIAL, INITIAL))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Choose a password other than the one you were given."));
+        assertThat(userRepository.findById(user.getUserId()).orElseThrow().isPasswordChangeRequired()).isTrue();
+    }
+
+    @Test
+    void aPasswordUserSignsInWithTheirEmailToo() throws Exception {
+        User user = withPassword("email.user", passwordEncoder.encode(GOOD_PASSWORD));
+
+        mockMvc.perform(login(user.getEmail().toUpperCase(), GOOD_PASSWORD))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
     /** Each request gets its own client IP so the shared per-IP counter never leaks between tests. */
     private static MockHttpServletRequestBuilder login(String username, String password) {
         String ip = "10.99." + (UUID.randomUUID().hashCode() & 0xff) + "." + (UUID.randomUUID().hashCode() & 0xff);

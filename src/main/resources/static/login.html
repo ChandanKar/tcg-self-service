@@ -10,8 +10,8 @@
 
     <!-- Application CSS: self-hosted IBM Plex and the style-guide tokens (U03-T01), then this page -->
     <link rel="preload" href="webfonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="css/main.css?v=202610212000">
-    <link rel="stylesheet" href="css/login.css?v=202610212000">
+    <link rel="stylesheet" href="css/main.css?v=202610311500">
+    <link rel="stylesheet" href="css/login.css?v=202610311500">
 </head>
 <body class="login-page">
     <main class="login-split">
@@ -34,7 +34,7 @@
 
         <section class="login-panel" aria-label="Sign in">
             <div class="login-box">
-                <div>
+                <div id="signInHead">
                     <h2 class="login-title">Sign in</h2>
                     <p class="login-subtitle">Use your TCG Digital Microsoft account.</p>
                 </div>
@@ -50,7 +50,7 @@
                 <div class="login-divider" id="loginDivider"><span>or with a username</span></div>
 
                 <form class="login-form" id="loginForm" novalidate>
-                    <label class="login-field" for="username">Username
+                    <label class="login-field" for="username">Username or email
                         <input type="text" id="username" name="username" required autocomplete="username">
                     </label>
                     <label class="login-field" for="password">Password
@@ -60,12 +60,28 @@
                     <button type="submit" class="login-submit" id="submitBtn">Sign in</button>
                 </form>
 
+                <!-- U20-T07: after an initial password, the person chooses their own before signing in. -->
+                <form class="login-form d-none" id="changeForm" novalidate aria-labelledby="changeTitle">
+                    <div>
+                        <h2 class="login-title" id="changeTitle">Choose your password</h2>
+                        <p class="login-subtitle">The password you were given works once. Choose your own: 12 to 72 characters.</p>
+                    </div>
+                    <label class="login-field" for="newPassword">New password
+                        <input type="password" id="newPassword" name="newPassword" required minlength="12" maxlength="72" autocomplete="new-password">
+                    </label>
+                    <label class="login-field" for="confirmPassword">The same again
+                        <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
+                    </label>
+                    <div id="changeError" class="login-error d-none" role="alert"></div>
+                    <button type="submit" class="login-submit" id="changeBtn">Save and sign in</button>
+                </form>
+
                 <p class="login-help">Trouble signing in? Ask your platform administrator to check your account.</p>
             </div>
         </section>
     </main>
 
     <!-- Login page behaviour (no inline script so a strict CSP can apply) -->
-    <script src="js/login.js?v=202610212000"></script>
+    <script src="js/login.js?v=202610311500"></script>
 </body>
 </html>

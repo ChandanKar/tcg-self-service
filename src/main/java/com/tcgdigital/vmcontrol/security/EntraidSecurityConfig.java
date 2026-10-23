@@ -56,7 +56,7 @@ public class EntraidSecurityConfig {
                 // the API description and Swagger UI need a session or an API token (E34-T04)
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/webfonts/**", "/logo/**", "/images/**", "/static/**",
                     "/error", "/login/**", "/oauth2/**", "/webjars/**",
-                    "/api/auth/login", "/api/auth/options", SecurityHeaders.REPORT_PATH,
+                    "/api/auth/login", "/api/auth/change-password", "/api/auth/options", SecurityHeaders.REPORT_PATH,
                     "/actuator/health", "/actuator/health/**").permitAll()
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()

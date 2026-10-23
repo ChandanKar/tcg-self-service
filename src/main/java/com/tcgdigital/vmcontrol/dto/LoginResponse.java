@@ -9,6 +9,8 @@ public class LoginResponse {
     private boolean success;
     private String message;
     private UserDTO user;
+    /** U20-T07: the password was right but is an initial one: no session until a new one is chosen. */
+    private boolean passwordChangeRequired;
 
     public LoginResponse() {
     }
@@ -39,6 +41,21 @@ public class LoginResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    /** The right initial password: the person is asked for a new one, and no session is made. */
+    public static LoginResponse changeRequired() {
+        LoginResponse r = new LoginResponse(false, "Choose your own password to finish signing in.");
+        r.passwordChangeRequired = true;
+        return r;
+    }
+
+    public boolean isPasswordChangeRequired() {
+        return passwordChangeRequired;
+    }
+
+    public void setPasswordChangeRequired(boolean passwordChangeRequired) {
+        this.passwordChangeRequired = passwordChangeRequired;
     }
 
     public UserDTO getUser() {
