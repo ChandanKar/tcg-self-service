@@ -18,6 +18,7 @@ import com.tcgdigital.vmcontrol.model.VmType;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
+import com.tcgdigital.vmcontrol.service.support.EksNodeTags;
 import com.tcgdigital.vmcontrol.service.support.InstanceRefCodec;
 import com.tcgdigital.vmcontrol.service.support.InstanceRefCodec.InstanceRef;
 import org.slf4j.Logger;
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -130,10 +132,22 @@ public class VmCandidateService {
         Map<String, Vm> known = registered(CloudProvider.AWS, instances.stream().map(Ec2InstanceInfo::instanceId).toList());
         return instances.stream().map(i -> {
             String name = i.tags() == null ? null : i.tags().get("Name");
-            return candidate(environment, CloudProvider.AWS, accountRef, region, userId, i.instanceId(),
+            VmCandidateDTO c = candidate(environment, CloudProvider.AWS, accountRef, region, userId, i.instanceId(),
                     name == null || name.isBlank() ? null : name, i.instanceType(), i.availabilityZone(),
                     i.privateIpAddress(), i.state(), known.get(i.instanceId()), null);
+            String cluster = EksNodeTags.clusterOf(i.tags());
+            return cluster != null && c.canAdd() ? asNode(c, cluster) : c;
         }).toList();
+    }
+
+    /** An EKS worker node is shown but cannot be picked: its node group starts, stops and replaces it (U20-T05). */
+    private static VmCandidateDTO asNode(VmCandidateDTO c, String cluster) {
+        return new VmCandidateDTO(c.ref(), c.providerVmId(), c.name(), c.instanceType(), c.zone(), c.privateIp(), c.state(),
+                Status.EKS_NODE, c.inEnvironmentName(), c.inGroupName(), nodeNote(cluster));
+    }
+
+    private static String nodeNote(String cluster) {
+        return "Node of EKS cluster " + cluster + ": its node group manages it";
     }
 
     private List<VmCandidateDTO> listEverywhere(String environmentId, Source source, String accountRef, String userId) {
@@ -214,6 +228,11 @@ public class VmCandidateService {
     @Transactional
     public List<Vm> registerBatch(String environmentId, BatchRegisterVmsDTO dto, String actorUserId) {
         Environment environment = environment(environmentId);
+        if ("EKS".equalsIgnoreCase(environment.getServiceType())) {
+            // U20-T05: an EKS environment holds the cluster's node groups, kept in step by the EKS sync.
+            throw new ValidationException(label(environment) + " is an EKS environment: its node groups come from the cluster, "
+                    + "and VMs cannot be added to it. Nothing was added.");
+        }
         boolean hasGroup = dto.groupId() != null && !dto.groupId().isBlank();
         boolean hasNewGroup = dto.newGroupName() != null && !dto.newGroupName().isBlank();
         if (hasGroup == hasNewGroup) {
@@ -250,6 +269,7 @@ public class VmCandidateService {
             }
             picks.add(new Pick(item, ref, discovered));
         }
+        problems.addAll(eksNodes(picks.stream().map(p -> Map.entry(p.ref(), p.item().name().trim())).toList()));
         if (!problems.isEmpty()) {
             throw new ValidationException(String.join("; ", problems) + ". Nothing was added.");
         }
@@ -281,6 +301,40 @@ public class VmCandidateService {
         log.info("Added {} VMs to group {} of environment {} by {}", added.size(), group.getName(),
                 environment.getName(), actorUserId);
         return added;
+    }
+
+    /**
+     * The picked EC2 instances that are EKS worker nodes, by name (U20-T05). The list never offers them,
+     * so this only catches a stale or hand-made request; it asks AWS once per account and region, and
+     * when AWS cannot be asked it lets the batch through (the instances were listed a moment ago).
+     */
+    private List<String> eksNodes(List<Map.Entry<InstanceRef, String>> picks) {
+        Map<String, List<Map.Entry<InstanceRef, String>>> byTarget = new HashMap<>();
+        for (Map.Entry<InstanceRef, String> pick : picks) {
+            if (pick.getKey().provider() == CloudProvider.AWS) {
+                byTarget.computeIfAbsent(pick.getKey().accountRef() + "|" + pick.getKey().region(), k -> new ArrayList<>()).add(pick);
+            }
+        }
+        List<String> problems = new ArrayList<>();
+        byTarget.values().forEach(list -> {
+            InstanceRef first = list.get(0).getKey();
+            Map<String, String> clusters = new HashMap<>();
+            try {
+                for (Ec2InstanceInfo i : ec2Service.listInstances(first.accountRef(), first.region())) {
+                    String cluster = EksNodeTags.clusterOf(i.tags());
+                    if (cluster != null) {
+                        clusters.put(i.instanceId(), cluster);
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.warn("Could not check {} for EKS nodes before adding VMs: {}", first.region(), e.getMessage());
+                return;
+            }
+            list.stream().filter(p -> clusters.containsKey(p.getKey().instanceId()))
+                    .forEach(p -> problems.add(p.getValue() + " is a node of EKS cluster " + clusters.get(p.getKey().instanceId())
+                            + " (its node group manages it)"));
+        });
+        return problems;
     }
 
     /** Tags the environment's new VMs for cost allocation; never fails the request (run after the batch commits). */

@@ -76,7 +76,10 @@ class DiscoveryInboxServiceTest {
         found.put(EU, List.of(instance("i-0000000000000free", "web-01", "running", Map.of()),
                 instance("i-00000000000000reg", "registered", "running", Map.of()),
                 instance("i-0000000000000gone", "old", "terminated", Map.of()),
-                instance("i-00000000000tagged", null, "stopped", Map.of("tcg:environment", "crm-uat"))));
+                instance("i-00000000000tagged", null, "stopped", Map.of("tcg:environment", "crm-uat")),
+                // U20-T05: worker nodes of a cluster are the cluster's, never listed as VMs
+                instance("i-0000000000000nd1", "data-platform-ng-1", "running", Map.of("eks:cluster-name", "data-platform")),
+                instance("i-0000000000000nd2", null, "running", Map.of("kubernetes.io/cluster/data-platform", "owned"))));
         found.put(ME, List.of(instance("i-000000000000ignor", "ignored-one", "running", Map.of())));
         doReturn(new AwsResourceSweep.Result<>(found, List.of(new AwsResourceSweep.RegionOutcome("EC2", US, now, 0, "connection reset", false))))
                 .when(sweep).everywhere(eq("EC2 instances (inbox)"), anyList(), eq("ec2:instance"), any());

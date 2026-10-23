@@ -16,6 +16,7 @@ import com.tcgdigital.vmcontrol.service.CloudTarget;
 import com.tcgdigital.vmcontrol.service.Ec2Service;
 import com.tcgdigital.vmcontrol.service.EksCloudProviderService;
 import com.tcgdigital.vmcontrol.service.aws.AwsAccountService;
+import com.tcgdigital.vmcontrol.service.support.EksNodeTags;
 import com.tcgdigital.vmcontrol.service.support.InstanceRefCodec;
 import com.tcgdigital.vmcontrol.service.support.NameNormalizer;
 import org.springframework.beans.factory.annotation.Value;
@@ -99,7 +100,9 @@ public class DiscoveryInboxService {
         List<FoundInAwsDTO.Item> items = new ArrayList<>();
         s.instances().forEach((target, list) -> {
             for (Ec2InstanceInfo i : list) {
+                // An EKS worker node is its cluster's (listed below as the cluster), never a VM to add (U20-T05).
                 if (registered.contains(i.instanceId()) || (i.state() != null && GONE.contains(i.state().toLowerCase()))
+                        || EksNodeTags.clusterOf(i.tags()) != null
                         || ignored.contains(DiscoveryIgnore.key(DiscoveryIgnore.Kind.EC2, target.accountRef(), target.region(), i.instanceId()))) {
                     continue;
                 }

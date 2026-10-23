@@ -173,6 +173,45 @@ class VmBatchRegisterIntegrationTest extends SecuredWebTestBase {
     }
 
     @Test
+    void anEksWorkerNodeIsShownButNeverAdded() throws Exception {
+        var node = instance("i-0eeeeeeeeeeeeeee1", "shop-ng-a", "running");
+        node.tags().put("eks:cluster-name", "shop");
+        when(ec2Service.listInstances(any(), eq(REGION))).thenReturn(List.of(instance(A_ID, "web-03", "running"), node));
+        JsonNode list = json.readTree(mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId() + "/vms/candidates")
+                        .param("region", REGION).with(asEnvAdmin()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        JsonNode shown = null;
+        for (JsonNode c : list) {
+            if ("shop-ng-a".equals(c.get("name").asText())) {
+                shown = c;
+            }
+        }
+        assertThat(shown).isNotNull();
+        assertThat(shown.get("status").asText()).isEqualTo("EKS_NODE");
+        assertThat(shown.get("note").asText()).isEqualTo("Node of EKS cluster shop: its node group manages it");
+
+        // A stale or hand-made request is refused too, whole batch.
+        batch(asEnvAdmin(), inWeb(), ref(asEnvAdmin(), "web-03"), "web-03", shown.get("ref").asText(), "shop-ng-a")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("shop-ng-a is a node of EKS cluster shop (its node group manages it). Nothing was added."));
+        assertThat(byProviderId(A_ID)).isNull();
+        assertThat(byProviderId("i-0eeeeeeeeeeeeeee1")).isNull();
+    }
+
+    @Test
+    void anEksEnvironmentTakesNoVms() throws Exception {
+        String ref = ref(asEnvAdmin(), "web-03");
+        env.setServiceType("EKS");
+        environmentRepository.saveAndFlush(env);
+
+        batch(asEnvAdmin(), inWeb(), ref, "web-03")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Analytics QA is an EKS environment: its node groups come from the cluster, "
+                        + "and VMs cannot be added to it. Nothing was added."));
+        assertThat(byProviderId(A_ID)).isNull();
+    }
+
+    @Test
     void theSameInstanceTwiceIsRefused() throws Exception {
         String ref = ref(asEnvAdmin(), "web-03");
         batch(asEnvAdmin(), inWeb(), ref, "web-03", ref, "web-03b")
