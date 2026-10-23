@@ -139,7 +139,12 @@
     .admin-home.page-frame .ah-fleet-list {
         flex: 1 1 auto;
         min-height: 0;
+        overflow-x: hidden;
         overflow-y: auto;
+        /* U20-T02: room for the scrollbar, and a gap before it, whether or not the list scrolls */
+        scrollbar-gutter: stable;
+        padding-right: 8px;
+        margin-right: -8px;
     }
 
     .admin-home.page-frame #ah-spend-body {

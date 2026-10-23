@@ -3,14 +3,15 @@
  * The signature component of the style guide: one light per VM, groups separated and in start
  * order, left to right (css/components/power-strip.css).
  *
- *   PowerStrip.render(groups, {large, showCount})  groups = [{name, lights: ['R', 'B', 'S', 'U', 'E']}]
+ *   PowerStrip.render(groups, {large, showCount, bar})  groups = [{name, lights: ['R', 'B', 'S', 'U', 'E']}]
  *   PowerStrip.fromVmGroups(groupsWithVms)          GET /environments/{id}/vms -> groups
  *   PowerStrip.fromGroupStates(groupStates)         per-group counts -> groups
  *   PowerStrip.counts(running, total, opts)         rows that only know two numbers
  *
  * Lights: R running, B starting or stopping, E failed, U not read from AWS yet, S stopped.
  * A compact strip with more than 24 lights becomes a bar filled by the running share; the large
- * strip (environment page) always draws every light.
+ * strip (environment page) always draws every light. {bar: true} asks for the bar whatever the count,
+ * for a row too narrow for the lights (Home's Fleet right now, U20-T02).
  */
 const PowerStrip = (function() {
     'use strict';
@@ -68,7 +69,7 @@ const PowerStrip = (function() {
         const all = list.flatMap(g => g.lights);
         const t = tally(all);
         const name = label(t, all.length);
-        const lights = (!large && all.length > MAX_COMPACT_LIGHTS) ? barHtml(t.R, all.length)
+        const lights = (!large && (opts.bar || all.length > MAX_COMPACT_LIGHTS)) ? barHtml(t.R, all.length)
             : `<span class="power-strip-lights" aria-hidden="true">${list.map(g =>
                 `<span class="power-strip-group"${g.name ? ` title="${esc(g.name)}"` : ''}>${
                     g.lights.map(l => `<span class="pip${LIGHT_CLASS[l] ? ' ' + LIGHT_CLASS[l] : ''}"></span>`).join('')

@@ -16,6 +16,9 @@ const AdminHome = (function() {
     const SYNC_BEHIND_MS = 30 * 60000;
 
     let extras = null; // {at, attention, trend, attentionFailed, trendFailed}
+    const fleetGroups = new Map(); // environmentId -> power strip groups, to redraw a row's strip
+    const MIN_NAME_PX = 96;
+    let fitTimer = null;
 
     // ---- pure model (node tests: src/test/js/admin-home.test.mjs) ----
 
@@ -196,9 +199,11 @@ const AdminHome = (function() {
     function html(data) {
         const s = data.summary || {};
         const rows = fleet(data.environments);
-        const fleetRows = rows.length ? `<div class="ah-fleet-list" data-scroll-label="Fleet right now">${rows.map(c => Utils.html`<a class="ah-fleet-row" href="#/environments/${encodeURIComponent(c.environmentId)}">
+        fleetGroups.clear();
+        rows.forEach(c => fleetGroups.set(String(c.environmentId), PowerStrip.fromGroupStates(c.groupStates || [])));
+        const fleetRows = rows.length ? `<div class="ah-fleet-list" data-scroll-label="Fleet right now">${rows.map(c => Utils.html`<a class="ah-fleet-row" href="#/environments/${encodeURIComponent(c.environmentId)}" data-env="${String(c.environmentId)}">
                 <span class="ah-fleet-name">${c.displayName || c.name}</span>`
-            + PowerStrip.render(PowerStrip.fromGroupStates(c.groupStates || []), {}) + '</a>').join('')}</div>`
+            + PowerStrip.render(fleetGroups.get(String(c.environmentId)), {}) + '</a>').join('')}</div>`
             : '<p class="ah-note">No environments yet. <a href="#/my-environments">Environments</a> is where you add one.</p>';
         return `
             <div class="content-view page page-frame home-page admin-home" id="dashboard-view">
@@ -227,8 +232,34 @@ const AdminHome = (function() {
             extras.attention && extras.attention.monthPlan, new Date()) : null;
     }
 
+    /**
+     * A row whose lights leave the name too little room shows the strip as a bar (U20-T02): many groups
+     * make a strip wider than the card, and the card never scrolls sideways. Checked after each draw and
+     * when the window is resized, so a wider window brings the lights back.
+     */
+    function fitFleet() {
+        document.querySelectorAll('#dashboard-view .ah-fleet-row[data-env]').forEach(row => {
+            const groups = fleetGroups.get(row.dataset.env);
+            const strip = row.querySelector('.power-strip');
+            if (!groups || !strip) return;
+            strip.outerHTML = PowerStrip.render(groups, {});
+            const name = row.querySelector('.ah-fleet-name');
+            if (row.scrollWidth > row.clientWidth + 1 || (name && name.clientWidth < MIN_NAME_PX)) {
+                row.querySelector('.power-strip').outerHTML = PowerStrip.render(groups, { bar: true });
+            }
+        });
+    }
+
+    if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('resize', () => {
+            clearTimeout(fitTimer);
+            fitTimer = setTimeout(() => { if (document.querySelector('#dashboard-view.admin-home')) fitFleet(); }, 150);
+        });
+    }
+
     /** Fills attention, spend and health; fetches them at most once a minute. */
     function fill(data) {
+        fitFleet();
         if (extras && Date.now() - extras.at < EXTRAS_FRESH_MS) {
             draw(data);
             return;

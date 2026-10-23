@@ -43,6 +43,16 @@ test('over 24 lights a compact strip becomes a bar; the large strip keeps every 
     assert.equal(count(strip('R'.repeat(24)), /class="pip/g), 24, '24 lights still draw');
 });
 
+test('{bar: true} asks for the bar for any count, still named and counted (U20-T02)', () => {
+    const html = strip('RR|S|R', { bar: true });
+    assert.equal(count(html, /class="pip/g), 0);
+    assert.match(html, /class="power-bar"/);
+    assert.match(html, /width:75%/);
+    assert.match(html, /<b>3<\/b>\/4/);
+    assert.equal(ariaLabel(html), '3 of 4 VMs running');
+    assert.doesNotMatch(strip('RR|S|R', { bar: true, large: true }), /power-bar/, 'the large strip keeps every light');
+});
+
 test('failed and not-read VMs show as red and hatched lights and are named', () => {
     const PowerStrip = load();
     const groups = PowerStrip.fromVmGroups([
