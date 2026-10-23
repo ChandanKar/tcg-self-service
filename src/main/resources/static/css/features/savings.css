@@ -17,7 +17,6 @@
 .savings-tiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    margin-bottom: 16px;
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -53,14 +52,97 @@
 }
 
 .savings-note {
-    margin: 0 0 16px;
+    margin: 0;
 }
 
-.savings-pair {
+/* By environment beside Saved by and Cost efficiency (U20-T01); stacked on narrow screens. */
+.savings-main {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    grid-template-columns: minmax(0, 1fr) 360px;
     gap: 16px;
-    margin-bottom: 16px;
+    align-items: start;
+}
+
+.savings-side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+@media (max-width: 1100px) {
+    .savings-main {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* On the page frame (U20-T01): the figures keep their height, the rest takes what is left. Nothing
+   shrinks: By environment scrolls inside its panel with rows fitted, the side column scrolls itself. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .savings-page.page-frame > .savings-body {
+        overflow: hidden;
+    }
+
+    .savings-page.page-frame .savings-body > * {
+        flex: none;
+    }
+
+    .savings-page.page-frame .savings-body > .savings-main {
+        flex: 1 1 0;
+        min-height: 0;
+        align-items: stretch;
+    }
+
+    .savings-page.page-frame .savings-main > .savings-envs {
+        min-height: 0;
+        border-radius: 12px;
+    }
+
+    .savings-page.page-frame .savings-side {
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .savings-page.page-frame .savings-side > * {
+        flex: none;
+    }
+
+    .savings-page.page-frame .savings-tile {
+        padding: 12px 18px;
+    }
+
+    .savings-page.page-frame .savings-tile-value {
+        font-size: 22px;
+    }
+
+    .savings-page.page-frame #savings-trend-svg {
+        height: 110px;
+    }
+}
+
+/* Short windows: a tighter band. */
+@media (min-width: 1280px) and (min-height: 600px) and (max-height: 780px) {
+    .savings-page.page-frame .savings-tile {
+        padding: 9px 16px;
+    }
+
+    .savings-page.page-frame .savings-tile-value {
+        font-size: 19px;
+    }
+
+    .savings-page.page-frame .savings-causes,
+    .savings-page.page-frame .savings-efficiency {
+        padding: 12px 16px;
+        gap: 8px;
+    }
+
+    .savings-page.page-frame #savings-trend-svg {
+        height: 90px;
+    }
+}
+
+.savings-side.has-more-below {
+    box-shadow: inset 0 -10px 8px -8px rgba(20, 36, 92, 0.2);
 }
 
 .savings-causes,
@@ -70,17 +152,10 @@
 }
 
 .savings-causes h2,
-.savings-efficiency h2,
-.savings-card-title {
+.savings-efficiency h2 {
     margin: 0 0 4px;
     font-size: 16px;
     font-weight: 600;
-}
-
-.savings-card-title {
-    margin: 0;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--line-soft);
 }
 
 .savings-cause {
@@ -183,7 +258,6 @@
 
 .savings-envs .pager {
     padding: 8px 20px;
-    border-top: 1px solid var(--line-soft);
 }
 
 .savings-sort {
@@ -201,9 +275,6 @@
 }
 
 @media (max-width: 575.98px) {
-    .savings-pair {
-        grid-template-columns: minmax(0, 1fr);
-    }
 
     .savings-tile {
         border-right: 0;

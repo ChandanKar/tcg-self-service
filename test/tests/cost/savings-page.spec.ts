@@ -133,6 +133,32 @@ test.describe('Savings page', () => {
     await expect.poll(() => rebuilt).toBe(1);
   });
 
+  test('a short window keeps every section: By environment fits its rows and pages, nothing is squeezed (U20-T01)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 657 });
+    const rows = Array.from({ length: 40 }, (_, i) => ({ key: `env-${i}`, label: `Env ${String(i).padStart(2, '0')}`,
+      hours: 40 - i, gross: 400 - i, net: 300 - i, team: null }));
+    await page.route(/\/api\/v1\/savings\/by-environment/, route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) }));
+    await openSavings(page);
+
+    const panel = page.locator('.savings-envs');
+    await expect(panel.locator('tbody tr').first()).toBeVisible({ timeout: 15_000 });
+    await expect(panel.locator('.list-panel-foot .pager')).toBeVisible();
+    const fit = await page.evaluate(() => {
+      const body = document.querySelector('.savings-envs .list-panel-body')!.getBoundingClientRect();
+      const shown = [...document.querySelectorAll('.savings-envs tbody tr')]
+        .filter(r => { const b = r.getBoundingClientRect(); return b.top >= body.top && b.bottom <= body.bottom + 1; }).length;
+      const main = document.getElementById('mainContent')!;
+      return { shown, rows: document.querySelectorAll('.savings-envs tbody tr').length, overflow: main.scrollHeight - main.clientHeight };
+    });
+    // Acceptance: at least 5 rows at 1366x657, every row of the page in view, and the page itself does not scroll.
+    expect(fit.shown).toBeGreaterThanOrEqual(5);
+    expect(fit.shown).toBe(fit.rows);
+    expect(fit.overflow).toBeLessThanOrEqual(0);
+    await expect(page.locator('.savings-causes')).toBeVisible();
+    await expect(page.locator('.savings-efficiency')).toBeVisible();
+  });
+
   test('non-admins are refused', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await openSavings(page, 'user');

@@ -148,15 +148,42 @@ const Savings = (function() {
                 ${panel('summary', () => tiles(s), 'the summary')}
                 ${s && s.fullyCoveredEntries > 0 ? `<p class="cost-note savings-note" role="status">Some scheduled hours show no
                     compute saving because Savings Plans or Reserved Instances already pay for them.</p>` : ''}
-                <div class="savings-pair">
-                    ${panel('summary', () => causes(s), 'savings by cause')}
-                    ${panel('trend', () => efficiency(state.data.trend), 'the efficiency trend')}
+                <div class="savings-main">
+                    ${panel('byEnvironment', () => byEnvironment(state.data.byEnvironment), 'savings by environment')}
+                    <div class="savings-side" data-scroll-label="Saved by and cost efficiency">
+                        ${panel('summary', () => causes(s), 'savings by cause')}
+                        ${panel('trend', () => efficiency(state.data.trend), 'the efficiency trend')}
+                    </div>
                 </div>
-                ${panel('byEnvironment', () => byEnvironment(state.data.byEnvironment), 'savings by environment')}
                 </div>
             </div>`);
-        const body = document.querySelector('#content-area .savings-body');
-        if (body && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(body, body, 'Savings');
+        // U20-T01: the figures stay; By environment takes the height left with rows fitted to the window,
+        // the two cards beside it scroll in their own column when needed (nothing is squeezed).
+        const side = document.querySelector('#content-area .savings-side');
+        if (side && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(side, side, 'Saved by and cost efficiency');
+        attachFit();
+    }
+
+    /** Rows a page of By environment follow the window: measured once a visit and when it is resized (U20-T01). */
+    function attachFit() {
+        const panel = document.querySelector('#content-area .savings-envs');
+        if (!panel || typeof ListPanel === 'undefined' || !panel.querySelector('tbody tr')) return;
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            const first = (state.page - 1) * pageSize();
+            state.fit = count;
+            state.page = ListPanel.pageKeepingFirst(first, count);
+            render();
+        };
+        const handle = ListPanel.attach(panel, { rowSelector: 'tbody tr', rowHeight: 44, min: 3, max: 15, onFit: apply });
+        if (!state.fitted) {
+            state.fitted = true;
+            apply(handle.fitCount());
+        }
+    }
+
+    function pageSize() {
+        return state.fit || PAGE_SIZE;
     }
 
     function panel(key, build, label) {
@@ -227,7 +254,10 @@ const Savings = (function() {
         const head = (by, label, numeric) => Utils.html`<th scope="col"${Utils.raw(numeric ? ' class="cost-num"' : '')}
             aria-sort="${sort.by === by ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" class="savings-sort"
             data-action="savings-sort" data-by="${by}">${label}</button></th>`;
-        const page = Pagination.slice(sorted, state.page, PAGE_SIZE);
+        const size = pageSize();
+        const pages = Math.max(1, Math.ceil(sorted.length / size));
+        state.page = Math.min(Math.max(1, state.page), pages);
+        const page = Pagination.slice(sorted, state.page, size);
         const body = page.length ? page.map(r => Utils.html`<tr>
                 <td><a class="rs-name" href="#/environments/${r.key}">${r.label || r.key}</a></td>
                 <td class="savings-team">${r.team || '—'}</td>
@@ -235,12 +265,12 @@ const Savings = (function() {
                 <td class="cost-num cost-mono">${money0(r.gross)}</td>
                 <td class="cost-num cost-mono savings-green">${money0(r.net)}</td>
             </tr>`).join('') : '<tr><td colspan="5" class="text-muted text-center py-3">No savings recorded this month.</td></tr>';
-        return `<section class="cost-card rs-table-card savings-envs" aria-labelledby="savings-env-title">
-                <h2 id="savings-env-title" class="savings-card-title">By environment</h2>
-                <div class="cost-scroll"><table class="cost-table savings-env-table">
+        return `<section class="list-panel rs-table-card savings-envs" aria-labelledby="savings-env-title">
+                <div class="list-panel-head"><h2 id="savings-env-title">By environment</h2></div>
+                <div class="cost-scroll list-panel-body"><table class="cost-table savings-env-table">
                     <thead><tr>${head('label', 'Environment')}<th scope="col">Team</th>${head('hours', 'Hours off', true)}${head('gross', 'Gross', true)}${head('net', 'Net', true)}</tr></thead>
                     <tbody>${body}</tbody></table></div>
-                ${sorted.length > PAGE_SIZE ? Pagination.buildPager({ page: state.page, totalItems: sorted.length, pageSize: PAGE_SIZE, action: 'savings-page' }) : ''}
+                ${sorted.length > size ? `<div class="list-panel-foot">${Pagination.buildPager({ page: state.page, totalItems: sorted.length, pageSize: size, action: 'savings-page' })}</div>` : ''}
             </section>`;
     }
 

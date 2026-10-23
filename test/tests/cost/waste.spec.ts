@@ -222,6 +222,48 @@ test.describe('Waste page', () => {
     await expect(page.locator('#waste-show-dismissed')).toHaveCount(0);
   });
 
+  test('a short window: the type selectors take one row and the findings fit the height left, paged by the server (U20-T01)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 657 });
+    const sizes: number[] = [];
+    const all = Array.from({ length: 45 }, (_, i) => ({ ...FINDING, findingId: `f-${i}`, resourceId: `vol-${i}`, resourceName: `data-${i}` }));
+    await page.route(/\/api\/v1\/waste\/summary$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ sweepEnabled: true, openCount: 45, monthlyTotal: 450, checked: 'Daily 04:00',
+        lastSweepAt: new Date().toISOString(), byType: [{ type: 'UNATTACHED_VOLUME', count: 45, monthly: 450 }] }) }));
+    await page.route(/\/api\/v1\/waste\/findings\?/, route => {
+      const url = new URL(route.request().url());
+      const size = Number(url.searchParams.get('size'));
+      const number = Number(url.searchParams.get('page'));
+      sizes.push(size);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        content: all.slice(number * size, number * size + size),
+        page: { size, number, totalElements: all.length, totalPages: Math.ceil(all.length / size) } }) });
+    });
+    await open(page);
+
+    const panel = page.locator('.waste-table-card');
+    await expect(panel.locator('.list-panel-foot .pager')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => sizes.length).toBeGreaterThanOrEqual(2);
+    // The fitted page has replaced the first one (asked with the default 10).
+    await expect.poll(() => panel.locator('tbody tr').count()).toBe(sizes[sizes.length - 1]);
+    const fit = await page.evaluate(() => {
+      const body = document.querySelector('.waste-table-card .list-panel-body')!.getBoundingClientRect();
+      const rows = [...document.querySelectorAll('.waste-table-card tbody tr')];
+      const shown = rows.filter(r => { const b = r.getBoundingClientRect(); return b.top >= body.top && b.bottom <= body.bottom + 1; }).length;
+      const tops = new Set([...document.querySelectorAll('.waste-card')].map(c => Math.round(c.getBoundingClientRect().top)));
+      const main = document.getElementById('mainContent')!;
+      const scroller = document.querySelector('.waste-table-card .list-panel-body')!;
+      return { shown, rows: rows.length, cardRows: tops.size, overflow: main.scrollHeight - main.clientHeight,
+        sideways: scroller.scrollWidth - scroller.clientWidth };
+    });
+    // Acceptance: one row of selectors, at least 5 findings in view, the page asked for exactly that many, no sideways table.
+    expect(fit.cardRows).toBe(1);
+    expect(fit.shown).toBeGreaterThanOrEqual(5);
+    expect(fit.shown).toBe(fit.rows);
+    expect(sizes[sizes.length - 1]).toBe(fit.rows);
+    expect(fit.overflow).toBeLessThanOrEqual(0);
+    expect(fit.sideways).toBeLessThanOrEqual(0);
+  });
+
   test('non-admins are refused', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await open(page, 'user');

@@ -91,7 +91,8 @@ const Waste = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
-        state = { filters: { type: '', status: 'OPEN' }, page: 0, summary: null, findings: null, errors: {}, idleTotals: null, idle: null };
+        state = { filters: { type: '', status: 'OPEN' }, page: 0, summary: null, findings: null, errors: {}, idleTotals: null, idle: null,
+            fit: null, fitted: false };
         $('#content-area').html(`
             <div class="content-view page page-frame waste-page" id="waste-view">
                 ${PageHeader.markup({ title: 'Waste',
@@ -114,7 +115,7 @@ const Waste = (function() {
         Promise.allSettled([call('GET', Config.API.waste.summary), idle ? Promise.resolve(null) : call('GET', findingsUrl()),
             call('GET', Config.API.waste.actionsConfig), call('GET', Config.API.waste.actions),
             call('GET', Config.API.costManagement.summary),
-            idle ? call('GET', Config.API.costManagement.idleWaste(state.page, PAGE_SIZE)) : Promise.resolve(null)]).then(([summary, findings, config, actions, costs, idlePage]) => {
+            idle ? call('GET', Config.API.costManagement.idleWaste(state.page, pageSize())) : Promise.resolve(null)]).then(([summary, findings, config, actions, costs, idlePage]) => {
             if (!ContentRouter.isCurrent(token)) return;
             state.errors = {};
             state.idleTotals = costs.status === 'fulfilled' && costs.value
@@ -132,7 +133,7 @@ const Waste = (function() {
 
     function findingsUrl() {
         const f = state.filters;
-        const q = new URLSearchParams({ page: state.page, size: PAGE_SIZE });
+        const q = new URLSearchParams({ page: state.page, size: pageSize() });
         if (f.type) q.set('type', f.type);
         if (f.status) q.set('status', f.status);
         return `${Config.API.waste.findings}?${q.toString()}`;
@@ -158,8 +159,9 @@ const Waste = (function() {
             $('#waste-intro').text(`Things in AWS that cost money and do nothing. ${scheduleText(s)}`);
             const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" role="status">Waste sweeps are turned off: set
                 <code>waste.sweep.enabled</code> (and grant the read-only EC2 permissions) to find waste daily.</p>`;
-            $('#waste-summary').html(`${off}<p class="waste-total"><span class="cost-mono waste-total-value">${Utils.escapeHtml(money0(s.monthlyTotal))}</span>
-                a month across <span class="cost-mono">${s.openCount}</span> open finding${s.openCount === 1 ? '' : 's'}</p>`);
+            $('#waste-summary').html(`${off}<div class="waste-total-row"><p class="waste-total"><span class="cost-mono waste-total-value">${Utils.escapeHtml(money0(s.monthlyTotal))}</span>
+                a month across <span class="cost-mono">${s.openCount}</span> open finding${s.openCount === 1 ? '' : 's'}</p>
+                <span id="waste-dismissed-slot"></span></div>`);
             $('#waste-sweep-btn').prop('disabled', !s.sweepEnabled)
                 .attr('title', s.sweepEnabled ? 'Run the sweep now' : 'Waste sweeps are turned off: set waste.sweep.enabled');
         }
@@ -185,9 +187,10 @@ const Waste = (function() {
                 data-type="${IDLE}" aria-pressed="${state.filters.type === IDLE ? 'true' : 'false'}">
                 <span class="cost-mono waste-card-cost">${money0(idle.monthly)}</span><span class="waste-card-name">Idle VMs</span>
                 <span class="cost-note">${String(idle.count)} barely used</span></button>`] : []).join('');
-        $('#waste-filters').html(`<div class="waste-cards" role="group" aria-label="Show">${cards}</div>
-            ${state.filters.type === IDLE ? '' : `<label class="waste-dismissed"><input type="checkbox" class="form-check-input" id="waste-show-dismissed"
-                ${state.filters.status === 'DISMISSED' ? 'checked' : ''}> Show dismissed</label>`}`);
+        $('#waste-filters').html(`<div class="waste-cards" role="group" aria-label="Show">${cards}</div>`);
+        // U20-T01: on the total's line, so the findings keep the height.
+        $('#waste-dismissed-slot').html(state.filters.type === IDLE ? '' : `<label class="waste-dismissed"><input type="checkbox" class="form-check-input" id="waste-show-dismissed"
+                ${state.filters.status === 'DISMISSED' ? 'checked' : ''}> Show dismissed</label>`);
         $('#waste-show-dismissed').on('change', function() {
             state.filters.status = this.checked ? 'DISMISSED' : 'OPEN';
             state.page = 0;
@@ -206,15 +209,47 @@ const Waste = (function() {
         const meta = page.page || { number: page.number || 0, totalElements: page.totalElements || 0 };
         const rows = typeof CostManagement !== 'undefined' && CostManagement.idleRowsHtml
             ? CostManagement.idleRowsHtml(page.content || []) : '';
-        const pager = meta.totalElements > PAGE_SIZE ? Pagination.buildPager({ page: meta.number + 1, totalItems: meta.totalElements,
-            pageSize: PAGE_SIZE, action: 'waste-page' }) : '';
-        $('#waste-table').html(`<section class="cost-card rs-table-card waste-table-card">
-            <div class="cost-card-head waste-idle-head"><h2>Idle VMs, by idle cost</h2>
+        $('#waste-table').html(`<section class="list-panel rs-table-card waste-table-card">
+            <div class="list-panel-head waste-idle-head"><h2>Idle VMs, by idle cost</h2>
                 <a href="${Utils.escapeHtml(Config.API.costManagement.idleWasteExport())}" download="idle-vms.xlsx">Excel</a></div>
-            <div class="cost-scroll"><table class="cost-table waste-table" id="cost-idle-table">
+            <div class="cost-scroll list-panel-body"><table class="cost-table waste-table" id="cost-idle-table">
                 <thead><tr><th scope="col">VM</th><th scope="col">Group</th><th scope="col" class="cost-num">A month</th>
                     <th scope="col" class="cost-num">Latest CPU</th><th scope="col">Idle since</th><th scope="col" class="cost-num">Idle, a month</th></tr></thead>
-                <tbody id="cost-idle-table-body">${rows}</tbody></table></div>${pager}</section>`);
+                <tbody id="cost-idle-table-body">${rows}</tbody></table></div>${pagerFoot(meta)}</section>`);
+        attachFit(meta.totalElements);
+    }
+
+    /** The pager in the panel's foot, when there is more than one page. */
+    function pagerFoot(meta) {
+        return meta.totalElements > pageSize() ? `<div class="list-panel-foot">${Pagination.buildPager({ page: meta.number + 1,
+            totalItems: meta.totalElements, pageSize: pageSize(), action: 'waste-page' })}</div>` : '';
+    }
+
+    function pageSize() {
+        return state.fit || PAGE_SIZE;
+    }
+
+    /**
+     * Rows a page follow the window (U20-T01): measured once a visit and when it is resized; the server
+     * pages, so a new count fetches the page holding the first row shown (not when every row is already shown).
+     */
+    function attachFit(total) {
+        const panel = document.querySelector('#waste-table .waste-table-card');
+        if (!panel || typeof ListPanel === 'undefined' || !panel.querySelector('tbody tr')) return;
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            const first = state.page * pageSize();
+            const shownAll = state.page === 0 && total <= Math.min(count, pageSize());
+            state.fit = count;
+            if (shownAll) return;
+            state.page = ListPanel.pageKeepingFirst(first, count) - 1;
+            refresh();
+        };
+        const handle = ListPanel.attach(panel, { rowSelector: 'tbody tr', rowHeight: 56, min: 3, max: 15, onFit: apply });
+        if (!state.fitted) {
+            state.fitted = true;
+            apply(handle.fitCount());
+        }
     }
 
     function drawTable() {
@@ -253,19 +288,16 @@ const Waste = (function() {
         }).join('') : `<tr><td colspan="6" class="text-muted text-center py-3">${state.filters.status === 'DISMISSED'
             ? 'Nothing dismissed.' : 'No waste found.'}</td></tr>`;
         const meta = page.page || { number: 0, totalPages: 1, totalElements: 0 };
-        const pager = meta.totalElements > PAGE_SIZE ? Pagination.buildPager({ page: meta.number + 1, totalItems: meta.totalElements,
-            pageSize: PAGE_SIZE, action: 'waste-page' }) : '';
-        $('#waste-table').html(`<section class="cost-card rs-table-card waste-table-card">
-            <div class="cost-scroll"><table class="cost-table waste-table" id="waste-findings">
+        $('#waste-table').html(`<section class="list-panel rs-table-card waste-table-card" aria-label="Findings">
+            <div class="cost-scroll list-panel-body"><table class="cost-table waste-table" id="waste-findings">
                 <thead><tr><th scope="col">Resource</th><th scope="col">Region</th><th scope="col">Environment</th><th scope="col">Idle for</th>
                     <th scope="col" class="cost-num">A month</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
-                <tbody>${rows}</tbody></table></div>${pager}</section>`);
+                <tbody>${rows}</tbody></table></div>${pagerFoot(meta)}</section>`);
+        attachFit(meta.totalElements);
     }
 
     /** How fixes work, and the fixes waiting for approval (Waste › Fixes); hidden while fixes are off. */
     function drawFooter() {
-        const area = document.getElementById('waste-table');
-        if (area && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(area, area, 'Waste');
         if (!state.actionsEnabled) {
             $('#waste-actions').html('');
             return;
