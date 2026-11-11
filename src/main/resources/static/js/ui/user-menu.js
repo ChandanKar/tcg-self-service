@@ -108,7 +108,7 @@ const UserMenu = (function() {
                         <i class="fas fa-user" aria-hidden="true"></i>
                         <span class="dropdown-item-text">
                             <span>My Account</span>
-                            <span class="dropdown-item-hint">Profile, access and activity</span>
+                            <span class="dropdown-item-hint">Access, cost, notifications and profile</span>
                         </span>
                     </a>
                     <a href="#" class="dropdown-item" id="ask-menu-btn" role="menuitem"${typeof AssistantPanel !== 'undefined' && AssistantPanel.isEnabled() ? '' : ' style="display: none;"'}>
