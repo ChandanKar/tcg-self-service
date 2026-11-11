@@ -85,7 +85,9 @@ public class DashboardSummaryService {
                 ? environmentService.getAllActiveEnvironments()
                 : environmentService.getEnvironmentsForCurrentUser();
         if (admin) {
-            return buildSummary("ADMIN", environments, null, null);
+            // With the user (U21-T18): without it every environment's cost row came back empty, so an
+            // administrator's Home said "$0 this month", and "locked by you" was never true for them.
+            return buildSummary("ADMIN", environments, null, userService.getCurrentUser());
         }
         // A group-grant user sees only their groups' VMs (E11-T11, H20).
         com.tcgdigital.vmcontrol.model.User user = userService.getCurrentUser();

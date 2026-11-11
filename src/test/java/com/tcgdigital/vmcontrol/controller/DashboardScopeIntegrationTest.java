@@ -145,6 +145,25 @@ class DashboardScopeIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath(card(env, "groupStates[0].running")).value(org.hamcrest.Matchers.contains(1)));
     }
 
+    /**
+     * U21-T18: an administrator's Home said "$0 this month" on staging while Cost management showed
+     * $2,155. getSummary built the admin summary without the user, so every environment's cost row
+     * came back empty. The month to date now includes this month's estimates, as for other users.
+     */
+    @Test
+    void theAdminMonthToDateAddsUpThisMonthsCost() throws Exception {
+        Environment env = newEnvironment("Admin spend");
+        newVm(newGroup(env, "app"), "app-1", VmStatus.RUNNING);
+        java.time.LocalDate firstOfMonth = java.time.LocalDate.now(java.time.ZoneOffset.UTC).withDayOfMonth(1);
+        jdbcTemplate.update("INSERT INTO cost_daily_snapshot (snapshot_id, environment_id, snapshot_date, estimated_cost, created_at) "
+                + "VALUES (UUID(), ?, ?, 123.45, NOW())", env.getEnvironmentId(), java.sql.Date.valueOf(firstOfMonth));
+
+        mockMvc.perform(get("/api/v1/dashboard/summary").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.persona").value("ADMIN"))
+                .andExpect(jsonPath("$.summary.monthToDateCost", greaterThanOrEqualTo(123.45)));
+    }
+
     @Test
     void topVmsCarryTheirEnvironmentAndGroupButNoInstanceId() throws Exception {
         Environment env = newEnvironment("Top vm");
