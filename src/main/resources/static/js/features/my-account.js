@@ -42,8 +42,14 @@ const MyAccount = (function() {
         return d.toLocaleDateString('en-GB', opts);
     }
 
+    /**
+     * Calendar days from today to the day of `ts` (0 = today), as AccessLevels.endsText counts them.
+     * Midnight to midnight with rounding, so a clock change (an extra or a missing hour) in between and
+     * the time of day do not move the count: a grant ending later today is "today", not "tomorrow".
+     */
     function daysBetween(ts, now) {
-        return Math.ceil((new Date(ts).getTime() - (now || new Date()).getTime()) / DAY_MS);
+        const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        return Math.round((startOfDay(new Date(ts)) - startOfDay(now || new Date())) / DAY_MS);
     }
 
     /** The shared level names (AccessLevels): "Operator", "Admin", "Operator, Application group only". */

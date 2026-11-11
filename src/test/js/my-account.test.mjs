@@ -44,6 +44,11 @@ test('until: no end date, far off, ending soon in gold, tomorrow, today', () => 
     assert.equal(M.untilText({ expiresAt: new Date(2027, 1, 3).toISOString() }, 7, now).text, 'Until 3 Feb 2027 (107 days)');
 });
 
+test('until counts calendar days: later today is today, early tomorrow is tomorrow', () => {
+    assert.deepEqual(plain(M.untilText({ expiresAt: new Date(2026, 9, 19, 23, 30).toISOString() }, 7, now)), { text: 'Ends today', soon: true });
+    assert.deepEqual(plain(M.untilText({ expiresAt: new Date(2026, 9, 20, 0, 30).toISOString() }, 7, now)), { text: 'Ends 20 Oct — tomorrow', soon: true });
+});
+
 test('role and sign-in', () => {
     assert.equal(M.roleText({ admin: true, envAdmin: true }), 'Administrator');
     assert.equal(M.roleText({ envAdmin: true }), 'Environment admin');
