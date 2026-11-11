@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.Environment;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -291,5 +293,79 @@ class BulkAccessGrantIntegrationTest extends SecuredWebTestBase {
         send(BULK, asViewer(), body(List.of(ravi), List.of(crm), "USER", "")).andExpect(status().isForbidden());
         expectError(send(BULK + "/preview", asAdmin(), body(List.of(ravi), List.of(crm), "USER",
                 "\"durationDays\":7,\"clearExpiry\":true")), 400);
+    }
+
+    // ---- U21-T01: people from the directory are added only together with their grant ----
+
+    /** A person in the Entra directory who is not in the app; returns their email. */
+    private String directoryPerson(String objectId) {
+        String email = "asha." + tag() + "@bulk.test";
+        when(graphDirectoryService.isEnabled()).thenReturn(true);
+        when(graphDirectoryService.fetchByObjectId(objectId))
+                .thenReturn(new DirectoryUserDTO(objectId, "Asha Rao", email, email, false, null));
+        return email;
+    }
+
+    private static String directoryBody(String objectId, List<Environment> envs) {
+        String targets = envs.stream().map(e -> "{\"environmentId\":\"" + e.getEnvironmentId() + "\",\"scopeType\":\"ENVIRONMENT\"}")
+                .collect(Collectors.joining(",", "[", "]"));
+        return "{\"directoryObjectIds\":[\"" + objectId + "\"],\"targets\":" + targets + ",\"accessLevel\":\"USER\",\"durationDays\":30}";
+    }
+
+    @Test
+    void thePreviewShowsADirectoryPersonAsNewAndAddsNobody() throws Exception {
+        String objectId = "obj-" + tag();
+        String email = directoryPerson(objectId);
+
+        send(BULK + "/preview", asAdmin(), directoryBody(objectId, List.of(crm, payments)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.people").value(1))
+                .andExpect(jsonPath("$.changes").value(2))
+                .andExpect(jsonPath("$.rows[0].userName").value("Asha Rao"))
+                .andExpect(jsonPath("$.rows[0].userEmail").value(email))
+                .andExpect(jsonPath("$.rows[0].outcome").value("NEW"));
+
+        assertThat(userRepository.findByEmail(email)).isEmpty();
+    }
+
+    @Test
+    void grantingAddsTheDirectoryPersonAndTheirGrantsTogether() throws Exception {
+        String objectId = "obj-" + tag();
+        String email = directoryPerson(objectId);
+
+        send(BULK, asAdmin(), directoryBody(objectId, List.of(crm)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.changes").value(1));
+
+        User added = userRepository.findByEmail(email).orElseThrow();
+        assertThat(added.getAzureAdObjectId()).isEqualTo(objectId);
+        assertThat(active(added, crm)).get().extracting(EnvironmentAccess::getAccessLevel).isEqualTo(AccessLevel.USER);
+    }
+
+    @Test
+    void aRefusedGrantAddsNobody() throws Exception {
+        String objectId = "obj-" + tag();
+        String email = directoryPerson(objectId);
+        String missing = "{\"directoryObjectIds\":[\"" + objectId + "\"],\"targets\":[{\"environmentId\":\"no-such-env\","
+                + "\"scopeType\":\"ENVIRONMENT\"}],\"accessLevel\":\"USER\"}";
+
+        send(BULK, asAdmin(), missing).andExpect(status().isNotFound());
+        send(BULK, asEnvAdmin(), directoryBody(objectId, List.of(crm))).andExpect(status().isForbidden());
+
+        assertThat(userRepository.findByEmail(email)).isEmpty();
+    }
+
+    @Test
+    void aDirectoryPersonAlreadyInTheAppIsGrantedAsThemselves() throws Exception {
+        String objectId = "obj-" + tag();
+        when(graphDirectoryService.isEnabled()).thenReturn(true);
+        when(graphDirectoryService.fetchByObjectId(objectId))
+                .thenReturn(new DirectoryUserDTO(objectId, "Ravi", ravi.getEmail(), ravi.getEmail(), true, ravi.getUserId()));
+
+        send(BULK, asAdmin(), directoryBody(objectId, List.of(crm)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.rows[0].userId").value(ravi.getUserId()));
+
+        assertThat(active(ravi, crm)).isPresent();
     }
 }

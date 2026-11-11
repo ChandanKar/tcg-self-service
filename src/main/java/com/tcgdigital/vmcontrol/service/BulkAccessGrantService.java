@@ -3,6 +3,9 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.BulkGrantPlanDTO;
 import com.tcgdigital.vmcontrol.dto.BulkGrantPlanDTO.Outcome;
 import com.tcgdigital.vmcontrol.dto.BulkGrantRequestDTO;
+import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
+import com.tcgdigital.vmcontrol.dto.OnboardUserDTO;
+import com.tcgdigital.vmcontrol.exception.DirectoryLookupException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
@@ -64,12 +67,17 @@ public class BulkAccessGrantService {
     private final VmGroupRepository vmGroupRepository;
     private final NotificationService notificationService;
     private final AfterCommit afterCommit;
+    private final GraphDirectoryService graphDirectoryService;
+    private final UserOnboardingService userOnboardingService;
 
     public BulkAccessGrantService(EnvironmentAccessService accessService, SecurityService securityService,
                                   UserService userService, UserRepository userRepository, TeamRepository teamRepository,
                                   TeamMemberRepository teamMemberRepository, EnvironmentRepository environmentRepository,
                                   VmGroupRepository vmGroupRepository, NotificationService notificationService,
-                                  AfterCommit afterCommit) {
+                                  AfterCommit afterCommit, GraphDirectoryService graphDirectoryService,
+                                  UserOnboardingService userOnboardingService) {
+        this.graphDirectoryService = graphDirectoryService;
+        this.userOnboardingService = userOnboardingService;
         this.accessService = accessService;
         this.securityService = securityService;
         this.userService = userService;
@@ -97,20 +105,42 @@ public class BulkAccessGrantService {
         }
     }
 
-    /** A planned row with what to pass when applying it. */
+    /** A planned row with what to pass when applying it (user null for a directory person not in the app yet). */
     private record Planned(BulkGrantPlanDTO.Row row, Scope scope, User user, Integer days, boolean clear) {
     }
 
-    /** What the grant would do; writes nothing. */
-    @Transactional(readOnly = true)
-    public BulkGrantPlanDTO preview(String actorUserId, BulkGrantRequestDTO dto) {
-        return summary(plan(actorUserId, dto));
+    /** A directory person who is not in the app yet. */
+    private record Newcomer(String directoryObjectId, String name, String email) {
     }
 
-    /** Recomputes the plan and applies every row that changes something, all or nothing. */
+    /** The request's directory people: those already in the app (by email) and the newcomers. */
+    private record DirectoryPeople(List<String> inAppEmails, List<Newcomer> newcomers) {
+    }
+
+    /** What the grant would do; writes nothing (directory people are shown as new, not added). */
+    @Transactional(readOnly = true)
+    public BulkGrantPlanDTO preview(String actorUserId, BulkGrantRequestDTO dto) {
+        DirectoryPeople directory = directoryPeople(dto);
+        return summary(plan(actorUserId, dto.withDirectoryPeopleAs(directory.inAppEmails()), directory.newcomers()));
+    }
+
+    /**
+     * Recomputes the plan and applies every row that changes something, all or nothing. Directory
+     * people are added to the app first, in the same transaction, after every target is authorized.
+     */
     @Transactional
     public BulkGrantPlanDTO apply(String actorUserId, BulkGrantRequestDTO dto) {
-        List<Planned> plan = plan(actorUserId, dto);
+        DirectoryPeople directory = directoryPeople(dto);
+        List<String> emails = new ArrayList<>(directory.inAppEmails());
+        if (!directory.newcomers().isEmpty()) {
+            scopes(dto);
+            for (Newcomer newcomer : directory.newcomers()) {
+                OnboardUserDTO onboard = new OnboardUserDTO();
+                onboard.setDirectoryObjectId(newcomer.directoryObjectId());
+                emails.add(userOnboardingService.onboard(onboard, actorUserId).user().getEmail());
+            }
+        }
+        List<Planned> plan = plan(actorUserId, dto.withDirectoryPeopleAs(emails), List.of());
         User actor = userRepository.findById(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", actorUserId));
         Set<String> changedEnvironments = new LinkedHashSet<>();
@@ -158,16 +188,16 @@ public class BulkAccessGrantService {
 
     // ---- planning ----
 
-    private List<Planned> plan(String actorUserId, BulkGrantRequestDTO dto) {
+    private List<Planned> plan(String actorUserId, BulkGrantRequestDTO dto, List<Newcomer> newcomers) {
         if (dto.durationDays() != null && Boolean.TRUE.equals(dto.clearExpiry())) {
             throw new ValidationException("Choose a duration or no end date, not both");
         }
         if (dto.durationDays() != null && dto.durationDays() > accessService.getGrantMaxDurationDays()) {
             throw new ValidationException("Access can be granted for at most " + accessService.getGrantMaxDurationDays() + " days");
         }
-        List<User> people = people(dto);
+        List<User> people = people(dto, !newcomers.isEmpty());
         List<Scope> scopes = scopes(dto);
-        int rows = people.size() * scopes.size();
+        int rows = (people.size() + newcomers.size()) * scopes.size();
         if (rows > MAX_ROWS) {
             throw new ValidationException("This would make " + rows + " changes; at most " + MAX_ROWS + " at once");
         }
@@ -181,7 +211,52 @@ public class BulkAccessGrantService {
                 plan.add(row(actorUserId, person, scope, dto.accessLevel(), newEnd, dto.durationDays(), clear));
             }
         }
+        for (Newcomer newcomer : newcomers) {
+            for (Scope scope : scopes) {
+                BulkGrantPlanDTO.Row row = new BulkGrantPlanDTO.Row(null, newcomer.name(), newcomer.email(),
+                        scope.environment().getEnvironmentId(), envName(scope.environment()), scope.type().name(), scope.id(),
+                        scope.name(), Outcome.NEW, null, null, dto.accessLevel().name(), clear ? null : newEnd, null);
+                plan.add(new Planned(row, scope, null, dto.durationDays(), clear));
+            }
+        }
         return plan;
+    }
+
+    /**
+     * Looks up the request's directory people (administrators only, directory lookup on): one already
+     * in the app is planned like any app user, a deactivated one is refused by name, the rest are newcomers.
+     */
+    private DirectoryPeople directoryPeople(BulkGrantRequestDTO dto) {
+        List<String> ids = distinct(dto.directoryObjectIds());
+        if (ids.isEmpty()) {
+            return new DirectoryPeople(List.of(), List.of());
+        }
+        if (!securityService.isAdmin()) {
+            throw new UnauthorizedException("Adding people from the directory requires the ADMIN role");
+        }
+        if (!graphDirectoryService.isEnabled()) {
+            throw DirectoryLookupException.disabled();
+        }
+        List<String> inApp = new ArrayList<>();
+        List<Newcomer> newcomers = new ArrayList<>();
+        for (String id : ids) {
+            DirectoryUserDTO person = graphDirectoryService.fetchByObjectId(id);
+            String email = person.email() == null ? null : person.email().trim();
+            if (email == null || email.isEmpty()) {
+                throw new ValidationException("Directory user " + id + " has no email or UPN");
+            }
+            Optional<User> existing = userRepository.findByAzureAdObjectId(id).or(() -> userRepository.findByEmail(email));
+            String name = person.displayName() != null && !person.displayName().isBlank() ? person.displayName() : email;
+            if (existing.isPresent() && !Boolean.TRUE.equals(existing.get().getIsActive())) {
+                throw new ValidationException(name + " is in the app but deactivated; reactivate them first");
+            }
+            if (existing.isPresent()) {
+                inApp.add(existing.get().getEmail());
+            } else {
+                newcomers.add(new Newcomer(id, name, email));
+            }
+        }
+        return new DirectoryPeople(inApp, newcomers);
     }
 
     private Planned row(String actorUserId, User person, Scope scope, AccessLevel level, Timestamp newEnd,
@@ -230,14 +305,18 @@ public class BulkAccessGrantService {
 
     private static BulkGrantPlanDTO summary(List<Planned> plan) {
         List<BulkGrantPlanDTO.Row> rows = plan.stream().map(Planned::row).toList();
-        int people = (int) rows.stream().map(BulkGrantPlanDTO.Row::userId).distinct().count();
+        // A directory person not in the app yet has no user id: count them by email.
+        int people = (int) rows.stream().map(r -> r.userId() != null ? r.userId() : "new:" + r.userEmail()).distinct().count();
         int environments = (int) rows.stream().map(BulkGrantPlanDTO.Row::environmentId).distinct().count();
         int skipped = (int) rows.stream().filter(r -> r.outcome() == Outcome.SKIP).count();
         return new BulkGrantPlanDTO(people, environments, rows.size() - skipped, skipped, rows);
     }
 
-    /** The people: app users by email (unknown or inactive ones refused, named) and teams' active members now. */
-    private List<User> people(BulkGrantRequestDTO dto) {
+    /**
+     * The people: app users by email (unknown or inactive ones refused, named) and teams' active members now.
+     * None at all is refused unless the request also has directory newcomers.
+     */
+    private List<User> people(BulkGrantRequestDTO dto, boolean hasNewcomers) {
         Map<String, User> byId = new LinkedHashMap<>();
         List<String> unknown = new ArrayList<>();
         for (String email : distinct(dto.userEmails())) {
@@ -261,7 +340,7 @@ public class BulkAccessGrantService {
         }
         members.stream().sorted(Comparator.comparing(BulkAccessGrantService::nameOf, String.CASE_INSENSITIVE_ORDER))
                 .forEach(u -> byId.putIfAbsent(u.getUserId(), u));
-        if (byId.isEmpty()) {
+        if (byId.isEmpty() && !hasNewcomers) {
             throw new ValidationException("Choose at least one person or a team with members");
         }
         return new ArrayList<>(byId.values());

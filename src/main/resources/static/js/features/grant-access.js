@@ -75,7 +75,8 @@ const GrantAccessPage = (function() {
 
     /** People who get something, for the toast. */
     function grantedPeople(plan) {
-        return new Set((plan.rows || []).filter(r => r.outcome !== 'SKIP').map(r => r.userId)).size;
+        // A person from the directory has no user id until access is granted: count them by email.
+        return new Set((plan.rows || []).filter(r => r.outcome !== 'SKIP').map(r => r.userId || r.userEmail)).size;
     }
 
     // ---- page ----
@@ -194,7 +195,7 @@ const GrantAccessPage = (function() {
     }
 
     function drawChips() {
-        $('#ga-chips').html(state.people.map(p => Utils.html`<span class="ga-chip">${p.name}
+        $('#ga-chips').html(state.people.map(p => Utils.html`<span class="ga-chip"${p.directoryObjectId ? ' title="Added to the app when you grant access"' : ''}>${p.name}${p.directoryObjectId ? ' · new' : ''}
             <button type="button" data-ga-remove="${p.email}" aria-label="Remove ${p.name}">×</button></span>`).join(''));
     }
 
@@ -277,8 +278,11 @@ const GrantAccessPage = (function() {
             state.problem = duration.error;
             return null;
         }
+        // People picked from the directory are sent by their directory id: the server adds them to the
+        // app in the same step as their grants (U21-T01), so cancelling adds nobody.
         return Object.assign({
-            userEmails: state.people.map(p => p.email),
+            userEmails: state.people.filter(p => !p.directoryObjectId).map(p => p.email),
+            directoryObjectIds: state.people.filter(p => p.directoryObjectId).map(p => p.directoryObjectId),
             teamIds: state.teamId ? [state.teamId] : [],
             targets,
             accessLevel: state.level,
@@ -320,7 +324,9 @@ const GrantAccessPage = (function() {
         drawPreview();
         call('POST', Config.API.access.bulkGrant, body).then(plan => {
             const n = grantedPeople(plan);
-            Notifications.success(`Access granted to ${n} ${n === 1 ? 'person' : 'people'}.`);
+            const added = body.directoryObjectIds.length;
+            Notifications.success(`Access granted to ${n} ${n === 1 ? 'person' : 'people'}.`
+                + (added ? ` ${added} ${added === 1 ? 'person was' : 'people were'} added to the app.` : ''));
             ContentRouter.navigate('access-management');
         }).catch(xhr => {
             state.sending = false;
@@ -337,7 +343,7 @@ const GrantAccessPage = (function() {
         const items = (Array.isArray(users) ? users : []).filter(u => u.email && !taken.has(u.email.toLowerCase()))
             .slice(0, 8).map(u => ({ kind: 'app', email: u.email, name: u.displayName || u.email }));
         if (items.length || q.length < 3 || !Auth.isAdmin()) return items;
-        // Administrators also find people in the Entra directory; picking one adds them to the app.
+        // Administrators also find people in the Entra directory; they join the app when access is granted.
         const dir = await call('GET', Config.API.directory.search(q, 8)).catch(() => []);
         return (Array.isArray(dir) ? dir : []).filter(d => !d.alreadyInApp).slice(0, 8)
             .map(d => ({ kind: 'directory', directoryObjectId: d.directoryObjectId, email: d.email || d.userPrincipalName,
@@ -357,26 +363,17 @@ const GrantAccessPage = (function() {
         const items = await searchPeople(q);
         if (seq !== searchSeq) return;
         $menu.data('items', items).html(items.length ? items.map((it, i) => Utils.html`<button type="button" role="option" class="ga-option"
-                data-ga-option="${i}"><span>${it.name}</span><span class="ga-option-email">${it.email}${it.kind === 'directory' ? ' · add to the app' : ''}</span></button>`).join('')
+                data-ga-option="${i}"><span>${it.name}</span><span class="ga-option-email">${it.email}${it.kind === 'directory' ? ' · not in the app yet' : ''}</span></button>`).join('')
             : '<p class="ga-hint ga-menu-empty">Nobody matches.</p>').prop('hidden', false);
         $('#ga-person-search').attr('aria-expanded', 'true');
     }
 
-    async function pickPerson(item) {
-        let person = item;
-        if (item.kind === 'directory') {
-            try {
-                const res = await call('POST', Config.API.users.list, { directoryObjectId: item.directoryObjectId });
-                const user = res && res.user ? res.user : res;
-                person = { email: user.email, name: user.displayName || user.email };
-                Notifications.success(`${person.name} was added to the app.`);
-            } catch (xhr) {
-                Notifications.error((xhr && xhr.responseJSON && xhr.responseJSON.message) || `${item.name} could not be added to the app.`);
-                return;
-            }
-        }
-        if (!state.people.some(p => p.email.toLowerCase() === person.email.toLowerCase())) {
-            state.people.push({ email: person.email, name: person.name });
+    /** Adds the person to the list; a directory person stays a directory id until access is granted. */
+    function pickPerson(item) {
+        if (!state.people.some(p => p.email.toLowerCase() === item.email.toLowerCase())) {
+            state.people.push(item.kind === 'directory'
+                ? { email: item.email, name: item.name, directoryObjectId: item.directoryObjectId }
+                : { email: item.email, name: item.name });
         }
         $('#ga-person-search').val('').attr('aria-expanded', 'false').trigger('focus');
         $('#ga-person-menu').prop('hidden', true).empty();

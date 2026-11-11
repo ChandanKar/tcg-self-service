@@ -44,4 +44,7 @@ test('summary, button and who was granted', () => {
     assert.equal(M.ctaText(plan), 'Grant access (5)');
     assert.equal(M.ctaText({ changes: 0 }), 'Nothing to grant');
     assert.equal(M.grantedPeople(plan), 2);
+    // People from the directory have no user id in the preview: each counts once, by email.
+    assert.equal(M.grantedPeople({ rows: [{ userId: null, userEmail: 'asha@x.test', outcome: 'NEW' },
+        { userId: null, userEmail: 'asha@x.test', outcome: 'NEW' }, { userId: null, userEmail: 'li@x.test', outcome: 'NEW' }] }), 2);
 });
