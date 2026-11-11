@@ -43,9 +43,11 @@ test.describe('App shell', () => {
     const labels = await page.locator('#sidebar .sidebar-menu-link:visible > span:not(.badge)').allTextContents();
     expect(labels).toEqual(expect.arrayContaining(['Home', 'Environments', 'Request access', 'My activity',
       'Access requests', 'Access management', 'VM registry', 'Automation rules', 'Approval policies', 'Budgets',
-      'Audit log', 'Cost management', 'Savings', 'Waste', 'Chargeback', 'Users', 'Teams', 'AWS accounts',
+      'Audit log', 'Cost management', 'Users', 'Teams', 'AWS accounts',
       'API access', 'Settings', 'System health']));
     expect(labels).not.toContain('Cost setup');
+    // One Cost entry since U21-T07: Savings, Waste and Chargeback are reached beside the Cost title.
+    for (const gone of ['Savings', 'Waste', 'Chargeback']) expect(labels).not.toContain(gone);
 
     const menu = await page.locator('#sidebar').evaluate(el => ({ scroll: el.scrollHeight, client: el.clientHeight, width: el.getBoundingClientRect().width }));
     expect(menu.scroll).toBeLessThanOrEqual(menu.client);

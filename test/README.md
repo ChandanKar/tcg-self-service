@@ -57,6 +57,17 @@ no way to complete a real interactive Microsoft login without a dedicated
 test tenant and stored credentials. If you need to test the actual Entra ID
 SSO flow, that's a separate, manual exercise — not covered here.
 
+**The app under test.** Run it on a `_test` schema with `ENTRAID_ENABLED=false`
+and `TEST_DEV_USER_ID=user-001` / `TEST_DEV_ADMIN_ID=admin-001` here (dev
+`X-User-Id` sign-in; without them nearly every spec skips). Start it with
+`SECURITY_ENV_ADMIN_SCOPE=global`: since U21-T11 the app limits environment
+admins to environments they hold an Admin grant on, and the seeded environment
+admins hold none, so specs such as `operations/approvals.spec.ts` fail under the
+default `assigned` (the Java tests pin `global` the same way). Some specs also
+need features that are off by default (leases for the environment alerts and the
+start dialog's lengths, Teams channels); on an app without them those specs fail
+the same way on `main`.
+
 ## 4. Run
 
 ```bash
