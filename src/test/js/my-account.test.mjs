@@ -10,6 +10,7 @@ const STATIC = fileURLToPath(new URL('../../main/resources/static/', import.meta
 
 function load() {
     const context = vm.createContext({});
+    vm.runInContext(readFileSync(STATIC + 'js/core/access-levels.js', 'utf8'), context);
     vm.runInContext(readFileSync(STATIC + 'js/features/my-account.js', 'utf8') + '\nthis.MyAccount = MyAccount;', context);
     return context.MyAccount.model;
 }
@@ -29,7 +30,7 @@ test('initials', () => {
 test('level: Operator, View only, a group only', () => {
     assert.equal(M.levelText({ accessLevel: 'USER', scopeType: 'ENVIRONMENT' }), 'Operator');
     assert.equal(M.levelText({ accessLevel: 'VIEWER' }), 'View only');
-    assert.equal(M.levelText({ accessLevel: 'ADMIN' }), 'Environment admin');
+    assert.equal(M.levelText({ accessLevel: 'ADMIN' }), 'Admin');
     assert.equal(M.levelText({ accessLevel: 'USER', scopeType: 'GROUP', scopeName: 'Application' }), 'Operator, Application group only');
     assert.equal(M.levelText({ requestedAccessLevel: 'USER' }), 'Operator');
 });

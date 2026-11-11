@@ -15,7 +15,6 @@
 const MyAccount = (function() {
     'use strict';
 
-    const LEVELS = { USER: 'Operator', VIEWER: 'View only', ADMIN: 'Environment admin' };
     const TABS = [['access', 'Access'], ['cost', 'Cost'], ['notifications', 'Notifications'], ['profile', 'Profile'],
         ['api-tokens', 'API tokens']];
     const EXTENSION_DAYS = [7, 14, 30, 60, 90];
@@ -47,9 +46,9 @@ const MyAccount = (function() {
         return Math.ceil((new Date(ts).getTime() - (now || new Date()).getTime()) / DAY_MS);
     }
 
-    /** "Operator", "View only", "Operator, Application group only". */
+    /** The shared level names (AccessLevels): "Operator", "Admin", "Operator, Application group only". */
     function levelText(item) {
-        const label = LEVELS[item && item.accessLevel] || LEVELS[item && item.requestedAccessLevel] || 'View only';
+        const label = AccessLevels.label((item && (item.accessLevel || item.requestedAccessLevel)) || 'VIEWER');
         return item && item.scopeType === 'GROUP' && item.scopeName ? `${label}, ${item.scopeName} group only` : label;
     }
 
