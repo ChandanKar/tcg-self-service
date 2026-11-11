@@ -117,15 +117,37 @@ body.app-shell {
     color: var(--ink);
 }
 
-/* The pages of one menu entry (U21-T07, Cost): the current page reads as the place you are. */
-.page-section-nav [aria-current="page"] {
+/* The pages of one menu entry (U21-T07, Cost) as a compact segmented control (U21-T17): one outline,
+   the current page in the navy tint; every item has the same height so it lines up on phones too. */
+.page-section-nav {
+    display: inline-flex;
+    align-items: stretch;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    font-size: var(--fs-caption);
+}
+.page-section-item {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    color: var(--slate);
+    text-decoration: none;
+    white-space: nowrap;
+}
+a.page-section-item:hover {
+    background: var(--surface-subtle);
+    color: var(--brand-navy);
+}
+.page-section-item[aria-current="page"] {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
     font-weight: 600;
 }
-@media (max-width: 600px) {
-    .page-section-nav a {
-        padding: 12px 2px;
-    }
-}
+
 .page-header-row {
     display: flex;
     justify-content: space-between;
@@ -146,7 +168,7 @@ body.app-shell {
     row-gap: 2px;
 }
 .page-title-line .page-section-nav {
-    margin-bottom: 0;
+    align-self: center;
 }
 .page-summary {
     margin-top: 6px;
