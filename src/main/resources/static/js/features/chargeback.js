@@ -137,7 +137,7 @@ const Chargeback = (function() {
             { key: 'tags', label: `Missing tags · ${tagCount()}` }];
         $('#content-area').html(`
             <div class="content-view chargeback-page" id="chargeback-view">
-                ${PageHeader.markup({ title: 'Chargeback',
+                ${PageHeader.markup({ title: 'Chargeback', sectionNav: PageHeader.costNav('chargeback'),
                     summaryHtml: 'What each team owes for the month, with shared costs split by your rules.',
                     actionsHtml: `<div class="chargeback-toolbar" id="chargeback-toolbar"></div>`,
                     helpPage: typeof HelpLink !== 'undefined' ? 'chargeback' : null, helpLabel: 'Chargeback' })}

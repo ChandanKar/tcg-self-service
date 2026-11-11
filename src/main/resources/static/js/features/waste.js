@@ -95,7 +95,7 @@ const Waste = (function() {
             fit: null, fitted: false };
         $('#content-area').html(`
             <div class="content-view page page-frame waste-page" id="waste-view">
-                ${PageHeader.markup({ title: 'Waste',
+                ${PageHeader.markup({ title: 'Waste', sectionNav: PageHeader.costNav('waste'),
                     summaryHtml: '<span id="waste-intro">Things in AWS that cost money and do nothing.</span>',
                     actionsHtml: `<div class="waste-toolbar">
                         <button type="button" class="btn btn-outline-secondary" data-action="waste-export">Export, Excel</button>

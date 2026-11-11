@@ -184,10 +184,10 @@ const Sidebar = (function() {
      */
     function setActiveItem(contentType) {
         // Environment Detail lives under My Environments in the menu, Grant access under Access management,
-        // Add VMs under VM registry, Cost setup (a cost tab since U15-T05) under Cost management.
+        // Add VMs under VM registry, Cost setup and the other Cost pages under Cost management.
         const key = contentType === 'environment-detail' ? 'my-environments'
-            : contentType === 'cost-setup' ? 'cost-management'
-            : contentType === 'waste-fixes' ? 'waste'
+            // One Cost entry since U21-T07: its pages switch on the breadcrumb line.
+            : ['cost-setup', 'savings', 'waste', 'waste-fixes', 'chargeback'].includes(contentType) ? 'cost-management'
             : contentType === 'access-grant' ? 'access-management'
             : contentType === 'register-vms' || contentType === 'environment-settings' ? 'vm-registry'
             : contentType === 'automation-rule-new' || contentType === 'automation-rule-edit' ? 'automation-rules'

@@ -133,7 +133,8 @@ test.describe('Waste page', () => {
     await page.getByRole('link', { name: 'Fixes · 2 waiting' }).click();
     await expect(page).toHaveURL(/#\/waste\/fixes$/);
     await expect(page.locator('.page-breadcrumb')).toContainText('Waste');
-    await expect(page.locator('.sidebar-menu-link[data-content="waste"]')).toHaveClass(/active/);
+    // One Cost entry in the menu since U21-T07: Waste and its Fixes mark Cost management.
+    await expect(page.locator('.sidebar-menu-link[data-content="cost-management"]')).toHaveClass(/active/);
     await expect(page.locator('.fix-steps b')).toHaveText(['Proposed', 'Approved', 'Applied', 'Roll back']);
 
     const table = page.locator('#waste-fixes-table');

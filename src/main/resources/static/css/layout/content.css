@@ -116,6 +116,16 @@ body.app-shell {
 .page-breadcrumb [aria-current="page"] {
     color: var(--ink);
 }
+
+/* The pages of one menu entry (U21-T07, Cost): the current page reads as the place you are. */
+.page-section-nav [aria-current="page"] {
+    font-weight: 600;
+}
+@media (max-width: 600px) {
+    .page-section-nav a {
+        padding: 12px 2px;
+    }
+}
 .page-header-row {
     display: flex;
     justify-content: space-between;
@@ -125,6 +135,18 @@ body.app-shell {
 }
 .page-heading {
     min-width: 0;
+}
+
+/* The title with the pages of its menu entry beside it (U21-T07, Cost): no extra height. */
+.page-title-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 20px;
+    row-gap: 2px;
+}
+.page-title-line .page-section-nav {
+    margin-bottom: 0;
 }
 .page-summary {
     margin-top: 6px;

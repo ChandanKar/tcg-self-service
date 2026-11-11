@@ -58,8 +58,9 @@ test.describe('Savings page', () => {
     await expect(envTable.locator('tbody tr').first().locator('.savings-team')).toHaveText('—');
     await expect(envTable.getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '#/environments/env-a');
 
-    // The sidebar shows the page to admins.
-    await expect(page.locator('#savings-link')).toBeVisible();
+    // One Cost entry in the menu (U21-T07): Savings is reached beside the title and marks Cost management.
+    await expect(page.getByRole('navigation', { name: 'Cost pages' }).locator('[aria-current="page"]')).toHaveText('Savings');
+    await expect(page.locator('.sidebar-menu-link[data-content="cost-management"]')).toHaveClass(/active/);
   });
 
   test('a failing trend request shows Retry on its panel only', async ({ page }) => {

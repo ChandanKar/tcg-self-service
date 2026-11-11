@@ -420,7 +420,7 @@ const CostManagement = (function() {
     function navHtml(active, bodyHtml) {
         const tabs = tabsShown().map(t => ({ key: t.key, label: t.label })).concat([{ key: 'setup', label: 'Setup' }]);
         return `
-            ${PageHeader.markup({ title: 'Cost management',
+            ${PageHeader.markup({ title: 'Cost management', sectionNav: PageHeader.costNav('cost-management'),
                 summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
                 helpPage: typeof HelpLink !== 'undefined' ? 'cost-management' : null, helpLabel: 'Cost management' })}
             <div class="cost-tabs-row no-print">${Tabs.markup({ id: 'cost-tabs', label: 'Cost', active, tabs })}</div>
@@ -441,7 +441,7 @@ const CostManagement = (function() {
             { text: 'Month for finance, FOCUS CSV…', action: 'cost-focus-export' }] });
         return `
             <div class="content-view page page-frame cost-management-view" id="cost-management-view">
-                ${PageHeader.markup({ title: 'Cost management',
+                ${PageHeader.markup({ title: 'Cost management', sectionNav: PageHeader.costNav('cost-management'),
                     summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
                     actionsHtml: `<div class="cost-toolbar no-print" id="cost-toolbar">${dataMenu}${exportMenu}</div>
                         <div class="cost-tab-actions no-print" id="cost-tab-actions"></div>`,

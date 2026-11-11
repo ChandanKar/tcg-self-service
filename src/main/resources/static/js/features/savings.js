@@ -136,7 +136,7 @@ const Savings = (function() {
             { text: 'Rebuild the last 30 days', action: 'savings-backfill' }] }) : '';
         $('#content-area').html(`
             <div class="content-view page page-frame savings-page">
-                ${PageHeader.markup({ title: 'Savings',
+                ${PageHeader.markup({ title: 'Savings', sectionNav: PageHeader.costNav('savings'),
                     summaryHtml: 'What stopping and resizing saved, after the storage and IP costs that keep running.',
                     actionsHtml: Utils.html`<div class="savings-toolbar">
                         <label class="visually-hidden" for="savings-month">Month</label>

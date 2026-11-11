@@ -4,7 +4,8 @@
  * right ("Title, one summary line, actions on the right, then content" - StyleGuide.dc.html).
  *
  *   PageHeader.markup({title, summaryHtml, breadcrumb: [{label, href}], actionsHtml, helpPage,
- *                      helpLabel, actionsClass, id})
+ *                      helpLabel, actionsClass, id, sectionNav: {label, items: [{label, href, current}]}})
+ *   PageHeader.costNav('savings')   the Cost pages' switcher beside the title (Overview · Savings · Waste · Chargeback)
  *
  * The title and breadcrumb labels are text (escaped); summaryHtml and actionsHtml are markup the
  * caller built safely. The last crumb is the current page (aria-current, no link). The outer
@@ -34,8 +35,22 @@ const PageHeader = (function() {
             + parts.join('<span class="page-breadcrumb-sep" aria-hidden="true">/</span>') + '</nav>';
     }
 
+    /**
+     * The pages of one menu entry, beside the title (U21-T07): {label, items: [{label, href, current}]}.
+     * Links to the other pages; the current one is plain text with aria-current. It sits on the title's
+     * line so it costs no height on pages fitted to the window.
+     */
+    function sectionNavHtml(nav) {
+        const items = (nav && nav.items || []).filter(i => i && i.label);
+        if (!items.length) return '';
+        const parts = items.map(i => i.current ? Utils.html`<span aria-current="page">${i.label}</span>`
+            : Utils.html`<a href="${i.href}">${i.label}</a>`);
+        return Utils.html`<nav class="page-breadcrumb page-section-nav" aria-label="${nav.label || 'Pages'}">`
+            + parts.join('<span class="page-breadcrumb-sep" aria-hidden="true">·</span>') + '</nav>';
+    }
+
     function markup(opts) {
-        const { title = '', summaryHtml = '', breadcrumb, actionsHtml = '', helpPage, helpLabel, actionsClass = '', id } = opts || {};
+        const { title = '', summaryHtml = '', breadcrumb, sectionNav, actionsHtml = '', helpPage, helpLabel, actionsClass = '', id } = opts || {};
         const help = helpPage && typeof HelpLink !== 'undefined' ? HelpLink.button(helpPage, helpLabel || title) : '';
         const actions = (actionsHtml || help)
             ? `<div class="page-actions${actionsClass ? ' ' + Utils.escapeHtml(actionsClass) : ''}">${actionsHtml || ''}${help}</div>`
@@ -45,7 +60,8 @@ const PageHeader = (function() {
                 ${breadcrumbHtml(breadcrumb)}
                 <div class="page-header-row">
                     <div class="page-heading">
-                        ${Utils.html`<h1>${title}</h1>`}
+                        ${sectionNav ? `<div class="page-title-line">${Utils.html`<h1>${title}</h1>`}${sectionNavHtml(sectionNav)}</div>`
+                            : Utils.html`<h1>${title}</h1>`}
                         ${summaryHtml ? `<div class="page-summary">${summaryHtml}</div>` : ''}
                     </div>
                     ${actions}
@@ -53,5 +69,12 @@ const PageHeader = (function() {
             </div>`;
     }
 
-    return { markup, setDocumentTitle, APP };
+    /** One Cost entry in the menu (U21-T07): its four pages switch on the breadcrumb line. */
+    const COST_PAGES = [['cost-management', 'Overview'], ['savings', 'Savings'], ['waste', 'Waste'], ['chargeback', 'Chargeback']];
+
+    function costNav(current) {
+        return { label: 'Cost pages', items: COST_PAGES.map(([key, label]) => ({ label, href: '#/' + key, current: key === current })) };
+    }
+
+    return { markup, costNav, setDocumentTitle, APP };
 })();

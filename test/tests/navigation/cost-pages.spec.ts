@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test';
+import { signIn, canSignIn } from '../../fixtures/auth';
+
+/**
+ * U21-T07: Cost is one entry in the side menu. Its four pages (Overview, Savings, Waste, Chargeback)
+ * switch on the breadcrumb line, and each keeps Cost management marked in the menu.
+ */
+test.describe('Cost pages', () => {
+  test.skip(!canSignIn('admin'), 'needs TEST_DEV_ADMIN_ID');
+
+  test('one Cost entry in the menu; the pages switch on the breadcrumb line', async ({ page }) => {
+    await signIn(page, 'admin');
+    const costMenu = page.locator('#cost-menu .sidebar-menu-link');
+    await expect(costMenu).toHaveCount(1);
+    await expect(costMenu).toHaveText('Cost management');
+
+    const pages: [string, string][] = [['cost-management', 'Overview'], ['savings', 'Savings'], ['waste', 'Waste'], ['chargeback', 'Chargeback']];
+    for (const [key, label] of pages) {
+      await page.goto(`/home#/${key}`);
+      const nav = page.getByRole('navigation', { name: 'Cost pages' });
+      await expect(nav).toBeVisible();
+      await expect(nav.locator('[aria-current="page"]')).toHaveText(label);
+      await expect(nav.getByRole('link')).toHaveText(pages.filter(p => p[0] !== key).map(p => p[1]));
+      await expect(page.locator('.sidebar-menu-link[data-content="cost-management"]')).toHaveClass(/active/);
+    }
+
+    // A link moves between the pages.
+    await page.getByRole('navigation', { name: 'Cost pages' }).getByRole('link', { name: 'Savings' }).click();
+    await expect(page).toHaveURL(/#\/savings$/);
+  });
+});
