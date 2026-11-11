@@ -27,6 +27,29 @@ async function open(page: Page, role: 'admin' | 'user', hash = '#/dashboard') {
 }
 
 test.describe('App shell', () => {
+  // U21-T16: the menu fits a laptop window (1366 x 768 at 100% leaves 1366 x 657) without a scrollbar,
+  // for every persona; 18 rows of 30 px needed 697 px of the 601 there.
+  for (const [width, height] of [[1366, 657], [1440, 900]]) {
+    test(`${width} x ${height}: every persona's menu fits without a scrollbar`, async ({ page }) => {
+      test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+      for (const persona of ['admin-001', 'dev-user-001', 'user-001', 'user-002']) {
+        await page.setViewportSize({ width, height });
+        await page.context().setExtraHTTPHeaders({ 'X-User-Id': persona });
+        await page.goto('/home#/dashboard');
+        await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+        const m = await page.evaluate(() => {
+          const s = document.getElementById('sidebar')!;
+          const links = [...s.querySelectorAll('.sidebar-menu-link')].filter(l => (l as HTMLElement).offsetParent !== null);
+          const bottom = s.getBoundingClientRect().bottom;
+          return { need: s.scrollHeight, have: s.clientHeight, hidden: links.filter(l => l.getBoundingClientRect().bottom > bottom + 1)
+            .map(l => (l.textContent || '').trim()) };
+        });
+        expect(m.hidden, `${persona}: menu needs ${m.need}px of ${m.have}px`).toEqual([]);
+        expect(m.need, `${persona}: menu needs ${m.need}px of ${m.have}px`).toBeLessThanOrEqual(m.have);
+      }
+    });
+  }
+
   test('an administrator sees all four sections and every link, with no menu scrollbar', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await open(page, 'admin');

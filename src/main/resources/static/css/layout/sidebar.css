@@ -66,6 +66,33 @@
     color: var(--ink);
 }
 
+/* Short windows (U21-T16): a 1366 x 768 laptop leaves the menu about 600 px, and an administrator's
+   18 rows of 30 px needed 697, so the last items (API access, Settings, System health) fell below
+   the edge. Up to 760 px tall the rows are 24 px and the headings and gaps tighter (about 575 px,
+   room for two more rows); taller windows keep the SideNav board's spacing. */
+@media (min-width: 768px) and (max-height: 760px) {
+    .sidebar {
+        padding: 4px 0;
+    }
+
+    .sidebar-section + .sidebar-section {
+        margin-top: 3px;
+    }
+
+    .sidebar-section-title {
+        padding: 6px 20px 1px;
+    }
+
+    .sidebar-section:first-child .sidebar-section-title {
+        padding-top: 4px;
+    }
+
+    .sidebar-menu-link {
+        height: 24px;
+        font-size: 13px;
+    }
+}
+
 .sidebar-menu-link:focus-visible {
     outline: 2px solid var(--brand-navy);
     outline-offset: -2px;
