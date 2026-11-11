@@ -196,6 +196,19 @@ test.describe('Fits the window without a page scrollbar', () => {
                 out.push(`${name} cuts off ${el.scrollHeight - el.clientHeight}px (${el.clientHeight}px of ${el.scrollHeight}px)`);
               }
             });
+            // U21-T15: nor at the side. A box that hides sideways overflow and holds something wider
+            // than itself (the VM table on ISE, its Start buttons beyond the card's edge) cuts it off.
+            document.querySelectorAll('#content-area *').forEach(node => {
+              const el = node as HTMLElement;
+              if (el.offsetParent === null || el.clientWidth < 40 || el.clientHeight < 20) return;
+              const cs = getComputedStyle(el);
+              if (cs.overflowX !== 'hidden' && cs.overflowX !== 'clip') return;
+              if (cs.textOverflow === 'ellipsis') return;
+              if (el.scrollWidth > el.clientWidth + 2) {
+                const name = el.id ? `#${el.id}` : `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).slice(0, 2).join('.')}`;
+                out.push(`${name} cuts off ${el.scrollWidth - el.clientWidth}px at the side (${el.clientWidth}px of ${el.scrollWidth}px)`);
+              }
+            });
             return out;
           });
           over.forEach(o => scrolls.push(`${hash}: ${o}`));

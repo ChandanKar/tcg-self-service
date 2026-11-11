@@ -105,6 +105,13 @@
     align-items: start;
 }
 
+/* Laptop windows (U21-T15): a narrower side column leaves the VM table room for long names. */
+@media (max-width: 1440px) {
+    .env-body {
+        grid-template-columns: minmax(0, 1fr) 272px;
+    }
+}
+
 .env-main,
 .env-aside {
     display: flex;
@@ -419,6 +426,41 @@
 .env-vm-cpu {
     color: #3a4256;
     font-size: var(--fs-caption);
+}
+
+/* U21-T15: the table never grows past its card. Headings and the short columns stay on one line;
+   the VM name takes the width left and a long one wraps after "_", "." or "-" (<wbr>, then anywhere
+   if it must), so the whole name stays readable and the Details, Start/Stop and Start group buttons
+   always show. Phones show the rows as cards instead. */
+.env-vm-table thead th,
+.env-vm-ip,
+.env-vm-size,
+.env-vm-state,
+.env-vm-cpu {
+    white-space: nowrap;
+}
+
+.env-vm-name-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.env-vm-name-line .vm-badge {
+    flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+    .env-vm-row td.env-vm-name {
+        width: 100%;
+        max-width: 0;
+    }
+
+    .env-vm-name-text {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
 }
 
 .env-vm-state-text {

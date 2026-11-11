@@ -97,6 +97,16 @@ const EnvVmTable = (function() {
         return typeof note === 'function' ? note(vm) : '';
     }
 
+    /**
+     * A name that may wrap after "_" and "-" (U21-T15): names like
+     * mcube_dev_poc_master_100.112.1.135 have no spaces, so without break points they pushed the
+     * table past its card and hid the Start buttons. Not after ".", so an IP inside a name stays in
+     * one piece. Escaped first; only <wbr> is added.
+     */
+    function breakable(name) {
+        return Utils.escapeHtml(String(name || '')).replace(/([_\-])/g, '$1<wbr>');
+    }
+
     function vmRow(vm, canOperate, opts) {
         const s = state(vm, opts.now);
         const name = vm.displayName || vm.name;
@@ -113,7 +123,7 @@ const EnvVmTable = (function() {
                     : Utils.html`<button type="button" class="btn btn-sm btn-outline-success env-vm-op" data-vm-id="${vm.vmId}" data-action="start-vm" aria-label="${action === 'retry' ? 'Retry' : 'Start'} ${name}">${action === 'retry' ? 'Retry' : 'Start'}</button>`;
         return Utils.html`
             <tr class="env-vm-row" data-vm-id="${vm.vmId}">
-                <td class="td-primary env-vm-name" data-label="VM">${name}` + badges + Utils.html`</td>
+                <td class="td-primary env-vm-name" data-label="VM"><div class="env-vm-name-line"><span class="env-vm-name-text" title="${name}">` + breakable(name) + '</span>' + badges + Utils.html`</div></td>
                 <td class="env-vm-ip" data-label="IP address"><span class="mono">${vm.privateIp || '—'}</span></td>
                 <td class="env-vm-size" data-label="Size"><span class="mono">${vm.instanceType || '—'}</span></td>
                 <td class="env-vm-state" data-label="State"><span class="env-vm-state-text state-${s.kind}"><span class="env-vm-dot" aria-hidden="true"></span>${s.text}</span>`
@@ -385,7 +395,7 @@ const EnvVmTable = (function() {
             }
             return Utils.html`
                 <tr class="env-vm-row env-eks-row" data-vm-id="${vm.vmId}">
-                    <td class="td-primary env-vm-name" data-label="Node group">${name}</td>
+                    <td class="td-primary env-vm-name" data-label="Node group"><div class="env-vm-name-line"><span class="env-vm-name-text" title="${name}">` + breakable(name) + Utils.html`</span></div></td>
                     <td class="env-eks-nodes" data-label="Nodes">` + strip + Utils.html`</td>
                     <td class="env-vm-size" data-label="Size"><span class="mono">${ng.instanceType || '—'}</span></td>
                     <td class="env-eks-count" data-label="Running / when started"><span class="mono">${running} / ${total}</span></td>
