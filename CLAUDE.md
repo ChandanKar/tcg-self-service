@@ -96,7 +96,7 @@ Set in `application.properties` (each reads an env var of the same name in upper
 | `app.scheduling.enabled` | true | All scheduled jobs |
 | `auth.password-login.enabled` | true | Username/password login next to Entra (emergency off switch) |
 | `entraid.logout.end-microsoft-session` | false | Sign out also ends the Microsoft session (off: app session only, back to the sign-in page) |
-| `security.env-admin.scope` | global | `assigned` limits ENV_ADMIN to environments they hold admin grants on |
+| `security.env-admin.scope` | assigned | ENV_ADMIN manages only environments they hold an environment-wide admin grant on; `global` = every environment (tests pin `global`) |
 | `security.csp.report-only` | true | CSP is reported, not enforced |
 | `vm.state.sync.enabled` / `vm.inventory.sync.enabled` | true | Cloud state and inventory sync |
 | `vm.discovery.enabled` | false | Auto-discover EC2 instances |

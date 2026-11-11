@@ -39,7 +39,7 @@ public class SecurityService {
 
     public SecurityService(UserService userService, EnvironmentAccessService accessService,
                            VmGroupRepository vmGroupRepository,
-                           @Value("${security.env-admin.scope:global}") String envAdminScope) {
+                           @Value("${security.env-admin.scope:assigned}") String envAdminScope) {
         this.userService = userService;
         this.accessService = accessService;
         this.vmGroupRepository = vmGroupRepository;

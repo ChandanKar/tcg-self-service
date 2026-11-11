@@ -142,7 +142,7 @@ public final class SettingsRegistry {
             flag("Access and security", "auth.password-login.enabled", "Username and password sign-in",
                     "Keep it next to Microsoft sign-in. Turn off only in an emergency: password sign-in is then refused.", true),
             readOnly("Access and security", "security.env-admin.scope", "Environment admins' reach",
-                    "global: environment admins manage every environment; assigned: only those they hold admin access to."
+                    "assigned (default): environment admins manage only the environments they hold admin access to; global: every environment."
                             + String.format(RESTART, "SECURITY_ENV_ADMIN_SCOPE")),
             readOnly("Access and security", "security.csp.report-only", "Content security policy: report only",
                     "true reports scripts from other sites; false blocks them." + String.format(RESTART, "SECURITY_CSP_REPORT_ONLY")),
