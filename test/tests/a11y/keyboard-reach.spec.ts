@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E13-T02 / U04-T01: keyboard users reach every menu link, My Account and Logout; the menu's
+ * E13-T02 / U04-T01: keyboard users reach every menu link, My Account and Sign out; the menu's
  * sections are always open and the link of the open page is marked current.
  */
 

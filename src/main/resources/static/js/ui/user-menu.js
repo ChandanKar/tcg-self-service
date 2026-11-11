@@ -120,7 +120,7 @@ const UserMenu = (function() {
                     </a>
                     <div class="dropdown-divider"></div>
                     <a href="#" class="dropdown-item text-danger" id="logout-btn" role="menuitem">
-                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Logout
+                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Sign out
                     </a>
                 </div>
             </div>
