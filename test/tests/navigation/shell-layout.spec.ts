@@ -180,6 +180,20 @@ test.describe('Fits the window without a page scrollbar', () => {
             if (d.scrollHeight > window.innerHeight + 1) out.push(`page is ${d.scrollHeight}px tall`);
             if (d.scrollWidth > window.innerWidth + 1) out.push(`page is ${d.scrollWidth}px wide`);
             if (main && main.scrollHeight > main.clientHeight + 1) out.push(`main area is ${main.scrollHeight}px of ${main.clientHeight}px`);
+            // U21-T09: no panel is squeezed below its content. A box that hides overflow (not one line
+            // cut with an ellipsis) and is shorter than what it holds cuts content off without a way
+            // to scroll to it (Start order, 205fb37). Panels keep their height; the column scrolls.
+            document.querySelectorAll('#content-area *').forEach(node => {
+              const el = node as HTMLElement;
+              if (el.offsetParent === null || el.clientHeight < 40) return;
+              const cs = getComputedStyle(el);
+              if (cs.overflowY !== 'hidden' && cs.overflowY !== 'clip') return;
+              if (cs.textOverflow === 'ellipsis' || (cs as any).webkitLineClamp && (cs as any).webkitLineClamp !== 'none') return;
+              if (el.scrollHeight > el.clientHeight + 2) {
+                const name = el.id ? `#${el.id}` : `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).slice(0, 2).join('.')}`;
+                out.push(`${name} cuts off ${el.scrollHeight - el.clientHeight}px (${el.clientHeight}px of ${el.scrollHeight}px)`);
+              }
+            });
             return out;
           });
           over.forEach(o => scrolls.push(`${hash}: ${o}`));
