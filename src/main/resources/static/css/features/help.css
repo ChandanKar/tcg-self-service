@@ -1,6 +1,6 @@
 /*
  * Help page (E29-T07, U09-T07 Help.dc.html): search in the header, topics in groups beside the
- * topic (the current one with a gold bar), the power-strip legend; one column on phones.
+ * topic (the current one with a navy bar; gold is for warnings, U21-T08), the power-strip legend; one column on phones.
  */
 
 .help-search {
@@ -81,7 +81,7 @@
     background: #eceff8;
     color: var(--brand-navy);
     font-weight: 600;
-    box-shadow: inset 3px 0 0 #d9a21b;
+    box-shadow: inset 3px 0 0 var(--brand-navy);
 }
 
 .help-no-results {

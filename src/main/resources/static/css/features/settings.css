@@ -1,5 +1,5 @@
 /*
- * Settings page (E29-T04, U14-T07 Settings.dc.html): a menu of sections on the left (gold marker on
+ * Settings page (E29-T04, U14-T07 Settings.dc.html): a menu of sections on the left (navy marker on
  * the current one), the section's rows on the right, and the bar of changes not saved at its foot.
  */
 
@@ -67,7 +67,7 @@
     background: var(--brand-navy-tint);
     color: var(--brand-navy);
     font-weight: 600;
-    box-shadow: inset 3px 0 0 var(--brand-gold);
+    box-shadow: inset 3px 0 0 var(--brand-navy);
 }
 
 .st-count {

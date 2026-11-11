@@ -1,7 +1,8 @@
 
 
 /* Side menu (SideNav.dc.html): 240 px, four sections that never collapse, 30 px rows. The active
-   page has the navy tint, navy 600 text and a gold marker on its left edge. */
+   page has the navy tint, navy 600 text and a navy marker on its left edge (gold is kept for
+   warnings, U21-T08). */
 .sidebar {
     position: fixed;
     top: var(--topnav-height);
@@ -74,7 +75,7 @@
     background: var(--brand-navy-tint);
     color: var(--brand-navy);
     font-weight: 600;
-    box-shadow: inset 3px 0 0 var(--brand-gold);
+    box-shadow: inset 3px 0 0 var(--brand-navy);
 }
 
 /* Outline icons, as on the SideNav board (U17-T10). */
