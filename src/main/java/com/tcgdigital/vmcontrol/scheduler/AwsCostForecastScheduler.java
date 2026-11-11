@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * Explorer calls; skipped without AWS credentials or while cost.aws-forecast.enabled is off.
  */
 @Component
-@ConditionalOnProperty(name = "cost.aws-forecast.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "cost.aws-forecast.enabled", havingValue = "true", matchIfMissing = false)
 public class AwsCostForecastScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(AwsCostForecastScheduler.class);

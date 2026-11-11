@@ -45,17 +45,17 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | Phase 1 | `eks:TagResource` | ❓ Unverified | Same — never called |
 | Phase 1 | `ce:UpdateCostAllocationTagsStatus` | ❓ Unverified | Same — never called |
 | Phase 1 | `ce:ListCostAllocationTags` | ❓ Unverified | Same — never called |
-| **Phase 2 — real billing ingestion** (`COST_ACTUALS_ENABLED`, on by default since E08-T10) | `ce:GetCostAndUsage` | ❌ **Missing** | Confirmed via real `CostExplorerException`: *"User: .../self-service-user is not authorized to perform: ce:GetCostAndUsage... because no identity-based policy allows the ce:GetCostAndUsage action"* — captured live when this was briefly (and unintentionally) called during Phase 2 testing |
+| **Phase 2 — real billing ingestion** (`COST_ACTUALS_ENABLED`, off by default since U21-T05; on in the `cost` profile) | `ce:GetCostAndUsage` | ❌ **Missing** | Confirmed via real `CostExplorerException`: *"User: .../self-service-user is not authorized to perform: ce:GetCostAndUsage... because no identity-based policy allows the ce:GetCostAndUsage action"* — captured live when this was briefly (and unintentionally) called during Phase 2 testing |
 | Phase 2 | `ce:GetTags` | ❓ Unverified | Never called directly, but given `ce:GetCostAndUsage` is denied, the account likely has **no** `ce:*` permissions at all — a Cost Explorer policy is normally granted as a set, not action-by-action |
-| **Phase 3 — AWS-native optimization signals** (`COST_OPTIMIZER_ENABLED` / `COST_RESERVATIONS_ENABLED`, both on by default since E08-T10) | `compute-optimizer:GetEC2InstanceRecommendations` | ❓ Unverified | Never called — `cost.optimizer.enabled` stayed `false`. Note: this one is **not billed per-call** (unlike the `ce:*` actions), so it's safe to test live once you want to enable it |
+| **Phase 3 — AWS-native optimization signals** (`COST_OPTIMIZER_ENABLED` on by default / `COST_RESERVATIONS_ENABLED` off by default since U21-T05) | `compute-optimizer:GetEC2InstanceRecommendations` | ❓ Unverified | Never called — `cost.optimizer.enabled` stayed `false`. Note: this one is **not billed per-call** (unlike the `ce:*` actions), so it's safe to test live once you want to enable it |
 | Phase 3 | `compute-optimizer:GetEnrollmentStatus` | ❓ Unverified | Not currently called by the code at all (handled instead by catching `OptInRequiredException`) — listed for completeness if you later add an explicit enrollment check |
 | Phase 3 | `ce:GetReservationCoverage` | ❓ Unverified | Never called; same reasoning as `ce:GetTags` above — likely missing given `ce:GetCostAndUsage` is denied |
 | Phase 3 | `ce:GetReservationUtilization` | ❓ Unverified | Same |
 | Phase 3 | `ce:GetSavingsPlansCoverage` | ❓ Unverified | Same |
 | Phase 3 | `ce:GetSavingsPlansUtilization` | ❓ Unverified | Same |
-| **Commitment recommendations** (`COST_COMMITMENTS_RECOMMENDATIONS_ENABLED`, on by default, E27-T01) | `ce:GetSavingsPlansPurchaseRecommendation` | ❓ Unverified | Mondays, with the coverage snapshot: Compute and EC2 Instance Savings Plans (2 billed calls). Read-only; nothing is purchased |
+| **Commitment recommendations** (`COST_COMMITMENTS_RECOMMENDATIONS_ENABLED`, off by default since U21-T05, E27-T01) | `ce:GetSavingsPlansPurchaseRecommendation` | ❓ Unverified | Mondays, with the coverage snapshot: Compute and EC2 Instance Savings Plans (2 billed calls). Read-only; nothing is purchased |
 | Commitment recommendations | `ce:GetReservationPurchaseRecommendation` | ❓ Unverified | Mondays: EC2 Reserved Instances (1 billed call). A denial here leaves the Savings Plan rows intact |
-| AWS cost forecast (`COST_AWS_FORECAST_ENABLED`, on by default, E35-T01) | `ce:GetCostForecast` | ❓ Unverified | Mondays: daily 90-day and monthly 18-month forecast of resources tagged `tcg:managed-by=vmcontrol` (2 billed calls) |
+| AWS cost forecast (`COST_AWS_FORECAST_ENABLED`, off by default since U21-T05, E35-T01) | `ce:GetCostForecast` | ❓ Unverified | Mondays: daily 90-day and monthly 18-month forecast of resources tagged `tcg:managed-by=vmcontrol` (2 billed calls) |
 | Carbon footprint (`CARBON_ENABLED`, off by default, E37-T01) | `s3:ListBucket` and `s3:GetObject` on the carbon Data Export bucket and prefix (billing account) | ❓ Unverified | Daily: reads new or changed export files; nothing is written to S3 |
 | **Phase 4 — anomaly alerts** (E21; tag monitors only return data once the `tcg:environment` cost allocation tag is active, see E08-T02) | `ce:GetAnomalyMonitors` | ❓ Unverified | Called by the admin "Sync monitors" action (`POST /api/v1/cost-anomalies/monitors/sync`) |
 | Phase 4 | `ce:CreateAnomalyMonitor` | ❓ Unverified | Only with `COST_ANOMALIES_MANAGE_MONITORS=true` (off by default): one CUSTOM monitor per environment. AWS limits the number of custom monitors per account (check the current Cost Anomaly Detection quota); the sync stops with a warning when it is reached |
@@ -105,7 +105,7 @@ Each member account's role needs the EC2, EKS, CloudWatch, tagging and Compute O
 One policy per feature (E08-T10). Grant only the ones you use; see
 [cost-management-setup.md](cost-management-setup.md) for defaults and billing impact.
 
-**Actual costs** (`COST_ACTUALS_ENABLED`, on by default; ~1 billed call a day):
+**Actual costs** (`COST_ACTUALS_ENABLED`, off by default, on in the `cost` profile; ~1 billed call a day):
 
 ```json
 {
@@ -140,7 +140,7 @@ One policy per feature (E08-T10). Grant only the ones you use; see
 }
 ```
 
-**RI / Savings Plan coverage and purchase recommendations** (`COST_RESERVATIONS_ENABLED`, on by default; 4 billed calls a day, plus 3 on Mondays for `COST_COMMITMENTS_RECOMMENDATIONS_ENABLED`):
+**RI / Savings Plan coverage and purchase recommendations** (`COST_RESERVATIONS_ENABLED`, off by default, on in the `cost` profile; 4 billed calls a day, plus 3 on Mondays for `COST_COMMITMENTS_RECOMMENDATIONS_ENABLED`):
 
 ```json
 {

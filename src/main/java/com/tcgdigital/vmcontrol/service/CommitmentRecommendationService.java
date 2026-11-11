@@ -33,7 +33,7 @@ public class CommitmentRecommendationService {
     private final CostDayBoundary dayBoundary;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${cost.commitments.recommendations.enabled:true}")
+    @Value("${cost.commitments.recommendations.enabled:false}")
     private boolean enabled = true;
 
     @Value("${cost.commitments.term:ONE_YEAR}")

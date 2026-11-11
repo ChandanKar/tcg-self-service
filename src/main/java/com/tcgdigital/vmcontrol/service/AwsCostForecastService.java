@@ -36,7 +36,7 @@ public class AwsCostForecastService {
     static final int DAILY_DAYS = 90;
     static final int MONTHLY_MONTHS = 18;
 
-    @Value("${cost.aws-forecast.enabled:true}")
+    @Value("${cost.aws-forecast.enabled:false}")
     private boolean enabled;
 
     @Value("${cost.aws-forecast.prediction-interval:80}")

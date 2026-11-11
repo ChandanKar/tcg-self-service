@@ -20,7 +20,7 @@ import java.time.DayOfWeek;
  * more billed calls a week).
  */
 @Component
-@ConditionalOnProperty(name = "cost.reservations.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "cost.reservations.enabled", havingValue = "true", matchIfMissing = false)
 public class ReservationCoverageScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationCoverageScheduler.class);
@@ -31,7 +31,7 @@ public class ReservationCoverageScheduler {
     private final CommitmentRecommendationService recommendationService;
     private final CostDayBoundary dayBoundary;
 
-    @Value("${cost.reservations.enabled:true}")
+    @Value("${cost.reservations.enabled:false}")
     private boolean enabled;
 
     /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */

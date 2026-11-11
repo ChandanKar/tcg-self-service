@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * cost-allocation tags are active in Cost Explorer (24h propagation).
  */
 @Component
-@ConditionalOnProperty(name = "cost.actuals.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "cost.actuals.enabled", havingValue = "true", matchIfMissing = false)
 public class ActualCostIngestionScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(ActualCostIngestionScheduler.class);
@@ -29,7 +29,7 @@ public class ActualCostIngestionScheduler {
     private final CostExplorerBillingService costExplorerBillingService;
     private final ScheduledJobLockService lockService;
 
-    @Value("${cost.actuals.enabled:true}")
+    @Value("${cost.actuals.enabled:false}")
     private boolean enabled;
 
     /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */

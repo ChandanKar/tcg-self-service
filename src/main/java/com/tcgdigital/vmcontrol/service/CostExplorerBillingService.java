@@ -49,7 +49,7 @@ public class CostExplorerBillingService {
     @Value("${cost.tagging.key-prefix:tcg:}")
     private String tagKeyPrefix;
 
-    @Value("${cost.actuals.enabled:true}")
+    @Value("${cost.actuals.enabled:false}")
     private boolean actualsEnabled;
 
     /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */

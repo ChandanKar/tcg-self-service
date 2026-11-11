@@ -102,7 +102,8 @@ Set in `application.properties` (each reads an env var of the same name in upper
 | `vm.discovery.enabled` | false | Auto-discover EC2 instances |
 | `vm.metrics.archive.enabled` | true | Daily archive of raw metric samples |
 | `eks.sync.status-refresh.enabled` / `eks.sync.auto-register.enabled` | true / false | EKS node group sync |
-| `cost.snapshot.enabled`, `cost.actuals.enabled`, `cost.optimizer.enabled`, `cost.reservations.enabled` | true | Cost features (need the ce:* IAM permissions, see `docs/aws-iam-permissions.md`) |
+| `cost.snapshot.enabled`, `cost.optimizer.enabled` | true | Estimated costs and Compute Optimizer |
+| `cost.actuals.enabled`, `cost.reservations.enabled`, `cost.aws-forecast.enabled`, `cost.commitments.recommendations.enabled` | false | Billed AWS Cost Explorer reads; need the ce:* IAM permissions (`docs/aws-iam-permissions.md`). The `cost` profile turns them on |
 | `cost.tagging.enabled` | false | Cost-allocation tag reconciliation |
 | `locks.expiry.enabled` | false | Expire locks past `expires_at` |
 | `automation.rules.enabled` | true | Calendar / access-grant automation rules |

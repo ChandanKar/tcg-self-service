@@ -40,12 +40,12 @@ public class CapabilitiesService {
             new Switch("directory", "graph.directory.enabled", false),
             // U15-T01: Cost management's Data actions hide what is switched off.
             new Switch("costTagging", "cost.tagging.enabled", false),
-            new Switch("costActuals", "cost.actuals.enabled", true),
+            new Switch("costActuals", "cost.actuals.enabled", false),
             // U15-T03: the Rightsizing tab's Resize safely… and its Spot section.
             new Switch("safeResize", "rightsizing.safe-resize.enabled", false),
             new Switch("spotPricing", "spot.pricing.enabled", false),
             // U15-T04: the Commitments tab shows only while RI / Savings Plan coverage is on.
-            new Switch("costReservations", "cost.reservations.enabled", true)
+            new Switch("costReservations", "cost.reservations.enabled", false)
     };
 
     private final UserService userService;

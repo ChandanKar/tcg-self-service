@@ -49,10 +49,10 @@ public final class SettingsRegistry {
 
             // Cost management
             flag("Cost", "cost.snapshot.enabled", "Daily cost snapshots", "Record each environment's estimated cost every day.", true),
-            flag("Cost", "cost.actuals.enabled", "Actual costs", "Ingest real costs from AWS Cost Explorer daily (billed API).", true),
+            flag("Cost", "cost.actuals.enabled", "Actual costs", "Ingest real costs from AWS Cost Explorer daily (billed API).",false),
             flag("Cost", "cost.optimizer.enabled", "Compute Optimizer", "Use AWS Compute Optimizer recommendations for rightsizing.", true),
-            flag("Cost", "cost.reservations.enabled", "Reservation coverage", "Record Savings Plan and RI coverage daily (billed API).", true),
-            flag("Cost", "cost.aws-forecast.enabled", "AWS cost forecast", "Capture AWS's 90-day and 18-month cost forecast weekly (billed API).", true),
+            flag("Cost", "cost.reservations.enabled", "Reservation coverage", "Record Savings Plan and RI coverage daily (billed API).",false),
+            flag("Cost", "cost.aws-forecast.enabled", "AWS cost forecast", "Capture AWS's 90-day and 18-month cost forecast weekly (billed API).",false),
             flag("Cost", "carbon.enabled", "Carbon footprint", "Ingest the AWS carbon emissions Data Export from S3 daily.", false),
             flag("Cost", "cost.tagging.enabled", "Cost-allocation tagging", "Tag AWS resources with their environment and team.", false),
 

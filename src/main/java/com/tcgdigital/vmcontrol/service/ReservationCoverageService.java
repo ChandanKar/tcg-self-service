@@ -34,7 +34,7 @@ public class ReservationCoverageService {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationCoverageService.class);
 
-    @Value("${cost.reservations.enabled:true}")
+    @Value("${cost.reservations.enabled:false}")
     private boolean enabled;
 
     /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
