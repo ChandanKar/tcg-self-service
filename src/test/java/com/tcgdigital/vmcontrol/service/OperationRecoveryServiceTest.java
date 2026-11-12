@@ -54,6 +54,7 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
     @Autowired private OperationExecutionRepository executions;
     @Autowired private OperationDetailRepository details;
     @Autowired private AuditLogRepository auditLogs;
+    @Autowired private com.tcgdigital.vmcontrol.repository.NotificationRepository notifications;
     @Autowired private ApplicationEventPublisher events;
     @Autowired private ConfigurableApplicationContext context;
     @Autowired private com.tcgdigital.vmcontrol.scheduler.OperationStaleSweepScheduler staleSweep;
@@ -131,6 +132,25 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
         OperationExecution after = reload(interrupted);
         assertThat(after.getStatus()).isEqualTo(ExecutionStatus.FAILED);
         assertThat(after.getErrorMessage()).isEqualTo("Interrupted: the application restarted while this operation was running");
+    }
+
+    @Test
+    void anInterruptedRunReleasesItsStartingVmAndTellsWhoStartedIt() {
+        // U21-T24 (acceptance L03/J12 on staging): the VM stayed STARTING for 20+ minutes because state
+        // sync skips transitional VMs, and nobody was told the run had failed.
+        vm.setStatus(VmStatus.STARTING);
+        vmRepository.saveAndFlush(vm);
+        OperationExecution interrupted = inFlight(thisHostSamePidEarlierStart(), Instant.now());
+
+        events.publishEvent(new ApplicationReadyEvent(new SpringApplication(), new String[0], context, Duration.ZERO));
+
+        assertThat(reload(interrupted).getStatus()).isEqualTo(ExecutionStatus.FAILED);
+        assertThat(vmRepository.findById(vm.getVmId()).orElseThrow().getStatus()).isEqualTo(VmStatus.UNKNOWN);
+        assertThat(notifications.findByUserIdOrderByCreatedAtDesc(user.getUserId(),
+                org.springframework.data.domain.PageRequest.of(0, 10)).getContent())
+                .anyMatch(n -> n.getType() == com.tcgdigital.vmcontrol.model.NotificationType.OPERATION_FAILED
+                        && n.getTitle().startsWith("Your start failed")
+                        && n.getMessage().contains("the application restarted"));
     }
 
     @Test

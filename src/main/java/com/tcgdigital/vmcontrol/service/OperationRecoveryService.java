@@ -3,8 +3,10 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.model.ExecutionStatus;
 import com.tcgdigital.vmcontrol.model.OperationDetail;
 import com.tcgdigital.vmcontrol.model.OperationExecution;
+import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.repository.OperationDetailRepository;
 import com.tcgdigital.vmcontrol.repository.OperationExecutionRepository;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,8 @@ public class OperationRecoveryService {
     private final OperationDetailRepository detailRepository;
     private final AuditService auditService;
     private final ScheduledJobLockService jobLockService;
+    private final NotificationService notificationService;
+    private final VmRepository vmRepository;
     private final long staleAfterMinutes;
     private final boolean recoveryEnabled;
 
@@ -44,12 +48,16 @@ public class OperationRecoveryService {
                                     OperationDetailRepository detailRepository,
                                     AuditService auditService,
                                     ScheduledJobLockService jobLockService,
+                                    NotificationService notificationService,
+                                    VmRepository vmRepository,
                                     @Value("${vm.operations.stale-after-minutes:30}") long staleAfterMinutes,
                                     @Value("${vm.operations.recovery.enabled:true}") boolean recoveryEnabled) {
         this.executionRepository = executionRepository;
         this.detailRepository = detailRepository;
         this.auditService = auditService;
         this.jobLockService = jobLockService;
+        this.notificationService = notificationService;
+        this.vmRepository = vmRepository;
         this.staleAfterMinutes = staleAfterMinutes;
         this.recoveryEnabled = recoveryEnabled;
     }
@@ -133,6 +141,7 @@ public class OperationRecoveryService {
                 detail.setErrorMessage(message);
                 detail.setCompletedAt(Timestamp.from(Instant.now()));
                 detailRepository.save(detail);
+                releaseTransitional(detail.getTargetId());
                 steps++;
             }
         }
@@ -148,6 +157,33 @@ public class OperationRecoveryService {
         } catch (Exception e) {
             log.warn("Could not audit recovered operation {}: {}", executionId, e.getMessage());
         }
+        // U21-T24: the person who started it (and the environment's people) hear it failed, as for any
+        // other failure; before, an interrupted run failed silently (acceptance J12 on staging).
+        try {
+            notificationService.notifyOperationFailedForEnvironment(execution.getEnvironment().getEnvironmentId(),
+                    execution.getEnvironment().getName(), execution.getInitiatedByUserId(),
+                    execution.getOperationType().name(), message);
+        } catch (Exception e) {
+            log.warn("Could not notify about recovered operation {}: {}", executionId, e.getMessage());
+        }
         return true;
+    }
+
+    /**
+     * U21-T24: a VM this run left STARTING or STOPPING is no longer driven by anything, but state sync
+     * skips transitional VMs for vm.state.sync.stale-transitional-minutes (20) assuming an operation
+     * is; so it showed STARTING for about 20-25 minutes (acceptance L03). UNKNOWN lets the next sync
+     * set what AWS reports.
+     */
+    private void releaseTransitional(String vmId) {
+        if (vmId == null) {
+            return;
+        }
+        vmRepository.findById(vmId).ifPresent(vm -> {
+            if (vm.getStatus() == VmStatus.STARTING || vm.getStatus() == VmStatus.STOPPING) {
+                vm.setStatus(VmStatus.UNKNOWN);
+                vmRepository.save(vm);
+            }
+        });
     }
 }
