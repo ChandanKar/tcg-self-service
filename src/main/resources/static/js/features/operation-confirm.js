@@ -123,6 +123,27 @@ const OperationConfirm = (function() {
         return `Stops at ${at}${tomorrow}. You get a reminder 15 minutes before.`;
     }
 
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    /**
+     * How long a start runs when the environment has no lease (U22-T05): until the environment's next
+     * scheduled stop, priced for those hours, or, with no schedule, until someone stops it (priced per
+     * hour). Staging's dialog said "$1.78 for 8 h" while ise would run about 22 hours, to its Friday stop.
+     * Returns {hours, text}; hours is null when nothing stops it.
+     */
+    function runWithoutLease(nextStopAt, now = new Date()) {
+        const stop = nextStopAt ? new Date(nextStopAt) : null;
+        if (stop && !Number.isNaN(stop.getTime()) && stop > now) {
+            const minutes = Math.round((stop.getTime() - now.getTime()) / 60000);
+            const day = stop.toDateString() === now.toDateString() ? 'today' : DAYS[stop.getDay()];
+            const h = Math.floor(minutes / 60), m = minutes % 60;
+            const inText = h ? `${h} h${m && h < 10 ? ` ${m} min` : ''}` : `${m} min`;
+            return { hours: Math.max(1, Math.ceil(minutes / 60)),
+                text: `They run until the next scheduled stop, ${day} ${pad(stop.getHours())}:${pad(stop.getMinutes())} (in ${inText}), unless someone stops them sooner.` };
+        }
+        return { hours: null, text: 'They run until someone stops them: no schedule stops this environment.' };
+    }
+
     /** "No approval needed", "Needs Sanjay Rao" or the block reason, from an evaluate answer. */
     function approvalText(decision) {
         if (!decision) return { text: 'Approval is checked when you start', needs: false, blocked: false };
@@ -224,6 +245,7 @@ const OperationConfirm = (function() {
                     <div class="op-confirm-value" id="op-confirm-approval">…</div>
                     <div class="op-confirm-note" id="op-confirm-approval-note"></div></div>
             </div>
+            ${chips.length ? '' : '<p class="op-confirm-hint" id="op-confirm-run" aria-live="polite"></p>'}
             <div class="op-confirm-note" id="quota-preview-line" aria-live="polite" hidden></div>` : '';
         return `
             <p class="dialog-lead" id="op-confirm-sentence">${Utils.escapeHtml(groupSentence(env, opType, scope, targets))}
@@ -258,18 +280,22 @@ const OperationConfirm = (function() {
     function refreshChoice() {
         if (!state || state.opType === 'STOP') return;
         const key = state.selected ?? 'none';
-        const hours = state.selected ? Math.ceil(state.selected / 60) : null;
         const chip = state.chips.find(c => c.minutes === state.selected);
+        // No lease: the run lasts until the next scheduled stop, or until someone stops it (U22-T05).
+        const run = chip ? null : runWithoutLease(state.nextStop);
+        const hours = state.selected ? Math.ceil(state.selected / 60) : run && run.hours;
         $('#op-confirm-hint').text(chip ? hintFor(chip, state.nextStop) : '');
+        $('#op-confirm-run').text(run ? run.text : '');
         $('#quota-preview-line').prop('hidden', true).removeAttr('data-quota').empty();
         const token = state.token;
         const current = () => state && state.token === token && (state.selected ?? 'none') === key && $('#' + MODAL_ID).length > 0;
 
         const showCost = preview => {
             if (!current()) return;
-            const note = costNote(preview, state.targets.length, !chip);
-            $('#op-confirm-cost').text(note ? money(preview.estimatedTotal) : '—');
-            $('#op-confirm-rate').text(note || 'No price known');
+            const openEnded = !chip && run && run.hours === null;
+            const note = costNote(preview, state.targets.length, !chip && !openEnded);
+            $('#op-confirm-cost').text(!note ? '—' : openEnded ? `${money(preview.hourlyTotal)} an hour` : money(preview.estimatedTotal));
+            $('#op-confirm-rate').text(!note ? 'No price known' : openEnded ? 'until someone stops them' : note);
             updateButton();
             if (note && typeof CostPreview !== 'undefined' && CostPreview.renderQuota) {
                 CostPreview.renderQuota($('#quota-preview-line'), state.env.teamId || null, preview, $('#op-confirm-btn'))
@@ -362,7 +388,7 @@ const OperationConfirm = (function() {
         refreshChoice();
     }
 
-    return { open, model: { targetsFor, groupSentence, durationChips, hintFor, approvalText, titleFor, costNote, joinNames } };
+    return { open, model: { targetsFor, groupSentence, durationChips, hintFor, runWithoutLease, approvalText, titleFor, costNote, joinNames } };
 })();
 
 if (typeof window !== 'undefined') window.OperationConfirm = OperationConfirm;

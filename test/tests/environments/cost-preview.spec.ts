@@ -44,9 +44,11 @@ test.describe('Cost preview in dialogs', () => {
     await openEnv(page, envId);
     await page.locator('#btn-env-action').click();
 
-    // U08-T02: the cost box of the start dialog (StartConfirm.dc.html).
-    await expect(page.locator('#operationConfirmModal #op-confirm-cost')).toHaveText('$1.54');
-    await expect(page.locator('#op-confirm-rate')).toHaveText(/\$0\.19 an hour · price unknown for 1 VM, approximate$/);
+    // U08-T02: the cost box of the start dialog (StartConfirm.dc.html). U22-T05: with no lease and no
+    // schedule nothing stops the run, so the cost is per hour and the dialog says so (it said '$1.54 for 8 h').
+    await expect(page.locator('#operationConfirmModal #op-confirm-cost')).toHaveText('$0.19 an hour');
+    await expect(page.locator('#op-confirm-rate')).toHaveText('until someone stops them');
+    await expect(page.locator('#op-confirm-run')).toHaveText('They run until someone stops them: no schedule stops this environment.');
     expect(asked[0]).not.toContain('extension=true');
     await expect(page.locator('#op-confirm-btn')).toBeEnabled();
   });

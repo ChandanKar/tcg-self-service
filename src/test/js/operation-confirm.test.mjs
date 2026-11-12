@@ -109,3 +109,19 @@ test('approval: none needed, the approvers by name, or the block reason', () => 
     assert.equal(blocked.blocked, true);
     assert.equal(blocked.text, 'The team is over its monthly quota');
 });
+
+test('without a lease the start runs to the next scheduled stop, or until someone stops it (U22-T05)', () => {
+    const M = load();
+    const now = new Date(2026, 10, 12, 14, 0);                     // Thu 14:00 local
+    const friday = new Date(2026, 10, 13, 12, 30);                 // Fri 12:30, 22.5 h later
+    const run = M.runWithoutLease(friday.toISOString(), now);
+    assert.equal(run.hours, 23);
+    assert.equal(run.text, 'They run until the next scheduled stop, Fri 12:30 (in 22 h), unless someone stops them sooner.');
+    const tonight = M.runWithoutLease(new Date(2026, 10, 12, 18, 45).toISOString(), now);
+    assert.equal(tonight.hours, 5);
+    assert.match(tonight.text, /today 18:45 \(in 4 h 45 min\)/);
+    const none = M.runWithoutLease(null, now);
+    assert.equal(none.hours, null);
+    assert.equal(none.text, 'They run until someone stops them: no schedule stops this environment.');
+    assert.equal(M.runWithoutLease(new Date(2026, 10, 12, 9, 0).toISOString(), now).hours, null, 'a stop in the past is no stop');
+});
