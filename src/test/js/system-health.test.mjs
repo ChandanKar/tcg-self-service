@@ -45,7 +45,7 @@ test('the four figures', () => {
         jobs, driftCount: 0, stats: { total: 230, successRate: 99 } }, NOW);
     assert.deepEqual(plain(t), {
         sync: { value: '4 min ago', fresh: true, sub: '112 VMs, every 5 min' },
-        drift: { value: '0' },
+        drift: { value: '0', sub: 'starts and stops made in AWS' },
         actions: { value: '230', rate: '99% succeeded' },
         jobs: { value: '1/2', sub: '1 late', late: 1 } });
     assert.equal(M.tiles({ syncStatus: {}, jobs: [], driftCount: null, stats: null }, NOW).sync.value, 'Not yet');
@@ -85,4 +85,12 @@ test('U20-T09: one state-changes list; where each change came from; only outside
     assert.deepEqual(list.map(M.sourceText), ['Platform, by Asha Rao', 'Outside the platform', 'Platform']);
     assert.equal(M.changeRows(list, false).length, 3);
     assert.deepEqual(M.changeRows(list, true).map(c => c.changeSource), ['state_sync']);
+});
+
+test('U22-T12: changed outside the platform shows the VMs, as Home does, with the starts and stops behind them', () => {
+    const t = (driftVms, driftCount) => plain(M.tiles({ syncStatus: {}, jobs: [], driftVms, driftCount, stats: null }, NOW).drift);
+    assert.deepEqual(t(102, 289), { value: '102', sub: 'VMs, in 289 starts and stops made in AWS' });
+    assert.deepEqual(t(1, 1), { value: '1', sub: 'VM, in 1 start or stop made in AWS' });
+    assert.deepEqual(t(0, 0), { value: '0', sub: 'VMs' });
+    assert.deepEqual(t(null, null), { value: '—', sub: 'Not available' });
 });

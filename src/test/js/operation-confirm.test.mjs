@@ -116,7 +116,11 @@ test('without a lease the start runs to the next scheduled stop, or until someon
     const friday = new Date(2026, 10, 13, 12, 30);                 // Fri 12:30, 22.5 h later
     const run = M.runWithoutLease(friday.toISOString(), now);
     assert.equal(run.hours, 23);
-    assert.equal(run.text, 'They run until the next scheduled stop, Fri 12:30 (in 22 h), unless someone stops them sooner.');
+    assert.equal(run.text, 'They run until the next scheduled stop, Fri 12:30 (in 23 h), unless someone stops them sooner.');
+    // Staging: 17 h 36 min read "in 17 h" beside "$4.00 for 18 h"; both now say 18.
+    const staging = M.runWithoutLease(new Date(2026, 10, 13, 7, 36).toISOString(), now);
+    assert.equal(staging.hours, 18);
+    assert.match(staging.text, /\(in 18 h\)/);
     const tonight = M.runWithoutLease(new Date(2026, 10, 12, 18, 45).toISOString(), now);
     assert.equal(tonight.hours, 5);
     assert.match(tonight.text, /today 18:45 \(in 4 h 45 min\)/);

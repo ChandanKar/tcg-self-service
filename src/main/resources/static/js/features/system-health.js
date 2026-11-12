@@ -62,7 +62,7 @@ const SystemHealth = (function () {
     }
 
     /** The four figures of the Now tab. */
-    function tiles({ syncStatus, jobs, driftCount, stats }, now = new Date()) {
+    function tiles({ syncStatus, jobs, driftCount, driftVms, stats }, now = new Date()) {
         const sync = syncStatus || {};
         const list = jobs || [];
         const stateJob = list.find(j => j.jobName === 'vm_state_sync');
@@ -75,7 +75,7 @@ const SystemHealth = (function () {
                 fresh: synced !== null && (!stateJob || stateJob.status !== 'LATE'),
                 sub: `${plural(Number(sync.totalVmsSynced) || 0, 'VM')}${stateJob ? `, ${stateJob.cadence.charAt(0).toLowerCase()}${stateJob.cadence.slice(1)}` : ''}`
             },
-            drift: { value: driftCount === null || driftCount === undefined ? '—' : String(driftCount) },
+            drift: driftTile(driftVms, driftCount),
             actions: stats ? { value: Number(stats.total || 0).toLocaleString('en-US'), rate: `${Number(stats.successRate) || 0}% succeeded` }
                 : { value: '—', rate: 'Not available' },
             jobs: { value: `${enabled.length - late}/${enabled.length}`, sub: late ? `${late} late` : 'All on time', late }
@@ -389,29 +389,47 @@ const SystemHealth = (function () {
         FleetUse.render('#sh-panel-fleet');
     }
 
+    /**
+     * Changed outside the platform, 24 h (U22-T12, staging validation): the VMs, the figure Home shows,
+     * with the starts and stops behind them ("102" and "VMs, in 289 starts and stops made in AWS");
+     * the changes alone when the VM count could not be read.
+     */
+    function driftTile(vms, changes) {
+        const known = n => n !== null && n !== undefined && !Number.isNaN(Number(n));
+        if (known(vms)) {
+            const n = Number(vms);
+            return { value: String(n), sub: (n === 1 ? 'VM' : 'VMs')
+                + (known(changes) && Number(changes) ? `, in ${plural(Number(changes), 'start or stop', 'starts and stops')} made in AWS` : '') };
+        }
+        if (known(changes)) return { value: String(changes), sub: 'starts and stops made in AWS' };
+        return { value: '—', sub: 'Not available' };
+    }
+
     async function loadNow() {
         const token = s.token;
         const range = lastDay();
         const statsUrl = `${Config.API.audit.stats}?${rangeQuery(range)}`;
-        const [syncStatus, jobs, drift, stats, envs] = await Promise.all([
+        const [syncStatus, jobs, drift, stats, envs, attention] = await Promise.all([
             fetchSyncStatus(),
             apiFetch(Config.API.monitoring.schedulerHealth, null),
             fetchDriftEvents(range, 1),
             apiFetch(statsUrl, null),
-            apiFetch(Config.API.environments.list, [])
+            apiFetch(Config.API.environments.list, []),
+            apiFetch(Config.API.dashboard.attention, null)
         ]);
         if (!ContentRouter.isCurrent(token)) return;
         s.jobs = jobs;
         s.eks = (Array.isArray(envs) ? envs : []).some(e => e.serviceType === 'EKS' && e.isActive !== false);
         $('#trigger-eks-sync-btn').prop('hidden', !s.eks);
-        const t = tiles({ syncStatus, jobs, driftCount: drift.total, stats });
+        const t = tiles({ syncStatus, jobs, driftCount: drift.total,
+            driftVms: attention && attention.health ? attention.health.driftEvents24h : null, stats });
         $('#sh-tiles').html(Utils.html`
             <div class="sh-tile"><div class="sh-tile-label">VM state sync</div>
                 <div class="sh-tile-value"><span class="sh-dot sh-dot-${t.sync.fresh ? 'ok' : 'late'}" aria-hidden="true"></span>${t.sync.value}</div>
                 <div class="sh-tile-sub">${t.sync.sub}</div></div>
             <div class="sh-tile"><div class="sh-tile-label">Changed outside the platform, 24 h</div>
                 <div class="sh-tile-value">${t.drift.value}</div>
-                <div class="sh-tile-sub">changes (starts and stops made in AWS)</div></div>
+                <div class="sh-tile-sub">${t.drift.sub}</div></div>
             <div class="sh-tile"><div class="sh-tile-label">Actions, 24 h</div>
                 <div class="sh-tile-value">${t.actions.value}</div>
                 <div class="sh-tile-sub">${t.actions.rate} · <a href="#/audit-logs-all">Audit log</a></div></div>

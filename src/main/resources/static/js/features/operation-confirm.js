@@ -137,8 +137,11 @@ const OperationConfirm = (function() {
             const minutes = Math.round((stop.getTime() - now.getTime()) / 60000);
             const day = stop.toDateString() === now.toDateString() ? 'today' : DAYS[stop.getDay()];
             const h = Math.floor(minutes / 60), m = minutes % 60;
-            const inText = h ? `${h} h${m && h < 10 ? ` ${m} min` : ''}` : `${m} min`;
-            return { hours: Math.max(1, Math.ceil(minutes / 60)),
+            // From 10 hours the minutes are dropped: the text and the priced hours then round alike
+            // (staging said "$4.00 for 18 h" beside "in 17 h" for 17 h 36 min).
+            const long = h >= 10;
+            const inText = long ? `${Math.round(minutes / 60)} h` : h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
+            return { hours: long ? Math.round(minutes / 60) : Math.max(1, Math.ceil(minutes / 60)),
                 text: `They run until the next scheduled stop, ${day} ${pad(stop.getHours())}:${pad(stop.getMinutes())} (in ${inText}), unless someone stops them sooner.` };
         }
         return { hours: null, text: 'They run until someone stops them: no schedule stops this environment.' };
