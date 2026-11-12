@@ -321,4 +321,50 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.content[*].environmentId").value(contains(env.getEnvironmentId())))
                 .andExpect(header().string("X-Running-Vms", "3"));
     }
+
+    // ---------------------------------------------------------------- U22-T13: order and export
+
+    @Test
+    void mostRunningOrdersTheWholeFilteredSetThenPages() throws Exception {
+        Environment stopped = runningAndStopped(); // "bill-<tag>" comes first by name
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asUser()))
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(stopped.getEnvironmentId(), env.getEnvironmentId())));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("sort", "running")
+                        .param("size", "1").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(env.getEnvironmentId())))
+                .andExpect(jsonPath("$.page.totalElements").value(2))
+                .andExpect(header().string("X-Total-Vms", "8"))
+                .andExpect(header().string("X-Running-Vms", "2"));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("sort", "running")
+                        .param("size", "1").param("page", "1").with(asUser()))
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(stopped.getEnvironmentId())));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("sort", "cost").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)));
+    }
+
+    @Test
+    void theExportListsWhatTheCallerSeesWithTheFilters() throws Exception {
+        runningAndStopped();
+        Environment risky = newEnvironment("risky-" + tag);
+        risky.setDisplayName("=HYPERLINK(\"x\") " + tag);
+        environmentRepository.saveAndFlush(risky);
+
+        String csv = mockMvc.perform(get("/api/v1/environments/export").param("search", tag).param("state", "RUNNING").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("attachment; filename=\"environments-")))
+                .andReturn().getResponse().getContentAsString();
+        String[] lines = csv.split("\r\n");
+        org.assertj.core.api.Assertions.assertThat(lines[0]).startsWith("Environment,Short name,Region,Team,VMs running,VMs,Locked");
+        org.assertj.core.api.Assertions.assertThat(lines).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(lines[1]).startsWith("Payments QA " + tag + ",pay-qa").contains(",2,5,no,USER,");
+
+        // The admin sees the third one; a formula-looking name is written as text.
+        String all = mockMvc.perform(get("/api/v1/environments/export").param("search", tag).with(asAdmin()))
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(all.split("\r\n")).hasSize(4);
+        org.assertj.core.api.Assertions.assertThat(all).contains("\"'=HYPERLINK(\"\"x\"\") " + tag + "\"");
+    }
 }

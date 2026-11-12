@@ -96,7 +96,12 @@ const Config = (function() {
                 `${API_BASE_URL}/environments/page?page=${page}&size=${size}${search ? '&search=' + encodeURIComponent(search) : ''}`
                 + (opts.includeGroups ? '&includeGroups=true' : '')
                 + (opts.state ? '&state=' + encodeURIComponent(opts.state) : '')
-                + (opts.region ? '&region=' + encodeURIComponent(opts.region) : ''),
+                + (opts.region ? '&region=' + encodeURIComponent(opts.region) : '')
+                + (opts.sort && opts.sort !== 'name' ? '&sort=' + encodeURIComponent(opts.sort) : ''),
+            // U22-T13: the list as CSV, with the list's filters
+            exportCsv: (opts = {}) => `${API_BASE_URL}/environments/export?`
+                + new URLSearchParams(Object.entries({ search: opts.search || '', state: opts.state || '', region: opts.region || '' })
+                    .filter(([, v]) => v)).toString(),
             // U19-T08: the regions that hold a VM, for the list's region filter
             regionsInUse: `${API_BASE_URL}/environments/regions`,
             available: `${API_BASE_URL}/environments/available`,

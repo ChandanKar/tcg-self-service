@@ -196,11 +196,30 @@ public class EnvironmentController {
             @Parameter(description = "RUNNING: environments with a running VM; STOPPED: those without one (U06-T04)")
             @RequestParam(required = false) String state,
             @Parameter(description = "Only environments with a VM in this AWS region (U19-T08)")
-            @RequestParam(required = false) String region) {
-
+            @RequestParam(required = false) String region,
+            @Parameter(description = "Order: name (default), running (most VMs running first) or cost (highest month to date first) (U22-T13)")
+            @RequestParam(required = false, defaultValue = "name") String sort) {
         Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
                 com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
         Boolean running = runningFilter(state);
+        if ("running".equals(sort) || "cost".equals(sort)) {
+            // U22-T13: ordered across the whole filtered set, then paged.
+            List<Environment> all = pageOfEnvironments(includeInactive, search, running, region, Pageable.unpaged()).getContent();
+            List<EnvironmentDTO> rows = fleetRows(all, includeGroups);
+            java.util.Comparator<EnvironmentDTO> by = "running".equals(sort)
+                    ? java.util.Comparator.comparingInt(EnvironmentDTO::getRunningVmCount).reversed()
+                    : java.util.Comparator.comparing((EnvironmentDTO d) -> d.getMonthToDateCost() == null
+                            ? java.math.BigDecimal.valueOf(-1) : d.getMonthToDateCost()).reversed();
+            rows.sort(by.thenComparing(d -> String.valueOf(d.getDisplayName() != null ? d.getDisplayName() : d.getName()),
+                    String.CASE_INSENSITIVE_ORDER));
+            int from = (int) Math.min(pageable.getOffset(), rows.size());
+            int to = Math.min(from + pageable.getPageSize(), rows.size());
+            long[] totals = fleetTotals(all);
+            return ResponseEntity.ok()
+                    .header("X-Total-Vms", String.valueOf(totals[0]))
+                    .header("X-Running-Vms", String.valueOf(totals[1]))
+                    .body(new org.springframework.data.domain.PageImpl<>(rows.subList(from, to), pageable, rows.size()));
+        }
         Page<Environment> environments = pageOfEnvironments(includeInactive, search, running, region, pageable);
 
         List<String> environmentIds = environments.getContent().stream()
@@ -276,8 +295,66 @@ public class EnvironmentController {
             if (row != null) {
                 dto.setMyAccess(row.myLevel());
                 dto.setMonthToDateCost(row.monthToDateEstimated());
+                dto.setScheduleRuleCount(row.scheduleRuleCount());
+                dto.setNextScheduledStop(row.nextStop());
             }
         }
+    }
+
+    /** Every row of a filtered list, as the paged list builds them (U22-T13: sorting and export). */
+    private List<EnvironmentDTO> fleetRows(List<Environment> environments, boolean includeGroups) {
+        List<String> ids = environments.stream().map(Environment::getEnvironmentId).toList();
+        Map<String, EnvironmentService.EnvironmentCounts> counts = environmentService.getBatchCounts(ids);
+        Map<String, EnvironmentService.LockSummary> locks = environmentService.getLockSummaries(ids);
+        Map<String, String> accountNames = accountNames();
+        List<EnvironmentDTO> dtos = new java.util.ArrayList<>(environments.stream()
+                .map(env -> withViewerFlags(withAccountName(toDtoWithCounts(env, counts, locks), accountNames)))
+                .toList());
+        if (includeGroups) {
+            withGroupStates(dtos);
+        }
+        withAccessAndCost(environments, dtos);
+        return dtos;
+    }
+
+    @GetMapping(value = "/export", produces = "text/csv")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "The environments list as CSV (U22-T13)",
+            description = "Every environment the caller can see, with the list's filters: name, region, team, VMs running and in all, "
+                    + "lock, your access, cost this month (estimate) and the next scheduled stop.")
+    public ResponseEntity<String> exportEnvironments(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String region) {
+        List<Environment> all = pageOfEnvironments(false, search, runningFilter(state), region, Pageable.unpaged()).getContent();
+        List<EnvironmentDTO> rows = fleetRows(all, false);
+        rows.sort(java.util.Comparator.comparing(d -> String.valueOf(d.getDisplayName() != null ? d.getDisplayName() : d.getName()),
+                String.CASE_INSENSITIVE_ORDER));
+        StringBuilder csv = new StringBuilder("Environment,Short name,Region,Team,VMs running,VMs,Locked,Your access,Cost this month (USD),Next scheduled stop (UTC)\r\n");
+        for (EnvironmentDTO d : rows) {
+            csv.append(String.join(",",
+                    csvCell(d.getDisplayName()), csvCell(d.getName()), csvCell(firstRegion(d)), csvCell(d.getTeamName()),
+                    String.valueOf(d.getRunningVmCount()), String.valueOf(d.getVmCount()),
+                    d.isLocked() ? "yes" : "no",
+                    csvCell(d.getMyAccess()),
+                    d.getMonthToDateCost() == null ? "" : d.getMonthToDateCost().toPlainString(),
+                    d.getNextScheduledStop() == null ? "" : d.getNextScheduledStop().toString())).append("\r\n");
+        }
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"environments-" + java.time.LocalDate.now() + ".csv\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csv.toString());
+    }
+
+    private static String firstRegion(EnvironmentDTO d) {
+        return d.getRegions() == null || d.getRegions().isEmpty() ? null : String.join(" ", d.getRegions());
+    }
+
+    /** A CSV cell; text that a spreadsheet would run as a formula is prefixed with a quote. */
+    static String csvCell(String value) {
+        if (value == null) return "";
+        String v = value.matches("^[=+\\-@].*") ? "'" + value : value;
+        return v.contains(",") || v.contains("\"") || v.contains("\n") ? "\"" + v.replace("\"", "\"\"") + "\"" : v;
     }
 
     /**

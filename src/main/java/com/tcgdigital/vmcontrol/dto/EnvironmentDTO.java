@@ -108,6 +108,15 @@ public class EnvironmentDTO {
         return monthToDateCost;
     }
 
+    /** U22-T13: the schedule rules on the environment and when the next one stops it (null when none). */
+    private int scheduleRuleCount;
+    private java.time.Instant nextScheduledStop;
+
+    public int getScheduleRuleCount() { return scheduleRuleCount; }
+    public void setScheduleRuleCount(int scheduleRuleCount) { this.scheduleRuleCount = scheduleRuleCount; }
+    public java.time.Instant getNextScheduledStop() { return nextScheduledStop; }
+    public void setNextScheduledStop(java.time.Instant nextScheduledStop) { this.nextScheduledStop = nextScheduledStop; }
+
     public void setMonthToDateCost(java.math.BigDecimal monthToDateCost) {
         this.monthToDateCost = monthToDateCost;
     }

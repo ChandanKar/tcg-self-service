@@ -2065,8 +2065,9 @@
     text-decoration: none;
 }
 
-/* The region filter beside Show (U19-T08). */
-.env-list-region .form-select {
+/* The region filter beside Show (U19-T08) and the order select (U22-T13). */
+.env-list-region .form-select,
+.env-list-sort .form-select {
     width: auto;
     min-width: 11rem;
 }

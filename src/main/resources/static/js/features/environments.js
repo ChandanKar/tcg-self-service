@@ -22,6 +22,7 @@ const Environments = (function() {
     let envTotalElements = 0;
     let envStateFilter = 'all';            // all | running | stopped (U06-T05)
     let envRegionFilter = '';              // '' (every region) or a region code (U19-T08)
+    let envSort = 'name';                  // name | running | cost (U22-T13)
     let envTotals = null;                  // {vms, running} of the filtered set
     let operationRefreshTimer = null;
     let operationStatusHandler = null;
@@ -272,7 +273,7 @@ const Environments = (function() {
     function fetchEnvironmentsPage(page, search, state) {
         return new Promise((resolve, reject) => {
             ApiClient.get(Config.API.environments.page(page, envPageSize, search || '',
-                { includeGroups: true, state: state && state !== 'all' ? state.toUpperCase() : '', region: envRegionFilter }))
+                { includeGroups: true, state: state && state !== 'all' ? state.toUpperCase() : '', region: envRegionFilter, sort: envSort }))
                 .done(function(data, _status, xhr) {
                     const normalized = normalizeEnvPage(data);
                     const header = name => {
@@ -430,7 +431,51 @@ const Environments = (function() {
                        data-action-input="env-search">
             </label>
             <span id="env-list-filter">${FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' })}</span>
-            <span id="env-list-region"></span>`;
+            <span id="env-list-region"></span>
+            <label class="env-list-sort"><span class="visually-hidden">Order</span>
+                <select class="form-select form-select-sm" id="env-sort-select" data-action-change="env-list-sort">
+                    ${SORTS.map(([v, l]) => `<option value="${v}"${v === envSort ? ' selected' : ''}>${l}</option>`).join('')}
+                </select></label>
+            <button type="button" class="btn btn-ghost btn-sm env-list-export" data-action="env-list-export">Export CSV</button>`;
+    }
+
+    // U22-T13 (staging review): order a 30-environment fleet by what is running or costing most.
+    const SORTS = [['name', 'By name'], ['running', 'Most running'], ['cost', 'Highest cost']];
+
+    function setSort(sort) {
+        const next = SORTS.some(([v]) => v === sort) ? sort : 'name';
+        if (next === envSort) return;
+        envSort = next;
+        refreshEnvList(0);
+    }
+
+    /** The CSV of every environment with the current search, Show and region filters. */
+    function exportCsv() {
+        const link = document.createElement('a');
+        link.href = Config.API.environments.exportCsv({
+            search: envSearchTerm || '',
+            state: envStateFilter && envStateFilter !== 'all' ? envStateFilter.toUpperCase() : '',
+            region: envRegionFilter
+        });
+        link.download = `environments-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    }
+
+    /**
+     * The Schedule cell (U22-T13): when the next scheduled stop is ("Stops 19:00" today, "Stops Fri 19:00"
+     * later), "Scheduled" when rules exist without a stop ahead, otherwise "No schedule".
+     */
+    function scheduleText(env, now = new Date()) {
+        if (env && env.nextScheduledStop) {
+            const d = new Date(env.nextScheduledStop);
+            const pad = n => String(n).padStart(2, '0');
+            const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            const sameDay = d.toDateString() === now.toDateString();
+            return `Stops ${sameDay ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' '}${clock}`;
+        }
+        return env && env.scheduleRuleCount > 0 ? 'Scheduled' : 'No schedule';
     }
 
     /** The region filter (U19-T08): shown once the VMs are in more than one region; names from Config. */
@@ -497,7 +542,7 @@ const Environments = (function() {
                         <thead>
                             <tr>
                                 <th scope="col">Environment</th>
-                                <th scope="col" class="col-type">Type</th>
+                                <th scope="col" class="col-schedule">Schedule</th>
                                 <th scope="col" class="col-account" hidden>Account</th>
                                 <th scope="col" class="col-region">Region</th>
                                 <th scope="col" class="col-running">VMs</th>
@@ -585,13 +630,16 @@ const Environments = (function() {
 
             const slug = env.displayName && env.displayName !== env.name
                 ? Utils.html` <span class="env-slug mono">${env.name}</span>` : '';
+            // U22-T13: the type and team move to the name's hover; the column shows the schedule.
+            const about = [type, env.teamName].filter(Boolean).join(' · ');
+            const schedule = scheduleText(env);
 
             return Utils.html`
                 <tr>
-                    <td class="td-primary col-name" data-label="Environment">
+                    <td class="td-primary col-name" data-label="Environment" title="${about}">
                         <a class="env-name-link" href="${href}">${name}</a>` + slug + Utils.html`
                     </td>
-                    <td class="col-type" data-label="Type">${type}</td>
+                    <td class="col-schedule${schedule === 'No schedule' ? ' text-muted' : ''}" data-label="Schedule">${schedule}</td>
                     <td class="col-account" data-label="Account" hidden>${env.awsAccountName || ''}</td>
                     <td class="col-region" data-label="Region"><span class="mono">` + regionCell + `</span></td>
                     <td class="col-running" data-label="VMs">` + strip + Utils.html`</td>
@@ -1355,13 +1403,15 @@ const Environments = (function() {
         loadDetail,
         setStateFilter,
         setRegionFilter,
+        setSort,
+        exportCsv,
         goToEnvPage,
         /** VM details from the drift alert (U07-T07), on its History tab. */
         openVm: vmId => currentEnvironment && openVmDetails(currentEnvironment.environmentId, vmId, 'history'),
         _search: function(val) {
             filterAndRenderEnvList((val || '').toLowerCase().trim());
         },
-        model: { regionFilterHtml }
+        model: { regionFilterHtml, scheduleText }
     };
 })();
 
@@ -1369,5 +1419,7 @@ Actions.register('env-search', el => Environments._search(el.value), 'input');
 // The list's All / Running / Stopped switch and its pager past 15 (U06-T05).
 Actions.register('env-list-filter', el => Environments.setStateFilter(el.getAttribute('data-filter')));
 Actions.register('env-list-region', el => Environments.setRegionFilter(el.value), 'change');
+Actions.register('env-list-sort', el => Environments.setSort(el.value), 'change');
+Actions.register('env-list-export', () => Environments.exportCsv());
 Actions.register('env-list-page', el => Environments.goToEnvPage(el.getAttribute('data-page')));
 Actions.register('env-alert-vm', el => Environments.openVm(el.getAttribute('data-vm-id')));

@@ -22,6 +22,7 @@ const ENVS = [
     serviceType: 'EC2', groupCount: 2, vmCount: 3, runningVmCount: 1, regions: ['ap-south-1'],
     metadata: '{"defaultCloudProvider":"AWS"}', locked: true, lockedByUserId: 'someone-else',
     lockedByDisplayName: 'Riya Sharma', lockedAt: new Date().toISOString(), myAccess: 'USER', monthToDateCost: 186.4,
+    scheduleRuleCount: 1, nextScheduledStop: (() => { const d = new Date(); d.setHours(19, 0, 0, 0); return d.toISOString(); })(),
     groupStates: [group('App', 1, 1, 1), group('Web', 2, 0, 1)] },
   { environmentId: 'env-list-2', name: 'billing', displayName: 'billing', description: null, isActive: true,
     serviceType: 'EKS', groupCount: 1, vmCount: 0, runningVmCount: 0, regions: [], metadata: null,
@@ -59,6 +60,31 @@ test.describe('Environments list', () => {
     expect(seen.at(-1)?.searchParams.get('page')).toBe('0');
   });
 
+  test('U22-T13: order by most running or highest cost, sent as sort=; Export CSV with the filters', async ({ page }) => {
+    const seen = await fakeList(page, () => ({ body: pageBody(ENVS) }));
+    await page.route(/\/api\/v1\/environments\/regions$/, route => route.fulfill({ json: ['ap-south-1'] }));
+    await openList(page);
+
+    const order = page.getByRole('combobox', { name: 'Order' });
+    await expect(order.locator('option')).toHaveText(['By name', 'Most running', 'Highest cost']);
+    expect(seen.at(-1)?.searchParams.get('sort')).toBeNull();
+    await order.selectOption('running');
+    await expect.poll(() => seen.at(-1)?.searchParams.get('sort')).toBe('running');
+    expect(seen.at(-1)?.searchParams.get('page')).toBe('0');
+    await order.selectOption('cost');
+    await expect.poll(() => seen.at(-1)?.searchParams.get('sort')).toBe('cost');
+
+    await page.locator('#env-list-filter').getByRole('button', { name: 'Running' }).click();
+    await expect.poll(() => seen.at(-1)?.searchParams.get('state')).toBe('RUNNING');
+    const downloading = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    const download = await downloading;
+    expect(download.suggestedFilename()).toMatch(/^environments-\d{4}-\d{2}-\d{2}\.csv$/);
+    const url = new URL(download.url());
+    expect(url.pathname).toBe('/api/v1/environments/export');
+    expect(url.searchParams.get('state')).toBe('RUNNING');
+  });
+
   test('no region filter while every VM is in one region', async ({ page }) => {
     await fakeList(page, () => ({ body: pageBody(ENVS) }));
     await page.route(/\/api\/v1\/environments\/regions$/, route => route.fulfill({ json: ['ap-south-1'] }));
@@ -78,7 +104,8 @@ test.describe('Environments list', () => {
     await expect(page.locator('.page-summary')).toHaveText('2 environments · 1 of 3 VMs running. Open one to start, stop or lock it.');
     const pay = page.locator('#env-list-body tr', { hasText: 'Payments QA' });
     await expect(pay.locator('.env-slug')).toHaveText('pay-qa');
-    await expect(pay.locator('td.col-type')).toHaveText('AWS EC2');
+    await expect(pay.locator('td.col-name')).toHaveAttribute('title', 'AWS EC2'); // U22-T13: type on hover
+    await expect(pay.locator('td.col-schedule')).toHaveText('Stops 19:00');
     await expect(pay.locator('td.col-region')).toHaveText('ap-south-1');
     const strip = pay.locator('td.col-running').getByRole('img', { name: '1 of 3 VMs running' });
     await expect(strip).toBeVisible();
@@ -93,7 +120,8 @@ test.describe('Environments list', () => {
     const billing = page.locator('#env-list-body tr', { hasText: 'billing' });
     await expect(billing.locator('td.col-lock')).toHaveText('Not locked');
     await expect(billing.locator('td.col-access')).toHaveText('View only');
-    await expect(billing.locator('td.col-type')).toHaveText('AWS EKS');
+    await expect(billing.locator('td.col-name')).toHaveAttribute('title', 'AWS EKS');
+    await expect(billing.locator('td.col-schedule')).toHaveText('No schedule');
     await expect(billing.locator('.env-slug')).toHaveCount(0); // same as the name
     await expect(page.locator('#env-list-pagination')).toHaveText('2 environments');
     expect(lockRequests).toEqual([]);
