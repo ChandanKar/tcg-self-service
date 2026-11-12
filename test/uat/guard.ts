@@ -42,6 +42,7 @@ const ALWAYS_ALLOWED: RegExp[] = [
   /\/api\/v1\/notifications\/[^/]+\/read$/,
   /\/api\/v1\/notifications\/read-all$/,
   /\/api\/v1\/client-errors$/,
+  /\/api\/v1\/approval-policies\/evaluate$/,                 // the start dialog asks whether approval is needed; changes nothing
 ];
 
 /** Paths that act on machines or AWS: allowed only for the allowed environment. */

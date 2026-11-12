@@ -310,6 +310,78 @@ class DependencyValidatorTest extends AbstractIntegrationTest {
         assertEquals("db", start.get(0), "the DB group starts first");
     }
 
+    // ==================== Start order is binding (U21-T19) ====================
+
+    @Test
+    void startOrder_groupsWithoutWaitsStillStartTopToBottomAndStopBottomToTop() {
+        // ise on staging: three groups in start order 1, 2, 3, none waiting for another, all started at once.
+        VmGroup g1 = createGroup("group-1", 1, null);
+        VmGroup g2 = createGroup("group-2", 2, null);
+        VmGroup g3 = createGroup("group-3", 3, null);
+        Vm master = createVm(g1, "master", 1, null);
+        Vm worker1 = createVm(g2, "worker1", 1, null);
+        Vm worker2 = createVm(g3, "worker2", 1, null);
+        List<Vm> scope = List.of(worker2, master, worker1);
+
+        var start = dependencyValidator.buildScopedDependencyMap(scope, OperationType.START);
+        assertEquals(List.of(), start.get(master.getVmId()));
+        assertEquals(List.of(master.getVmId()), start.get(worker1.getVmId()));
+        assertEquals(List.of(worker1.getVmId()), start.get(worker2.getVmId()));
+
+        var stop = dependencyValidator.buildScopedDependencyMap(scope, OperationType.STOP);
+        assertEquals(List.of(), stop.get(worker2.getVmId()));
+        assertEquals(List.of(worker2.getVmId()), stop.get(worker1.getVmId()));
+        assertEquals(List.of(worker1.getVmId()), stop.get(master.getVmId()));
+
+        assertEquals(List.of("master", "worker1", "worker2"), names(dependencyValidator.orderForExecution(scope, OperationType.START)));
+        assertEquals(List.of("worker2", "worker1", "master"), names(dependencyValidator.orderForExecution(scope, OperationType.STOP)));
+    }
+
+    @Test
+    void startOrder_vmsOfOneGroupAndGroupsSharingAPositionStartTogether() {
+        VmGroup db = createGroup("db", 1, null);
+        VmGroup api = createGroup("api", 2, null);
+        VmGroup jobs = createGroup("jobs", 2, null);
+        Vm db1 = createVm(db, "db1", 1, null);
+        Vm db2 = createVm(db, "db2", 2, null);
+        Vm api1 = createVm(api, "api1", 1, null);
+        Vm job1 = createVm(jobs, "job1", 1, null);
+
+        var start = dependencyValidator.buildScopedDependencyMap(List.of(db1, db2, api1, job1), OperationType.START);
+        assertEquals(List.of(), start.get(db2.getVmId()), "VMs of one group do not wait for each other");
+        assertEquals(List.of(db1.getVmId(), db2.getVmId()), start.get(api1.getVmId()));
+        assertEquals(List.of(db1.getVmId(), db2.getVmId()), start.get(job1.getVmId()), "same position: no wait between api and jobs");
+    }
+
+    @Test
+    void startOrder_aGroupLeftOutOfTheScopeIsSkipped() {
+        VmGroup g1 = createGroup("group-1", 1, null);
+        VmGroup g2 = createGroup("group-2", 2, null);
+        VmGroup g3 = createGroup("group-3", 3, null);
+        createVm(g2, "worker1", 1, null);
+        Vm master = createVm(g1, "master", 1, null);
+        Vm worker2 = createVm(g3, "worker2", 1, null);
+
+        var start = dependencyValidator.buildScopedDependencyMap(List.of(master, worker2), OperationType.START);
+        assertEquals(List.of(master.getVmId()), start.get(worker2.getVmId()), "waits for the nearest group in this run");
+        assertEquals(List.of(), dependencyValidator.buildScopedDependencyMap(List.of(worker2), OperationType.START).get(worker2.getVmId()),
+                "a group started alone waits for nothing");
+    }
+
+    @Test
+    void startOrder_dataOutOfOrderMakesNoLoop() {
+        // The order screens refuse this, but older data may have it: group-1 waits for group-2.
+        VmGroup g2 = createGroup("group-2", 2, null);
+        VmGroup g1 = createGroup("group-1", 1, List.of(g2.getGroupId()));
+        Vm a = createVm(g1, "a", 1, null);
+        Vm b = createVm(g2, "b", 1, null);
+
+        var start = dependencyValidator.buildScopedDependencyMap(List.of(a, b), OperationType.START);
+        assertEquals(List.of(b.getVmId()), start.get(a.getVmId()), "the explicit wait wins");
+        assertEquals(List.of(), start.get(b.getVmId()), "no order wait back to the group that waits for it");
+        assertEquals(List.of("b", "a"), names(dependencyValidator.orderForExecution(List.of(a, b), OperationType.START)));
+    }
+
     @Test
     void buildScopedDependencyMap_stopMapsEachVmToItsInScopeDependents() {
         VmGroup group = createGroup("g", 1, null);

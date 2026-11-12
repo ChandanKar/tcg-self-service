@@ -295,6 +295,7 @@ public class DependencyValidator {
         Map<String, List<String>> vmIdsByGroup = vms.stream()
                 .collect(Collectors.groupingBy(vm -> vm.getGroup().getGroupId(),
                         Collectors.mapping(Vm::getVmId, Collectors.toList())));
+        Map<String, List<String>> previousInOrder = previousGroupVmIds(vms, vmIdsByGroup);
 
         Map<String, List<String>> result = new LinkedHashMap<>();
         for (Vm vm : vms) {
@@ -307,9 +308,44 @@ public class DependencyValidator {
             for (String depGroupId : vm.getGroup().getDependencies()) {
                 deps.addAll(vmIdsByGroup.getOrDefault(depGroupId, Collections.emptyList()));
             }
+            deps.addAll(previousInOrder.getOrDefault(vm.getGroup().getGroupId(), Collections.emptyList()));
             result.put(vm.getVmId(), new ArrayList<>(deps));
         }
         return result;
+    }
+
+    /**
+     * The start order is binding (U21-T19): "Groups start top to bottom and stop bottom to top".
+     * Each group in scope waits for every in-scope VM of the group(s) just before it in start order
+     * (groups sharing a position start together); a stop inverts this, so it runs bottom to top.
+     * Groups without a start order get no such wait, and neither does a group that the one before
+     * it already waits for (data out of order), which would otherwise make a loop.
+     */
+    private Map<String, List<String>> previousGroupVmIds(List<Vm> vms, Map<String, List<String>> vmIdsByGroup) {
+        TreeMap<Integer, Map<String, VmGroup>> tiers = new TreeMap<>();
+        for (Vm vm : vms) {
+            VmGroup g = vm.getGroup();
+            if (g.getSequencePosition() != null) {
+                tiers.computeIfAbsent(g.getSequencePosition(), k -> new LinkedHashMap<>()).putIfAbsent(g.getGroupId(), g);
+            }
+        }
+        Map<String, List<String>> previous = new HashMap<>();
+        Collection<VmGroup> before = null;
+        for (Map<String, VmGroup> tier : tiers.values()) {
+            if (before != null) {
+                for (VmGroup g : tier.values()) {
+                    List<String> ids = new ArrayList<>();
+                    for (VmGroup p : before) {
+                        if (!p.getDependencies().contains(g.getGroupId())) {
+                            ids.addAll(vmIdsByGroup.getOrDefault(p.getGroupId(), Collections.emptyList()));
+                        }
+                    }
+                    previous.put(g.getGroupId(), ids);
+                }
+            }
+            before = tier.values();
+        }
+        return previous;
     }
 
     /**
