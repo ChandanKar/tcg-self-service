@@ -59,7 +59,7 @@ test.describe('Budgets', () => {
     await expect(page.locator('#budget-env')).toBeDisabled();
     await fillBudgetForm(page, '1000');
 
-    await expect(page.locator('#env-budget-summary')).toContainText('of $1,000.00');
+    await expect(page.locator('#env-budget-summary')).toContainText('of the $1,000.00 budget');
     await expect(page.locator('.budget-env-card .budget-bar')).toHaveCount(1);
   });
 

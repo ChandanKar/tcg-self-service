@@ -279,6 +279,31 @@ class EnvironmentCostServiceTest {
     }
 
     @Test
+    void theListShowsTheSameMonthToDateAsTheEnvironmentPage() {
+        // U22-T04 (staging review): ise was $31.10 in the list, on Home and in My account (snapshots up to
+        // yesterday) but $32.61 on its own page (snapshots plus today's live estimate).
+        octoberAndSeptember();
+        user.setUserId("u-1");
+        Environment env = vms.get(0).getGroup().getEnvironment();
+        when(accessRepository.findActiveAccessByUser(eq("u-1"), any())).thenReturn(List.of(
+                grantOf(env, user, com.tcgdigital.vmcontrol.model.AccessLevel.USER, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT)));
+        List<CostDailySnapshotRepository.EnvironmentDailyCost> rows = new ArrayList<>();
+        for (int d = 1; d <= 6; d++) {
+            rows.add(row("env-1", LocalDate.of(2026, 10, d), "10"));
+        }
+        rows.add(row("env-1", TODAY, "99")); // a stray row for today never counts twice
+        when(snapshots.findDailyByEnvironmentIdsBetween(anyList(), any(), any())).thenReturn(rows);
+        when(vmRepository.findActiveByEnvironmentIdsFetchGroupAndEnvironment(anyList())).thenReturn(vms);
+        when(vmRepository.countVmsGroupedByEnvironment(anyList(), any())).thenReturn(List.of());
+        when(automationRuleService.nextScheduledFiringsByEnvironment(anyList(), any())).thenReturn(Map.of());
+
+        var row = service.getMyEnvironmentsCost(user).environments().get(0);
+
+        assertThat(row.monthToDateEstimated()).isEqualByComparingTo("63.00"); // 6 x 10 + today's 2 x 1.50
+        assertThat(row.monthToDateEstimated()).isEqualByComparingTo(service.getCost("env-1", user).monthToDateEstimated());
+    }
+
+    @Test
     void globalAdminsSeeAllActiveEnvironmentsCappedAtFifty() {
         user.setAdmin(true);
         List<Environment> all = new ArrayList<>();

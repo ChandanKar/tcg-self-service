@@ -107,6 +107,18 @@ const Budgets = (function() {
         return `${money(b.spendToDate)} of ${money(b.monthlyAmount)}${forecast}`;
     }
 
+    /**
+     * The budget line under the environment's cost (U22-T04): no second forecast (the cost card has the
+     * forecast) and the day the budget's spend runs to, since budgets are evaluated on complete days while
+     * the card's month to date includes today. Staging showed "$31.10 of $50.00 · forecast $65.57" under
+     * "$32.55 this month · if the current rate continues: $65.21".
+     */
+    function envSummary(b) {
+        const asOf = b.asOf ? new Date(`${b.asOf}T00:00:00Z`) : null;
+        const day = asOf && !isNaN(asOf) ? `, to ${asOf.getUTCDate()} ${MONTHS[asOf.getUTCMonth()].slice(0, 3)}` : '';
+        return `${money(b.spendToDate)} of the ${money(b.monthlyAmount)} budget${day}`;
+    }
+
     // ============= Budgets page =============
 
     // Three budgets fit 1440 x 900 without a page scrollbar, with the pending actions above (U17-T07).
@@ -524,7 +536,7 @@ const Budgets = (function() {
             <section class="budget-env-card" aria-label="Budget">
                 ${Utils.raw(bar(budget))}
                 <div class="budget-env-line">
-                    <span class="env-fact-note" id="env-budget-summary">${summary(budget)}</span>
+                    <span class="env-fact-note" id="env-budget-summary">${envSummary(budget)}</span>
                     ${Utils.raw(owner ? Utils.html`<button type="button" class="btn btn-link env-fact-action" data-action="budget-edit" data-id="${budget.budgetId}">Edit</button>` : '')}
                 </div>
                 ${Utils.raw(owner && actions.length ? actions.map(actionRow).join('') : '')}

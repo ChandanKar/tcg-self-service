@@ -78,6 +78,11 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("SELECT v FROM Vm v WHERE v.group.environment.environmentId IN :environmentIds AND v.isActive = true")
     List<Vm> findByEnvironmentIdIn(@Param("environmentIds") List<String> environmentIds);
 
+    /** Active VMs of many environments with group and environment loaded, in one query (U22-T04). */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment e " +
+           "WHERE e.environmentId IN :environmentIds AND v.isActive = true")
+    List<Vm> findActiveByEnvironmentIdsFetchGroupAndEnvironment(@Param("environmentIds") List<String> environmentIds);
+
     /**
      * Find all active VMs in a group.
      */

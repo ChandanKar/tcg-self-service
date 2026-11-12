@@ -290,6 +290,7 @@ public class EnvironmentCostService {
             daily.computeIfAbsent(row.getEnvironmentId(), k -> new java.util.HashMap<>())
                     .merge(row.getSnapshotDate().toLocalDate(), nz(row.getEstimatedCost()), BigDecimal::add);
         }
+        addTodaysLiveEstimate(daily, ids, now, today);
         Map<String, VmRepository.EnvironmentVmCounts> counts = vmRepository
                 .countVmsGroupedByEnvironment(ids, com.tcgdigital.vmcontrol.model.VmStatus.RUNNING).stream()
                 .collect(java.util.stream.Collectors.toMap(VmRepository.EnvironmentVmCounts::getEnvironmentId, c -> c));
@@ -327,6 +328,33 @@ public class EnvironmentCostService {
                     next == null ? null : next.nextStart(), null, groupsOnly ? GROUPS_HINT : null));
         }
         return rows;
+    }
+
+    /**
+     * Today counts as the environment page counts it (U22-T04): the live estimate from midnight to now,
+     * in place of any snapshot row for today. On staging ise was $31.10 in the list, on Home and in My
+     * account (snapshots up to yesterday) but $32.61 on its own page (snapshots plus today).
+     */
+    private void addTodaysLiveEstimate(Map<String, Map<LocalDate, BigDecimal>> daily, List<String> ids,
+                                       Instant now, LocalDate today) {
+        if (ids.isEmpty()) {
+            return;
+        }
+        List<Vm> vms = vmRepository.findActiveByEnvironmentIdsFetchGroupAndEnvironment(ids);
+        daily.values().forEach(days -> days.remove(today));
+        if (vms.isEmpty()) {
+            return;
+        }
+        Instant todayStart = today.atStartOfDay(clock.getZone()).toInstant();
+        Map<String, CostDataProvider.VmCostEstimate> estimates =
+                costDataProvider.estimateCosts(vms, Timestamp.from(todayStart), Timestamp.from(now));
+        for (Vm vm : vms) {
+            CostDataProvider.VmCostEstimate e = estimates.get(vm.getVmId());
+            if (e != null && e.cost() != null) {
+                daily.computeIfAbsent(vm.getGroup().getEnvironment().getEnvironmentId(), k -> new java.util.HashMap<>())
+                        .merge(today, e.cost(), BigDecimal::add);
+            }
+        }
     }
 
     private static BigDecimal sumBetween(Map<LocalDate, BigDecimal> days, LocalDate from, LocalDate to) {
