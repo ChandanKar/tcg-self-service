@@ -97,6 +97,10 @@ public class CostEstimationService {
     @Value("${rightsizing.scale-down.memory-peak-threshold:60}")
     private BigDecimal scaleDownMemoryPeakThreshold = BigDecimal.valueOf(60);
 
+    /** U22-T03: no smaller size, from the rule or from Compute Optimizer, for a VM whose CPU peaked at or above this. */
+    @Value("${rightsizing.scale-down.cpu-peak-max:80}")
+    private BigDecimal scaleDownCpuPeakMax = BigDecimal.valueOf(80);
+
     @Value("${rightsizing.scale-up.memory-threshold:85}")
     private BigDecimal scaleUpMemoryThreshold = BigDecimal.valueOf(85);
 
@@ -585,6 +589,14 @@ public class CostEstimationService {
      * With memory-aware rightsizing on and memory reported for those days, each day's memory peak
      * must also stay below {@code rightsizing.scale-down.memory-peak-threshold} (E30-T03).
      */
+    private boolean peaksTooHigh(VmCostBundle b) {
+        if (b.peakCpu() != null && b.peakCpu().compareTo(live("rightsizing.scale-down.cpu-peak-max", scaleDownCpuPeakMax)) >= 0) {
+            return true;
+        }
+        return memoryEnabled() && b.peakMemory() != null
+                && b.peakMemory().compareTo(live("rightsizing.scale-down.memory-peak-threshold", scaleDownMemoryPeakThreshold)) >= 0;
+    }
+
     private Map<String, Candidacy> computeScaleDownCandidates(List<String> vmIds, Map<String, Timestamp> typeChangedAtByVmId) {
         Date sinceDate = Date.valueOf(LocalDate.now().minusDays(live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays)));
         List<VmMetricDaily> dailyRows =
@@ -691,6 +703,11 @@ public class CostEstimationService {
             if (b.vm().getProvider() != CloudProvider.AWS && b.vm().getProvider() != CloudProvider.AWS_EKS) {
                 continue;
             }
+            // U22-T03: a stopped VM costs nothing to run; resizing it saves nothing until it runs again
+            // (staging review: 22 of 71 suggestions were for stopped VMs).
+            if (b.vm().getStatus() == com.tcgdigital.vmcontrol.model.VmStatus.STOPPED) {
+                continue;
+            }
 
             // EKS nodes are plain EC2 instances: price them as AWS, times the node count (E26-T02).
             boolean eks = b.vm().getProvider() == CloudProvider.AWS_EKS;
@@ -725,6 +742,12 @@ public class CostEstimationService {
                 continue;
             }
             boolean isScaleDown = "SCALE_DOWN".equals(direction);
+            // U22-T03: never a smaller size for a VM that peaks high, whoever suggests it (staging review:
+            // 13 suggestions shrank VMs peaking at 85-99.9% CPU, some from this rule, which looks only at
+            // the daily average). Memory: the rule already checks each day's peak; this covers Compute Optimizer.
+            if (isScaleDown && peaksTooHigh(b)) {
+                continue;
+            }
 
             String suggestedType;
             String source;

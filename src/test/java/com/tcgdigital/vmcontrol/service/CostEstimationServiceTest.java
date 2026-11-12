@@ -6,6 +6,7 @@ import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.model.VmMetricDaily;
+import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.repository.CostDailySnapshotRepository;
 import com.tcgdigital.vmcontrol.repository.VmIdleSummaryRepository;
 import com.tcgdigital.vmcontrol.repository.VmInventorySnapshotRepository;
@@ -251,6 +252,36 @@ class CostEstimationServiceTest {
     private void memoryPeakEachDay(double peak) {
         when(vmMetricDaily.getMemorySampleCount()).thenReturn(288);
         when(vmMetricDaily.getMaxMemoryUtilization()).thenReturn(BigDecimal.valueOf(peak));
+    }
+
+    // ---- Guard rails (U22-T03, staging review) ----
+
+    @Test
+    void aVmWhoseCpuPeaksHighIsNotShrunkByTheRule() {
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(99.8)); // average 2% every day, but it peaks
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(0, service.getSummary().rightsizingCandidateCount());
+    }
+
+    @Test
+    void aVmWhoseCpuPeaksHighIsNotShrunkWhenComputeOptimizerSuggestsIt() {
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(List.of()); // no rule candidacy: only AWS would suggest it
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(99.8));
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(
+                INSTANCE_ID, new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("t3.medium"))));
+
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void aStoppedVmGetsNoSuggestion() {
+        Vm stopped = buildAwsVm();
+        stopped.setStatus(VmStatus.STOPPED);
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(stopped));
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
     }
 
     @Test

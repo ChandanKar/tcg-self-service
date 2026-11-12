@@ -61,6 +61,8 @@ public final class SettingsRegistry {
                     "Average CPU below which a VM is a scale-down candidate.", "15", "1", "100"),
             integer("Cost", "rightsizing.scale-down.consecutive-days", "Scale-down days",
                     "Days in a row the CPU must stay below the threshold.", 3, 1, 90),
+            decimal("Cost", "rightsizing.scale-down.cpu-peak-max", "Scale-down CPU peak limit %",
+                    "No smaller size is suggested, by the rule or by AWS, for a VM whose CPU peaked at or above this.", "80", "1", "100"),
             decimal("Cost", "rightsizing.scale-up.cpu-threshold", "Scale-up CPU %",
                     "CPU above which a VM needs more capacity.", "70", "1", "100"),
             integer("Cost", "rightsizing.scale-up.consecutive-minutes", "Scale-up minutes",
