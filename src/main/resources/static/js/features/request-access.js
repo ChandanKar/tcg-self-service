@@ -170,7 +170,8 @@ const RequestAccess = (function() {
         if (s.selected && !byId.has(s.selected) && s.preset.name) {
             s.envs.unshift({ environmentId: s.selected, displayName: s.preset.name });
         }
-        if (!s.selected || !s.envs.some(e => e.environmentId === s.selected)) s.selected = s.envs.length ? s.envs[0].environmentId : null;
+        // U22-T08: nothing is picked for you (staging opened on an empty environment, "adma poc aws · 0 VMs").
+        if (!s.selected || !s.envs.some(e => e.environmentId === s.selected)) s.selected = null;
         // Show the page of the selected environment.
         const index = s.envs.findIndex(e => e.environmentId === s.selected);
         s.page = index > 0 ? Math.floor(index / pageSize()) : 0;
@@ -216,7 +217,8 @@ const RequestAccess = (function() {
             <div class="ra-page page page-frame">
                 <div class="content-header">
                     <h1>Request access ${help}</h1>
-                    <p class="text-muted">Pick an environment and say why. Its owners get your request and you hear back here and by email.</p>
+                    <p class="text-muted">Pick an environment and say why. Its owners get your request and you hear back here${
+                        typeof Capabilities !== 'undefined' && Capabilities.has('email') ? ' and by email' : ', in the bell'}.</p>
                 </div>
                 ${tabs}
                 ${Tabs.panel({ id: 'ra-tabs', key: 'new', active: s.tab }, newHtml())}

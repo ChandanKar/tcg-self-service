@@ -176,6 +176,17 @@ class EnvAdminScopeSecurityTest extends SecuredWebTestBase {
     }
 
     @Test
+    void requestAccessOffersAnAdministratorNothingAndAUserWhatTheyLack() throws Exception {
+        // U22-T08 (staging review): an administrator was offered all 162 environments they already administer.
+        mockMvc.perform(get("/api/v1/environments/available").with(asAdmin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        String json = mockMvc.perform(get("/api/v1/environments/available").with(asUser()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        java.util.List<String> ids = com.jayway.jsonpath.JsonPath.read(json, "$[*].environmentId");
+        assertThat(ids).contains(envA.getEnvironmentId(), envB.getEnvironmentId());
+    }
+
+    @Test
     void plainUserWithAnAdminGrantStillNeedsTheRoleForRoleGatedEndpoints() throws Exception {
         grantEnv(operator, envA.getEnvironmentId(), AccessLevel.ADMIN);
 

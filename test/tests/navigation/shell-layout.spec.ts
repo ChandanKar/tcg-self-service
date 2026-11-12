@@ -361,7 +361,15 @@ test.describe('Everyday pages on the page frame', () => {
     expect(Math.abs(list!.height - form!.height)).toBeLessThanOrEqual(1);
     expect(Math.abs(list!.y - form!.y)).toBeLessThanOrEqual(1);
     await expect(page.locator('#ra-env-pager')).toBeInViewport();
+    // U22-T08: nothing is picked for you; after a pick every field shows above Send (it covered "For" and the reason).
+    await expect(page.locator('#ra-form-card')).toContainText('Pick an environment');
+    await page.locator('#ra-env-list .ra-env').first().click();
     await expect(page.locator('#ra-send')).toBeInViewport();
+    const send = await page.locator('#ra-send').boundingBox();
+    for (const field of ['#ra-days', '#ra-reason']) {
+      const box = await page.locator(field).boundingBox();
+      expect(box!.y + box!.height, `${field} ends above Send`).toBeLessThanOrEqual(send!.y + 1);
+    }
     await page.locator('#ra-search').fill('fit-volume-0');
     await expect(page.locator('#ra-env-list .ra-env').first()).toBeVisible();
     await expect(page.locator('#ra-env-list .ra-env').first()).toContainText(/\d/);

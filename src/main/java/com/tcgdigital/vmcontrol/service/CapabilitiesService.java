@@ -49,7 +49,9 @@ public class CapabilitiesService {
             // U22-T07: pages of switched-off features say so instead of looking live.
             new Switch("chargeback", "chargeback.enabled", false),
             new Switch("costAnomalies", "cost.anomalies.enabled", false),
-            new Switch("wasteSweep", "waste.sweep.enabled", false)
+            new Switch("wasteSweep", "waste.sweep.enabled", false),
+            // U22-T08: pages promise an email only when email is on.
+            new Switch("email", "notification.email.enabled", false)
     };
 
     private final UserService userService;

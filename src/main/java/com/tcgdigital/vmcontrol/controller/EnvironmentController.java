@@ -334,6 +334,11 @@ public class EnvironmentController {
             )
     })
     public ResponseEntity<List<EnvironmentDTO>> listAvailableEnvironments() {
+        // U22-T08: someone whose role covers every environment has nothing to ask for (staging offered an
+        // administrator all 162 environments they already administer).
+        if (securityService.seesAllEnvironments()) {
+            return ResponseEntity.ok(List.of());
+        }
         List<Environment> environments = environmentService.getEnvironmentsWithoutAccessForCurrentUser();
 
         List<EnvironmentDTO> dtos = toDtosWithBatchedCounts(environments);

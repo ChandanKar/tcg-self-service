@@ -110,6 +110,23 @@
         box-shadow: 0 -12px 12px -4px #fff;
     }
 
+    /* U22-T08: on a laptop window (1366 x 657) every field shows above Send; it covered "For" and the reason. */
+    @media (max-height: 760px) {
+        .ra-page.page-frame .ra-form-card,
+        .ra-page.page-frame .ra-form {
+            gap: 10px;
+        }
+
+        .ra-page.page-frame .ra-form-card {
+            padding: 14px 20px;
+        }
+
+        .ra-page.page-frame .ra-form-card textarea {
+            min-height: 0;
+            height: 60px;
+        }
+    }
+
     .ra-page.page-frame [role="tabpanel"] > .ra-card {
         flex: 1 1 0;
         min-height: 0;
