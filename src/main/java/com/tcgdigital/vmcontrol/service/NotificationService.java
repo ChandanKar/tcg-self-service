@@ -830,20 +830,89 @@ public class NotificationService {
                 "Stopped " + vmCount + " VM(s) after " + idleMinutes + " minutes idle. It can be started again from the environment page.");
     }
 
+    /**
+     * A VM changed outside the platform (U22-T12, staging review: the admin's bell was 99+ notices like
+     * 'State drift detected for "mcube-dev-poc-work1-100-112-1-162": UNKNOWN -> RUNNING', viewers got
+     * them too). Now: operators and admins of the environment (not viewers), in plain words with the VM's
+     * display name, and one notice per environment while it is unread: a later change adds its VM to it.
+     */
     public void notifyStateDriftDetected(String environmentId, String environmentName,
                                          String vmName, String previousStatus, String currentStatus,
                                          String vmId) {
-        broadcastToEnvironment(environmentId, null,
-                NotificationType.STATE_DRIFT_DETECTED,
-                "State drift detected: " + environmentName,
-                "State drift detected for \"" + vmName + "\": " + previousStatus + " -> " + currentStatus + ".",
-                "State drift detected: " + environmentName,
-                "State drift detected for \"" + vmName + "\": " + previousStatus + " -> " + currentStatus + ".",
-                "VM",
-                vmId);
+        String item = vmName + " (" + stateWord(previousStatus) + ", now " + stateWord(currentStatus) + ")";
+        String title = "Changed outside the platform: " + environmentName;
+        Timestamp since = Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofHours(DRIFT_GROUP_HOURS)));
+        List<User> recipients = resolveEnvironmentRecipients(environmentId).stream()
+                .filter(u -> !viewerOnly(u, environmentId)).toList();
+        java.util.Set<String> wanted = preferences == null
+                ? recipients.stream().map(User::getUserId).collect(java.util.stream.Collectors.toSet())
+                : preferences.inAppRecipients(NotificationType.STATE_DRIFT_DETECTED, recipients.stream().map(User::getUserId).toList());
+        List<Notification> batch = new java.util.ArrayList<>();
+        for (User user : recipients) {
+            if (!wanted.contains(user.getUserId())) continue;
+            Notification open = notificationRepository
+                    .findFirstByUserIdAndTypeAndEntityIdAndIsReadFalseAndCreatedAtAfterOrderByCreatedAtDesc(
+                            user.getUserId(), NotificationType.STATE_DRIFT_DETECTED, environmentId, since)
+                    .orElse(null);
+            if (open != null) {
+                java.util.List<String> items = driftItems(open.getMessage());
+                items.removeIf(i -> i.startsWith(vmName + " ("));
+                items.add(item);
+                open.setMessage(driftMessage(items));
+                batch.add(open);
+            } else {
+                batch.add(newNotification(user.getUserId(), NotificationType.STATE_DRIFT_DETECTED, title,
+                        driftMessage(new java.util.ArrayList<>(List.of(item))), "ENVIRONMENT", environmentId));
+            }
+        }
+        notificationRepository.saveAll(batch);
         toChat(environmentId, NotificationType.STATE_DRIFT_DETECTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
-                "State drift detected: " + environmentName,
-                "State drift detected for \"" + vmName + "\": " + previousStatus + " -> " + currentStatus + ".");
+                title, vmName + " was " + stateWord(previousStatus) + " and is now " + stateWord(currentStatus) + ".");
+    }
+
+    static final int DRIFT_GROUP_HOURS = 12;
+    private static final String DRIFT_LEAD = " changed outside the platform: ";
+
+    static String stateWord(String status) {
+        if (status == null) return "unknown";
+        return switch (status) {
+            case "RUNNING" -> "running";
+            case "STOPPED" -> "stopped";
+            case "STARTING" -> "starting";
+            case "STOPPING" -> "stopping";
+            case "TERMINATED" -> "terminated";
+            case "NOT_FOUND" -> "not found in the cloud";
+            default -> status.toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
+        };
+    }
+
+    /** "1 VM changed outside the platform: web-01 (stopped, now running)." with at most 5 named. */
+    static String driftMessage(java.util.List<String> items) {
+        int n = items.size();
+        java.util.List<String> shown = items.size() > 5 ? items.subList(items.size() - 5, items.size()) : items;
+        return n + (n == 1 ? " VM" : " VMs") + DRIFT_LEAD + String.join("; ", shown)
+                + (n > 5 ? "; and " + (n - 5) + " more" : "") + ".";
+    }
+
+    static java.util.List<String> driftItems(String message) {
+        java.util.List<String> items = new java.util.ArrayList<>();
+        if (message == null) return items;
+        int at = message.indexOf(DRIFT_LEAD);
+        if (at < 0) return items;
+        String body = message.substring(at + DRIFT_LEAD.length()).replaceAll("\\.$", "");
+        for (String part : body.split("; ")) {
+            if (!part.isBlank() && !part.startsWith("and ")) items.add(part);
+        }
+        return items;
+    }
+
+    /** Whether the person holds only View only on the environment (and no role that covers it). */
+    private boolean viewerOnly(User user, String environmentId) {
+        if (user.isAdmin() || user.isEnvAdmin()) return false;
+        return accessRepository.findActiveAccessWithUsersByEnvironment(environmentId).stream()
+                .filter(EnvironmentAccess::isActive)
+                .filter(ea -> ea.getUser() != null && user.getUserId().equals(ea.getUser().getUserId()))
+                .allMatch(ea -> ea.getAccessLevel() == AccessLevel.VIEWER);
     }
 
     public void notifyEksSyncChanged(String environmentId, String environmentName,

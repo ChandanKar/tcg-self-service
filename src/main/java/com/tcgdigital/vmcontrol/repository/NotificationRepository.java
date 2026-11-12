@@ -17,6 +17,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
 
     Page<Notification> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
 
+    /** U22-T12: the unread notice of a type about one entity, to add to instead of sending another. */
+    java.util.Optional<Notification> findFirstByUserIdAndTypeAndEntityIdAndIsReadFalseAndCreatedAtAfterOrderByCreatedAtDesc(
+            String userId, com.tcgdigital.vmcontrol.model.NotificationType type, String entityId, java.sql.Timestamp after);
+
     Page<Notification> findByUserIdAndIsReadOrderByCreatedAtDesc(String userId, boolean isRead, Pageable pageable);
 
     long countByUserIdAndIsRead(String userId, boolean isRead);

@@ -415,10 +415,12 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
         boolean hasDrift = stateSyncService.syncVmState(testVm);
 
-        assertTrue(hasDrift);
+        // U22-T12: corrected, but a STARTING VM reaching RUNNING is a settle, not drift.
+        assertFalse(hasDrift);
         verify(awsCloudProviderService).getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class));
         Vm reconciled = vmRepository.findById(testVm.getVmId()).orElseThrow();
         assertEquals(VmStatus.RUNNING, reconciled.getStatus());
+        assertFalse(Boolean.TRUE.equals(reconciled.getStateDriftDetected()));
     }
 
     @Test
@@ -430,7 +432,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
         boolean hasDrift = stateSyncService.syncVmState(testVm);
 
-        assertTrue(hasDrift);
+        assertFalse(hasDrift); // U22-T12: a settle, not drift
         Vm reconciled = vmRepository.findById(testVm.getVmId()).orElseThrow();
         assertEquals(VmStatus.STOPPED, reconciled.getStatus());
     }

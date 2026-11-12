@@ -62,7 +62,7 @@ const AdminHome = (function() {
         const drift = Number(vms.drift) || 0;
         const found = Number(vms.pendingReview) || 0;
         add('vms', drift + found, 'VMs to review',
-            [drift ? `${drift} drift` : '', found ? `${found} found by discovery` : ''].filter(Boolean).join(', '), '#/vm-registry', 'gold');
+            [drift ? `${drift} changed outside the platform, 24 h` : '', found ? `${found} found by discovery` : ''].filter(Boolean).join(', '), '#/vm-registry', 'gold');
         const budgets = att.budgets || {};
         const near = Number(budgets.nearLimit) || 0;
         const top = budgets.top;
@@ -200,7 +200,7 @@ const AdminHome = (function() {
         const synced = since(h.lastStateSyncAt, now);
         const facts = [`${Number(h.jobsOnTime) || 0} of ${plural(Number(h.jobsEnabled) || 0, 'scheduled job')} on time`,
             synced ? `state synced ${synced} ago` : 'state not synced yet',
-            `${Number(h.driftEvents24h) || 0} drift in 24 h`];
+            `${plural(Number(h.driftEvents24h) || 0, 'VM')} changed outside the platform in 24 h`];
         if (Number(jobs.count) > 0) {
             const worst = jobs.worst || {};
             const bad = worst.lateBySeconds === null || worst.lateBySeconds === undefined || worst.lateBySeconds > 86400;

@@ -91,7 +91,7 @@ test.describe('Administrator Home', () => {
     await openHome(page, NONE);
     await expect(page.locator('.ah-all-clear')).toHaveText('Nothing needs you right now.');
     await expect(page.locator('.ah-tile')).toHaveCount(0);
-    await expect(page.locator('.ah-health')).toContainText('Platform healthy. 35 of 35 scheduled jobs on time · state synced 4 min ago · 0 drift in 24 h');
+    await expect(page.locator('.ah-health')).toContainText('Platform healthy. 35 of 35 scheduled jobs on time · state synced 4 min ago · 0 VMs changed outside the platform in 24 h'); // U22-T12
     await expect(page.locator('#ah-summary')).toContainText('28 of 44 VMs running across 8 environments · $6,284 this month, heading for $');
   });
 

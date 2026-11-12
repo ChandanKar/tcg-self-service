@@ -340,6 +340,20 @@ public class StateSyncService {
         // Sync name from cloud if the stored name is still the raw instance ID
         syncVmNameIfNeeded(vm);
 
+        if (currentStatus != cloudStatus && settles(currentStatus)) {
+            // U22-T12: a VM that was STARTING, STOPPING or UNKNOWN reaching what AWS reports is the
+            // platform's own operation (or a recovered run) finishing, not a change made outside it:
+            // recorded as a settle, with no drift flag, audit row or notification. Staging counted
+            // "STARTING -> RUNNING" as drift, part of 205 a day for 180 VMs.
+            if (vmRepository.applySyncedStatusIfCurrent(vm.vmId(), currentStatus, cloudStatus,
+                    vm.active(), false, Timestamp.from(Instant.now())) == 0) {
+                return false;
+            }
+            recordStateChange(vmRepository.getReferenceById(vm.vmId()), currentStatus, cloudStatus, "sync_settled",
+                    null, null, "Settled to the state the cloud reports");
+            return false;
+        }
+
         if (currentStatus != cloudStatus) {
             if (vmRepository.applySyncedStatusIfCurrent(vm.vmId(), currentStatus, cloudStatus,
                     vm.active(), true, Timestamp.from(Instant.now())) == 0) {
@@ -391,6 +405,11 @@ public class StateSyncService {
         }
     }
 
+    /** A status the platform puts a VM in while it waits for the cloud: reaching any cloud state from it is no drift. */
+    static boolean settles(VmStatus from) {
+        return from == VmStatus.STARTING || from == VmStatus.STOPPING || from == VmStatus.UNKNOWN;
+    }
+
     /** History, audit and notification for a drift that was applied. */
     private void recordDrift(SyncTarget vm, VmStatus from, VmStatus to, String historyDetails, String auditDetails) {
         String spotCode = spotInterruptionCode(vm, from, to);
@@ -404,7 +423,8 @@ public class StateSyncService {
         auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED, vm.envId(), vm.envName(),
                 "vm", vm.vmId(), vm.name(), auditDetails);
         runNotificationSideEffect("notify state drift", vm.vmId(), () ->
-                notificationService.notifyStateDriftDetected(vm.envId(), vm.envName(), vm.name(),
+                notificationService.notifyStateDriftDetected(vm.envId(), vm.envName(),
+                        vm.displayName() != null && !vm.displayName().isBlank() ? vm.displayName() : vm.name(),
                         from.name(), to.name(), vm.vmId()));
     }
 

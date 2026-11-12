@@ -409,9 +409,9 @@ const SystemHealth = (function () {
             <div class="sh-tile"><div class="sh-tile-label">VM state sync</div>
                 <div class="sh-tile-value"><span class="sh-dot sh-dot-${t.sync.fresh ? 'ok' : 'late'}" aria-hidden="true"></span>${t.sync.value}</div>
                 <div class="sh-tile-sub">${t.sync.sub}</div></div>
-            <div class="sh-tile"><div class="sh-tile-label">Drift, 24 h</div>
+            <div class="sh-tile"><div class="sh-tile-label">Changed outside the platform, 24 h</div>
                 <div class="sh-tile-value">${t.drift.value}</div>
-                <div class="sh-tile-sub">VMs changed outside the platform</div></div>
+                <div class="sh-tile-sub">changes (starts and stops made in AWS)</div></div>
             <div class="sh-tile"><div class="sh-tile-label">Actions, 24 h</div>
                 <div class="sh-tile-value">${t.actions.value}</div>
                 <div class="sh-tile-sub">${t.actions.rate} · <a href="#/audit-logs-all">Audit log</a></div></div>

@@ -97,7 +97,9 @@ public class AttentionSummaryService {
                 accessRequestsWaiting(),
                 approvalsWaiting(),
                 failedOperations(dayAgo, now),
-                new AttentionSummaryDTO.VmsToReview(vms.countByIsActiveTrueAndStateDriftDetectedTrue(),
+                // U22-T12: the VMs changed outside the platform in 24 h, as on System health; the drift
+                // flag cleared at the next sync, 5 minutes later (staging showed 2, then 0, then nothing).
+                new AttentionSummaryDTO.VmsToReview(history.countDriftVmsInRange(dayAgo, Timestamp.from(now)),
                         vms.countByIsActiveTrueAndDiscoveryPendingTrue()),
                 budgetsNearLimit(budgets),
                 lateJobs(jobs),
@@ -194,7 +196,7 @@ public class AttentionSummaryService {
         long enabled = jobs.stream().filter(job -> !"DISABLED".equals(job.status())).count();
         long onTime = jobs.stream().filter(job -> ON_TIME.contains(job.status())).count();
         Timestamp lastSync = stateSyncService.getSyncStatus().getLastSyncTime();
-        long drift = history.countDriftEventsInRange(dayAgo, Timestamp.from(now));
+        long drift = history.countDriftVmsInRange(dayAgo, Timestamp.from(now));
         return new AttentionSummaryDTO.Health(enabled, onTime, lastSync, drift);
     }
 

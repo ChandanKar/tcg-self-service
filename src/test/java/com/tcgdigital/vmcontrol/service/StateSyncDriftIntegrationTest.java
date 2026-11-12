@@ -77,8 +77,9 @@ class StateSyncDriftIntegrationTest extends AbstractIntegrationTest {
         awaitAsync(() -> {
             assertThat(count("SELECT COUNT(*) FROM audit_log WHERE action_type = 'STATE_DRIFT_DETECTED' " +
                     "AND target_id = ? AND environment_id = ?", vm.getVmId(), env.getEnvironmentId())).isEqualTo(1);
+            // U22-T12: one notice per environment, about the environment.
             assertThat(count("SELECT COUNT(*) FROM notification WHERE entity_id = ? AND type = 'STATE_DRIFT_DETECTED'",
-                    vm.getVmId())).isPositive();
+                    env.getEnvironmentId())).isPositive();
         });
         assertThat(count("SELECT COUNT(*) FROM vm_state_history WHERE vm_id = ? AND change_source = 'state_sync'",
                 vm.getVmId())).isEqualTo(1);

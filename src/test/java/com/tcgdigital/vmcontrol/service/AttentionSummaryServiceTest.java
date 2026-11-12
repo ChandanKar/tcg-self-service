@@ -49,6 +49,7 @@ class AttentionSummaryServiceTest extends AbstractIntegrationTest {
     @Autowired private TeamRepository teams;
     @Autowired private UserRepository users;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private StateSyncService stateSync;
 
     @BeforeEach
     void clean() {
@@ -169,10 +170,16 @@ class AttentionSummaryServiceTest extends AbstractIntegrationTest {
         var group = newGroup(newEnvironment("Review"), "web");
         var drifted = newVm(group, "web-1", VmStatus.RUNNING);
         var pending = newVm(group, "web-2", VmStatus.STOPPED);
-        jdbc.update("UPDATE vm SET state_drift_detected = true WHERE vm_id = ?", drifted.getVmId());
+        var settled = newVm(group, "web-3", VmStatus.RUNNING);
+        // U22-T12: VMs changed outside the platform in 24 h (two changes, one VM), not the flag that the
+        // next sync clears; a VM settling after the platform's own start is not counted.
+        stateSync.recordStateChange(drifted, VmStatus.STOPPED, VmStatus.RUNNING, "state_sync", null, null, "drift");
+        stateSync.recordStateChange(drifted, VmStatus.RUNNING, VmStatus.STOPPED, "state_sync", null, null, "drift");
+        stateSync.recordStateChange(settled, VmStatus.STARTING, VmStatus.RUNNING, "sync_settled", null, null, "settled");
         jdbc.update("UPDATE vm SET discovery_pending = true WHERE vm_id = ?", pending.getVmId());
 
         assertThat(service.summary().vmsToReview()).isEqualTo(new AttentionSummaryDTO.VmsToReview(1, 1));
+        assertThat(service.summary().health().driftEvents24h()).isEqualTo(1);
     }
 
     @Test

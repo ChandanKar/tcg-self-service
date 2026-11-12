@@ -506,4 +506,43 @@ class NotificationServiceTest {
         assertDoesNotThrow(() -> service.notifyIdleStopForEnvironment("env-A", "Env A", 90, 2));
         verify(notificationRepository).saveAll(any());
     }
+
+    @Test
+    void driftGoesToOperatorsAndAdminsInPlainWordsOncePerEnvironment() {
+        // U22-T12 (staging review): 99+ notices like 'State drift detected for "x": UNKNOWN -> RUNNING', viewers too.
+        User viewer = user("user-viewer", "viewer@tcg.com", false, false);
+        EnvironmentAccess viewerOnA = EnvironmentAccess.create(envA, viewer, AccessLevel.VIEWER, null);
+        java.util.List<EnvironmentAccess> holders = new java.util.ArrayList<>(accessRepository.findActiveAccessWithUsersByEnvironment("env-A"));
+        holders.add(viewerOnA);
+        when(accessRepository.findActiveAccessWithUsersByEnvironment("env-A")).thenReturn(holders);
+        when(notificationRepository.findFirstByUserIdAndTypeAndEntityIdAndIsReadFalseAndCreatedAtAfterOrderByCreatedAtDesc(
+                anyString(), any(), anyString(), any())).thenReturn(Optional.empty());
+
+        service.notifyStateDriftDetected("env-A", "Env A", "web-01", "STOPPED", "RUNNING", "vm-1");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<com.tcgdigital.vmcontrol.model.Notification>> saved = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(saved.capture());
+        List<com.tcgdigital.vmcontrol.model.Notification> sent = saved.getValue();
+        assertFalse(sent.stream().anyMatch(n -> n.getUserId().equals("user-viewer")), "no notice to a viewer");
+        assertTrue(sent.stream().anyMatch(n -> n.getUserId().equals("user-regular")), "the operator is told");
+        com.tcgdigital.vmcontrol.model.Notification one = sent.get(0);
+        assertEquals("Changed outside the platform: Env A", one.getTitle());
+        assertEquals("1 VM changed outside the platform: web-01 (stopped, now running).", one.getMessage());
+        assertEquals("env-A", one.getEntityId());
+    }
+
+    @Test
+    void aLaterDriftAddsToTheUnreadNoticeInsteadOfAnotherOne() {
+        com.tcgdigital.vmcontrol.model.Notification open = new com.tcgdigital.vmcontrol.model.Notification();
+        open.setUserId("user-admin");
+        open.setTitle("Changed outside the platform: Env A");
+        open.setMessage("1 VM changed outside the platform: web-01 (stopped, now running).");
+        when(notificationRepository.findFirstByUserIdAndTypeAndEntityIdAndIsReadFalseAndCreatedAtAfterOrderByCreatedAtDesc(
+                anyString(), any(), anyString(), any())).thenReturn(Optional.of(open));
+
+        service.notifyStateDriftDetected("env-A", "Env A", "db-01", "RUNNING", "STOPPED", "vm-2");
+
+        assertEquals("2 VMs changed outside the platform: web-01 (stopped, now running); db-01 (running, now stopped).", open.getMessage());
+    }
 }

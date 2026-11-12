@@ -31,7 +31,7 @@ test('tiles: the mockup six with their counts, details and links; zero counts ar
         [3, 'Access requests', 'Oldest waiting 2 days', '#/pending-requests', 'navy'],
         [2, 'Approvals', 'Oldest waiting 8 h', '#/approvals', 'navy'],
         [2, 'Failed operations, 24 h', 'Analytics QA, CRM UAT', '#/audit-logs-all?result=failed&range=24h', 'red'], // U22-T09
-        [3, 'VMs to review', '1 drift, 2 found by discovery', '#/vm-registry', 'gold'],
+        [3, 'VMs to review', '1 changed outside the platform, 24 h, 2 found by discovery', '#/vm-registry', 'gold'], // U22-T12
         [1, 'Budget almost used', 'CRM team at 96%', '#/budgets', 'red'],
         [1, 'Late scheduled job', 'Cost snapshot, 2 h late', '#/system-health', 'gold']]);
     assert.deepEqual(plain(M.tiles(NONE, NOW)), []);
@@ -80,7 +80,7 @@ test('U20-T10: AWS billing where it has arrived, the estimate for the rest, and 
 
 test('health: healthy, a late job named (red when a day late or never ran), or a stale state sync', () => {
     assert.deepEqual(plain(M.health(NONE, NOW)), { tone: 'ok', lead: 'Platform healthy.',
-        text: '35 of 35 scheduled jobs on time · state synced 4 min ago · 0 drift in 24 h' });
+        text: '35 of 35 scheduled jobs on time · state synced 4 min ago · 0 VMs changed outside the platform in 24 h' }); // U22-T12
     const late = M.health({ ...NONE, lateJobs: { count: 1, worst: { label: 'Cost snapshot', lateBySeconds: 7200 } },
         health: { ...NONE.health, jobsOnTime: 34 } }, NOW);
     assert.equal(late.tone, 'warn');

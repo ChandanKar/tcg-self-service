@@ -65,6 +65,10 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     @Query("SELECT COUNT(h) FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime")
     long countDriftEventsInRange(Timestamp startTime, Timestamp endTime);
 
+    /** VMs changed outside the platform in a time range (U22-T12: the one drift figure). */
+    @Query("SELECT COUNT(DISTINCT h.vm.vmId) FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime")
+    long countDriftVmsInRange(Timestamp startTime, Timestamp endTime);
+
     /**
      * Transitions for a batch of VMs within a time window, in one query — used to derive
      * runtime hours for a whole page of VMs at once rather than per-VM (avoids N+1).
