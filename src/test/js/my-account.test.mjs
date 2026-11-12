@@ -69,3 +69,15 @@ test('ended grants', () => {
     assert.equal(M.endedText({ status: 'REVOKED', revokedAt: inDays(-3) }, now), 'Removed 16 Oct');
     assert.equal(M.endedText({ status: 'EXPIRED', expiresAt: inDays(-1) }, now), 'Ended 18 Oct');
 });
+
+test('Access with no grants: administrators manage every environment, others are asked to request (U22-T06)', () => {
+    const run = admin => {
+        const context = vm.createContext({ Auth: { isAdmin: () => admin } });
+        vm.runInContext(readFileSync(STATIC + 'js/core/access-levels.js', 'utf8'), context);
+        vm.runInContext(readFileSync(STATIC + 'js/features/my-account.js', 'utf8') + '\nthis.MyAccount = MyAccount;', context);
+        return context.MyAccount.model.emptyAccessHtml();
+    };
+    assert.match(run(true), /You manage every environment as an administrator/);
+    assert.doesNotMatch(run(true), /can't use any environment/);
+    assert.match(run(false), /You can't use any environment yet/);
+});

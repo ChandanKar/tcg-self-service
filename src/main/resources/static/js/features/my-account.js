@@ -587,6 +587,15 @@ const MyAccount = (function() {
     }
 
     function emptyAccessHtml() {
+        // U22-T06: an administrator holds no grants but manages every environment; staging told them
+        // "You can't use any environment yet".
+        if (typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin()) {
+            return `<div class="ma-empty">
+                    <p class="ma-empty-title">You manage every environment as an administrator</p>
+                    <p>Access given to you on a single environment would show here.</p>
+                    <a class="btn btn-outline-secondary btn-sm" href="#/my-environments">Go to Environments</a>
+                </div>`;
+        }
         return `<div class="ma-empty">
                     <p class="ma-empty-title">You can't use any environment yet</p>
                     <p>Ask for one and its admins decide. You get a message when they do.</p>
@@ -912,6 +921,6 @@ const MyAccount = (function() {
         init,
         open,
         refresh,
-        model: { initials, levelText, untilText, roleText, roleDetail, signInText, costTotal, endedText, shortDate }
+        model: { initials, levelText, untilText, roleText, roleDetail, signInText, costTotal, endedText, shortDate, emptyAccessHtml }
     };
 })();
