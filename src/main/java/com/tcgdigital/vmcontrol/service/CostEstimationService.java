@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 public class CostEstimationService {
 
     private static final int COST_WINDOW_DAYS = 30;
+    private static final int IDLE_HOURS_PER_MONTH = 720;
 
     private final VmRepository vmRepository;
     private final VmIdleSummaryRepository vmIdleSummaryRepository;
@@ -1006,13 +1007,16 @@ public class CostEstimationService {
      * {@code monthlyCost} so the two figures stay directly comparable (a VM idle longer than the
      * window shows the same value as monthlyCost, never more).
      */
+    /**
+     * What an idle VM costs a month if it stays idle: its hourly rate (every node of an EKS node group)
+     * over a 720-hour month, the month the rightsizing figures use. U22-T01: this was the cost of the
+     * idle time so far (a VM idle for 30 minutes counted $0.05) while every screen said "a month".
+     */
     private BigDecimal monthlyIdleCost(VmCostBundle b) {
         if (b.estimate().hourlyRate() == null || b.idleDurationMinutes() == null) {
             return BigDecimal.ZERO;
         }
-        int cappedMinutes = Math.min(b.idleDurationMinutes(), COST_WINDOW_DAYS * 24 * 60);
-        BigDecimal hours = BigDecimal.valueOf(cappedMinutes).divide(BigDecimal.valueOf(60), 4, RoundingMode.HALF_UP);
-        return b.estimate().hourlyRate().multiply(hours).setScale(2, RoundingMode.HALF_UP);
+        return b.estimate().hourlyRate().multiply(BigDecimal.valueOf(IDLE_HOURS_PER_MONTH)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private VmCostDetailDTO toVmCostDetail(VmCostBundle b) {

@@ -858,7 +858,7 @@ const CostManagement = (function() {
                 (mtd.days ? (mtd.billedShare ? `${mtd.billedShare}% from AWS billing. ` : 'Estimated. ') : 'No figures for this month yet. ') + last30, 'mtd'],
             [`Forecast for ${new Date().toLocaleString('en-GB', { month: 'long' })}`, end.platform !== null ? money0(end.platform) : '—',
                 end.aws !== null ? `AWS forecasts ${money0(end.aws)}` : (end.platform !== null ? 'From the last 7 days' : 'Needs a few days of history'), 'forecast'],
-            ['Idle waste', money0(summary.idleWasteMonthlyCost), `a month, ${summary.idleVmCount || 0} VM${summary.idleVmCount === 1 ? '' : 's'} barely used`, 'idle'],
+            ['Idle waste', money0(summary.idleWasteMonthlyCost), `a month if they stay idle, ${summary.idleVmCount || 0} VM${summary.idleVmCount === 1 ? '' : 's'} barely used`, 'idle'],
             ['Rightsizing', money0(summary.rightsizingPotentialSavings),
                 `a month, ${summary.rightsizingCandidateCount || 0} VM${summary.rightsizingCandidateCount === 1 ? '' : 's'} too large`
                 + ((summary.scaleUpCandidateCount || 0) > 0 ? `, ${summary.scaleUpCandidateCount} need more` : ''), 'rightsizing'],
@@ -1483,7 +1483,7 @@ const CostManagement = (function() {
             tableId: 'cost-idle-table',
             bodyId: 'cost-idle-table-body',
             paginationId: 'cost-idle-pagination',
-            columns: ['VM', 'Group', { label: 'Monthly Cost', numeric: true }, { label: 'Latest CPU', numeric: true }, 'Idle Since', { label: 'Monthly Idle', numeric: true }],
+            columns: ['VM', 'Group', { label: 'Monthly Cost', numeric: true }, { label: 'Latest CPU', numeric: true }, 'Idle Since', { label: 'Saved a month if stopped', numeric: true }],
             rowsHtml: buildIdleRows(state.idle.content),
             pageState: state.idle,
             tableKey: 'idle',

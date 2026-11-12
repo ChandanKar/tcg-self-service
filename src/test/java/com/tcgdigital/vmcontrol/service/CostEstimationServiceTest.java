@@ -241,8 +241,8 @@ class CostEstimationServiceTest {
         List<com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO> rows = service.getIdleWaste(PageRequest.of(0, 25)).getContent();
         assertEquals(1, rows.size());
         assertEquals(Integer.valueOf(3), rows.get(0).nodeCount());
-        // 3 nodes x $0.1664/h x 10 h idle
-        assertEquals(0, new BigDecimal("4.99").compareTo(rows.get(0).monthlyIdleCost()));
+        // U22-T01: 3 nodes x $0.1664/h x a 720-hour month, whatever the idle time so far
+        assertEquals(0, new BigDecimal("359.42").compareTo(rows.get(0).monthlyIdleCost()));
     }
 
     // ---- Memory-aware rightsizing (E30-T03) ----
@@ -557,7 +557,7 @@ class CostEstimationServiceTest {
         com.tcgdigital.vmcontrol.model.VmIdleSummary idle = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
         idle.setVm(buildAwsVm());
         idle.setIdle(true);
-        idle.setIdleDurationMinutes(600); // 10 h at $0.1664/h = $1.66, not the VM's $119.81 monthly cost
+        idle.setIdleDurationMinutes(30); // U22-T01: idle for 30 min still costs $0.1664/h x 720 h = $119.81 a month if it stays idle
         when(vmIdleSummaryRepository.findByVmVmIdIn(anyList())).thenReturn(List.of(idle));
 
         com.tcgdigital.vmcontrol.dto.CostSummaryDTO summary = service.getSummary();
@@ -565,7 +565,7 @@ class CostEstimationServiceTest {
                 .map(com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO::monthlyIdleCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        assertEquals(0, new BigDecimal("1.66").compareTo(summary.idleWasteMonthlyCost()));
+        assertEquals(0, new BigDecimal("119.81").compareTo(summary.idleWasteMonthlyCost()));
         assertEquals(0, tableTotal.compareTo(summary.idleWasteMonthlyCost()));
     }
 
