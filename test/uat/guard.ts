@@ -112,9 +112,21 @@ export { expect };
 /** Signs in through the real password form. */
 export async function signInAdmin(page: Page) {
   if (!ENV.adminUser || !ENV.adminPass) throw new Error('UAT_ADMIN_USER / UAT_ADMIN_PASS not set');
+  await signInAs(page, ENV.adminUser, ENV.adminPass);
+}
+
+/** The acceptance accounts (readiness r01): operator (Operate on ise) and viewer (View only on ise). */
+export const PEOPLE = {
+  operator: { user: process.env.UAT_OPERATOR_USER || '', pass: process.env.UAT_OPERATOR_PASS || '' },
+  viewer: { user: process.env.UAT_VIEWER_USER || '', pass: process.env.UAT_VIEWER_PASS || '' },
+};
+
+/** Signs in as anyone through the real password form and waits for the app. */
+export async function signInAs(page: Page, user: string, pass: string) {
+  if (!user || !pass) throw new Error('credentials not set');
   await page.goto('/login');
-  await page.locator('#username').fill(ENV.adminUser);
-  await page.locator('#password').fill(ENV.adminPass);
+  await page.locator('#username').fill(user);
+  await page.locator('#password').fill(pass);
   await page.locator('#submitBtn').click();
   // Wait for the app itself, not the page's load event: on a slow link the bundles can take a minute.
   await page.waitForURL(u => !u.pathname.startsWith('/login'), { timeout: 30_000, waitUntil: 'commit' });

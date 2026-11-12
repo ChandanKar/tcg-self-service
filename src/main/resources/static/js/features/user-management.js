@@ -435,7 +435,8 @@ const UserManagement = (function() {
             title: Utils.escapeHtml(`Set a password for ${name}`),
             html: true,
             body: Utils.html`<p class="um-dialog-sub">For signing in with a username and password instead of Microsoft.${Utils.raw(user.username
-                    ? Utils.html` Username: <code>${user.username}</code>.` : '')}</p>
+                    ? Utils.html` Username: <code>${user.username}</code>.`
+                    : Utils.html` They sign in with their email, <code>${user.email || ''}</code>, and choose their own password the first time.`)}</p>
                 <div class="um-password">
                     <label class="ap-field">New password
                         <input type="password" class="form-control" id="set-password-new" autocomplete="new-password" maxlength="${PASSWORD_MAX}"></label>

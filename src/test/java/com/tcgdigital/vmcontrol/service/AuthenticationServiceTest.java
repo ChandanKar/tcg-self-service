@@ -75,6 +75,44 @@ class AuthenticationServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void setUserPasswordForSomeoneWithoutAUsernameLetsThemSignInWithTheirEmail() {
+        // U21-T21: on staging "Set password" for a person added by email saved a password that never worked.
+        User target = newUser("Asha.Rao@Example.com", false, false);
+        assertThat(target.getUsername()).isNull();
+
+        authenticationService.setUserPassword(target.getUserId(), GOOD_PASSWORD, null);
+
+        User saved = userRepository.findById(target.getUserId()).orElseThrow();
+        assertThat(saved.getUsername()).isEqualTo("asha.rao@example.com");
+        assertThat(saved.isPasswordChangeRequired()).as("they choose their own at first sign-in").isTrue();
+        assertThat(authenticationService.authenticateUser("asha.rao@example.com", GOOD_PASSWORD).getUserId())
+                .isEqualTo(target.getUserId());
+        assertThat(authenticationService.changeInitialPassword("Asha.Rao@Example.com", GOOD_PASSWORD, "their-own-password-1")
+                .isPasswordChangeRequired()).isFalse();
+    }
+
+    @Test
+    void setUserPasswordKeepsAnExistingUsername() {
+        User target = withPassword("legacy.user", passwordEncoder.encode("old-password-123"));
+
+        authenticationService.setUserPassword(target.getUserId(), GOOD_PASSWORD, null);
+
+        User saved = userRepository.findById(target.getUserId()).orElseThrow();
+        assertThat(saved.getUsername()).isEqualTo("legacy.user");
+        assertThat(saved.isPasswordChangeRequired()).isFalse();
+        assertThat(authenticationService.authenticateUser("legacy.user", GOOD_PASSWORD).getUserId()).isEqualTo(target.getUserId());
+    }
+
+    @Test
+    void setUserPasswordRefusesAnEmailThatIsSomeoneElsesUsername() {
+        withPassword("taken@example.com", passwordEncoder.encode(GOOD_PASSWORD));
+        User target = newUser("taken@example.com".toUpperCase(), false, false);
+
+        assertThatThrownBy(() -> authenticationService.setUserPassword(target.getUserId(), GOOD_PASSWORD, null))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("already someone's username");
+    }
+
+    @Test
     void setUserPasswordRejectsShortPassword() {
         User target = newUser("target@example.com", false, false);
 

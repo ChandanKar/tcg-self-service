@@ -174,6 +174,21 @@ public class AuthenticationService {
         validateLength(password);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (user.getUsername() == null || user.getUsername().isBlank()) {
+            // U21-T21: a person added from the directory or by email has no username, and password
+            // sign-in finds people by username (or by email only when they have one), so the password
+            // was saved but never worked. Their email becomes their username, as for an initial
+            // password (U20-T07), and they choose their own at first sign-in.
+            if (user.getEmail() == null || user.getEmail().isBlank()) {
+                throw new ValidationException("This person has no email address to sign in with");
+            }
+            String username = user.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
+            userRepository.findByUsername(username).filter(other -> !other.getUserId().equals(user.getUserId())).ifPresent(other -> {
+                throw new ValidationException(user.getEmail() + " is already someone's username");
+            });
+            user.setUsername(username);
+            user.setPasswordChangeRequired(true);
+        }
         user.setPassword(passwordEncoder.encode(password));
         user.setPasswordUpdatedAt(new Timestamp(System.currentTimeMillis()));
         userRepository.save(user);
