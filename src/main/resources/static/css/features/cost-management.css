@@ -84,6 +84,16 @@
     text-decoration: none;
 }
 
+/* U22-T14: instances in AWS outside the registry, under the title; opens Found in AWS. */
+.cost-unregistered-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--brand-navy);
+    font: inherit;
+    text-decoration: underline;
+}
+
 .cost-setup-link:hover {
     color: var(--brand-navy);
 }

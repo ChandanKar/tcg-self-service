@@ -398,6 +398,42 @@ const CostManagement = (function() {
         syncHeader(tab);
         watchReport();
         if (typeof Tabs !== 'undefined') Tabs.bind(document.getElementById('cost-tabs'), key => openTab(key));
+        loadUnregistered();
+    }
+
+    // ---- U22-T14: spend outside the registry is named ----
+
+    // What Found in AWS lists ({instances, running}), or null until read; read after the page draws, at most
+    // every 10 minutes (the server keeps its sweep as long).
+    let unregistered = null;
+    let unregisteredAt = 0;
+
+    /** The EC2 instances found in AWS that no environment holds (EKS clusters are not instances). */
+    function unregisteredCount(found) {
+        const items = (found && Array.isArray(found.items) ? found.items : []).filter(i => i && i.kind === 'EC2');
+        return { instances: items.length, running: items.filter(i => String(i.state || '').toLowerCase() === 'running').length };
+    }
+
+    /** " 129 instances in AWS (41 running) are not in the registry, so their cost is not counted here. Review them" */
+    function unregisteredHtml(u) {
+        if (!u || !u.instances) return '';
+        const n = u.instances;
+        const running = u.running ? ` (${u.running} running)` : '';
+        return ` ${n} instance${n === 1 ? '' : 's'} in AWS${running} ${n === 1 ? 'is' : 'are'} not in the registry, so `
+            + `${n === 1 ? 'its' : 'their'} cost is not counted here. `
+            + `<button type="button" class="cost-unregistered-link" data-action="cost-found-in-aws" title="Opens Found in AWS">Review them</button>`;
+    }
+
+    async function loadUnregistered() {
+        if (Date.now() - unregisteredAt < 10 * 60000 || !Auth.isAdmin() || typeof FoundInAws === 'undefined') return;
+        unregisteredAt = Date.now();
+        try {
+            const found = await ApiClient.get(Config.API.discovery.found(false), { suppressGlobalError: true });
+            unregistered = unregisteredCount(found);
+            if (isActive()) $('#cost-unregistered').html(unregisteredHtml(unregistered));
+        } catch (e) {
+            unregisteredAt = 0; // the line is a hint; the page works without it, and the next visit asks again
+        }
     }
 
     /**
@@ -442,7 +478,8 @@ const CostManagement = (function() {
         return `
             <div class="content-view page page-frame cost-management-view" id="cost-management-view">
                 ${PageHeader.markup({ title: 'Cost management', sectionNav: PageHeader.costNav('cost-management'),
-                    summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
+                    summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.'
+                        + `<span class="cost-unregistered" id="cost-unregistered">${unregisteredHtml(unregistered)}</span>`,
                     actionsHtml: `<div class="cost-toolbar no-print" id="cost-toolbar">${dataMenu}${exportMenu}</div>
                         <div class="cost-tab-actions no-print" id="cost-tab-actions"></div>`,
                     helpPage: typeof HelpLink !== 'undefined' ? 'cost-management' : null, helpLabel: 'Cost management' })}
@@ -2133,7 +2170,8 @@ const CostManagement = (function() {
         navHtml,
         watchReport,
         idleRowsHtml: rows => buildIdleRows(rows || []),
-        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars, savingHtml }
+        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars, savingHtml,
+            unregisteredCount, unregisteredHtml }
     };
 })();
 
@@ -2146,7 +2184,8 @@ if (typeof Actions !== 'undefined') Actions.registerAll({
     'cost-rs-page': el => CostManagement.changePage('rightsizing', Number(el.dataset.page) - 1),
     'cost-rightsizing-options': el => CostManagement.toggleOptions(el),
     'cost-forecast-range': el => CostManagement.setForecastRange(el.dataset.range),
-    'cost-focus-export': () => CostManagement.openFocusExport()
+    'cost-focus-export': () => CostManagement.openFocusExport(),
+    'cost-found-in-aws': () => FoundInAws.open()
 });
 if (typeof Actions !== 'undefined') {
     Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');

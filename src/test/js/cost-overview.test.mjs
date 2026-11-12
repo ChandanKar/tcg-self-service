@@ -93,3 +93,17 @@ test('a saving reads as a saving and extra cost as extra cost: arrow, words, col
     assert.match(M.savingHtml(null), /—/);
     assert.match(M.savingHtml(-3.5, v => `$${v.toFixed(2)}`), /costs \$3\.50 more/);
 });
+
+test('U22-T14: the EC2 instances Found in AWS lists are named under the title, with a way to review them', () => {
+    const found = { items: [
+        { kind: 'EC2', state: 'running' }, { kind: 'EC2', state: 'stopped' }, { kind: 'EC2', state: 'RUNNING' },
+        { kind: 'EKS', state: null }] };
+    assert.deepEqual(plain(M.unregisteredCount(found)), { instances: 3, running: 2 });
+    const html = M.unregisteredHtml({ instances: 3, running: 2 });
+    assert.match(html, /3 instances in AWS \(2 running\) are not in the registry, so their cost is not counted here\./);
+    assert.match(html, /data-action="cost-found-in-aws" title="Opens Found in AWS">Review them</);
+    assert.match(M.unregisteredHtml({ instances: 1, running: 0 }), /^ 1 instance in AWS is not in the registry, so its cost/);
+    assert.equal(M.unregisteredHtml({ instances: 0, running: 0 }), '');
+    assert.equal(M.unregisteredHtml(null), '');
+    assert.deepEqual(plain(M.unregisteredCount(null)), { instances: 0, running: 0 });
+});
