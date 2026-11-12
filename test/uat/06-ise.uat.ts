@@ -82,7 +82,7 @@ test('[J04] start ise in start order', async ({ page }) => {
   const vms = byOrder();
   const steps = vms.map(v => ({ v, s: step(op, v.name) }));
   const ordered = steps.every((x, i) => i === 0 || before(steps[i - 1].s.completedAt, x.s.startedAt));
-  const allDone = steps.every(x => x.s.status === 'COMPLETED');
+  const allDone = steps.every(x => String(x.s.status).toUpperCase() === 'COMPLETED');
   const states = await vmStates(page);
   const running = vms.every(v => states[v.name] === 'RUNNING');
   const line = steps.map(x => `${x.v.groupName} ${x.v.name} ${x.s.startedAt}→${x.s.completedAt} ${x.s.status}`).join('; ');

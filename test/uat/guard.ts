@@ -116,7 +116,10 @@ export async function signInAdmin(page: Page) {
   await page.locator('#username').fill(ENV.adminUser);
   await page.locator('#password').fill(ENV.adminPass);
   await page.locator('#submitBtn').click();
-  await page.waitForURL(u => !u.pathname.startsWith('/login'), { timeout: 20_000 });
+  // Wait for the app itself, not the page's load event: on a slow link the bundles can take a minute.
+  await page.waitForURL(u => !u.pathname.startsWith('/login'), { timeout: 30_000, waitUntil: 'commit' });
+  await expect(page.locator('.user-profile-trigger')).toBeVisible({ timeout: 120_000 });
+  await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 60_000 });
 }
 
 /** A read-only API call with the page's session (GET only; writes go through the UI). */
