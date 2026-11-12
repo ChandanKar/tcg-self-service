@@ -661,7 +661,9 @@ const CostManagement = (function() {
                     </div>
                 </div>
                 <div class="cost-card rs-table-card">
-                    ${Utils.raw(CostAnomalies.fleetTableHtml(list, 'No unusual spend reported by AWS Cost Anomaly Detection.'))}
+                    ${Utils.raw(CostAnomalies.fleetTableHtml(list, capable('costAnomalies')
+                        ? 'No unusual spend reported by AWS Cost Anomaly Detection.'
+                        : 'Unusual spend checks are switched off, so nothing is checked or reported here. An administrator can switch it on in the server settings.'))}
                     <div class="anomaly-foot"><span>${list.length} of ${state.anomalies.length} in the last ${String(state.anomalyDays)} days
                         · ${linked} monitor${linked === 1 ? '' : 's'} linked to environments</span>
                         <a href="#/cost-setup">AWS monitors and alert settings</a></div>

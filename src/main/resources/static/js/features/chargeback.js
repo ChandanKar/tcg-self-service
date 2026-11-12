@@ -220,13 +220,15 @@ const Chargeback = (function() {
 
     function canFinalize() {
         const s = state.statement;
-        return !!s && s.status === 'DRAFT' && state.month < monthValue(0);
+        // U22-T07: with chargeback switched off nothing is finalised or sent (staging offered the button).
+        return capable('chargeback') && !!s && s.status === 'DRAFT' && state.month < monthValue(0);
     }
 
     /** The line under the statement: what draft or final means for this month. */
     function footText(s) {
         if (s.status === 'FINAL') return "Final. The numbers don't change.";
         if (state.month >= monthValue(0)) return 'So far this month; the numbers change until the month ends.';
+        if (!capable('chargeback')) return 'Draft. Chargeback is switched off, so statements are not finalised or sent to finance. An administrator can switch it on in the server settings.'; 
         const next = monthValue(0) === state.month ? monthValue(-1) : nextMonth(state.month);
         return `Draft. It is finalised early in ${monthName(next)} and emailed to finance; after that the numbers don't change.`;
     }
@@ -352,7 +354,7 @@ const Chargeback = (function() {
         const missing = Number(t.untagged || 0);
         const button = capable('costTagging') && missing > 0
             ? `<button type="button" class="btn btn-outline-primary btn-sm" data-action="chargeback-tag-now" id="chargeback-tag-now">Tag the ${missing} now</button>`
-            : (capable('costTagging') ? '' : '<p class="cost-note mb-0">Cost tags are switched off (cost.tagging.enabled).</p>');
+            : (capable('costTagging') ? '' : '<p class="cost-note mb-0">Cost tagging is switched off, so the platform does not add these tags. An administrator can switch it on in Settings › Cost.</p>');
         return `<div class="chargeback-tag-counts"><span><b class="cost-mono">${Number(t.tagged || 0)}</b> tagged</span>
                 <span class="${missing ? 'chargeback-missing' : ''}"><b class="cost-mono">${missing}</b> missing</span></div>
             ${compact ? '' : ''}<p class="cost-note">The platform writes environment and team tags (starting <span class="cost-mono">tcg:</span>) to each

@@ -157,13 +157,17 @@ const Waste = (function() {
             $('#waste-summary').html(error('the waste totals', state.errors.summary));
         } else if (s) {
             $('#waste-intro').text(`Things in AWS that cost money and do nothing. ${scheduleText(s)}`);
-            const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" role="status">Waste sweeps are turned off: set
-                <code>waste.sweep.enabled</code> (and grant the read-only EC2 permissions) to find waste daily.</p>`;
-            $('#waste-summary').html(`${off}<div class="waste-total-row"><p class="waste-total"><span class="cost-mono waste-total-value">${Utils.escapeHtml(money0(s.monthlyTotal))}</span>
-                a month across <span class="cost-mono">${s.openCount}</span> open finding${s.openCount === 1 ? '' : 's'}</p>
+            // U22-T07: switched off reads as off, not as "$0 a month across 0 open findings".
+            const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" role="status">Waste checks are switched off, so
+                unused disks, addresses and snapshots are not looked for. An administrator can switch it on in the server settings.</p>`;
+            const total = s.sweepEnabled || s.openCount > 0
+                ? `<span class="cost-mono waste-total-value">${Utils.escapeHtml(money0(s.monthlyTotal))}</span>
+                a month across <span class="cost-mono">${s.openCount}</span> open finding${s.openCount === 1 ? '' : 's'}`
+                : 'Not checked';
+            $('#waste-summary').html(`${off}<div class="waste-total-row"><p class="waste-total">${total}</p>
                 <span id="waste-dismissed-slot"></span></div>`);
             $('#waste-sweep-btn').prop('disabled', !s.sweepEnabled)
-                .attr('title', s.sweepEnabled ? 'Run the sweep now' : 'Waste sweeps are turned off: set waste.sweep.enabled');
+                .attr('title', s.sweepEnabled ? 'Run the sweep now' : 'Waste checks are switched off');
         }
         drawFilters();
         drawTable();

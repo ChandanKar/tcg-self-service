@@ -30,11 +30,12 @@ test.describe('Waste page', () => {
 
   test('with sweeps off it says how to turn them on; Check again now is disabled with the reason', async ({ page }) => {
     await open(page);
-    await expect(page.locator('#waste-summary')).toContainText('Waste sweeps are turned off', { timeout: 15_000 });
+    await expect(page.locator('#waste-summary')).toContainText('Waste checks are switched off', { timeout: 15_000 });
+    await expect(page.locator('.waste-total')).toHaveText('Not checked'); // U22-T07: not "$0 a month across 0 open findings"
     // Acceptance: sweeps off, Check again now is disabled with the reason.
     const sweep = page.getByRole('button', { name: 'Check again now' });
     await expect(sweep).toBeDisabled();
-    await expect(sweep).toHaveAttribute('title', 'Waste sweeps are turned off: set waste.sweep.enabled');
+    await expect(sweep).toHaveAttribute('title', 'Waste checks are switched off');
     await expect(page.locator('.waste-card .waste-card-name')).toHaveText(['Everything', 'Unattached volumes', 'Unused public IPs',
       'gp2 → gp3', 'Stopped over 30 days', 'Old snapshots', 'Idle VMs']); // Idle VMs moved here in U18-T04
     await expect(page.locator('#waste-intro')).toContainText('Things in AWS that cost money and do nothing. Checked daily at 04:00 UTC;');

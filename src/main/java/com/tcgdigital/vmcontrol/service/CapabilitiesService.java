@@ -45,7 +45,11 @@ public class CapabilitiesService {
             new Switch("safeResize", "rightsizing.safe-resize.enabled", false),
             new Switch("spotPricing", "spot.pricing.enabled", false),
             // U15-T04: the Commitments tab shows only while RI / Savings Plan coverage is on.
-            new Switch("costReservations", "cost.reservations.enabled", false)
+            new Switch("costReservations", "cost.reservations.enabled", false),
+            // U22-T07: pages of switched-off features say so instead of looking live.
+            new Switch("chargeback", "chargeback.enabled", false),
+            new Switch("costAnomalies", "cost.anomalies.enabled", false),
+            new Switch("wasteSweep", "waste.sweep.enabled", false)
     };
 
     private final UserService userService;

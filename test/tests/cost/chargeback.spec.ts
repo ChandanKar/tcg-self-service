@@ -69,7 +69,17 @@ test.describe('Chargeback page', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
+  test('U22-T07: with chargeback switched off a draft cannot be finalised and the page says why', async ({ page }) => {
+    await withFeatures(page, { chargeback: false });
+    await fakeStatement(page);
+    await open(page);
+    await expect(page.locator('#chargeback-status')).toHaveText('DRAFT', { timeout: 15_000 });
+    await expect(page.locator('#chargeback-finalize')).toHaveCount(0);
+    await expect(page.locator('#chargeback-foot')).toContainText('Chargeback is switched off, so statements are not finalised or sent to finance.');
+  });
+
   test('a draft statement: the missing-team banner, the columns, expands per team, finalised and sent behind a typed month', async ({ page }) => {
+    await withFeatures(page, { chargeback: true });
     const finalized = await fakeStatement(page);
     await open(page);
 
