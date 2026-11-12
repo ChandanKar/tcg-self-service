@@ -101,6 +101,21 @@ class SavingsReportServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void vmsOffWithoutThePlatformAreNotSavings() {
+        // U22-T02 (staging review): $5,382 of a $5,400 'saved' was VMs that were simply off.
+        entry(MONTH.atDay(1), SavingsCause.SCHEDULE, "14", "1.40", "1.30");
+        entry(MONTH.atDay(1), SavingsCause.OTHER, "500", "50.00", "45.00");
+        entry(MONTH.atDay(2), SavingsCause.AUTOMATION, "2", "0.20", "0.18");
+        ledger.flush();
+
+        SavingsSummaryDTO summary = reports.summary(MONTH, null);
+        assertThat(summary.realisedNet()).isEqualByComparingTo("1.48");
+        assertThat(summary.byCause()).extracting(SavingsBreakdownRowDTO::key).containsExactly("SCHEDULE", "AUTOMATION");
+        assertThat(reports.daily(MONTH, null)).noneMatch(p -> "OTHER".equals(p.cause()));
+        assertThat(reports.byTeam(MONTH)).singleElement().satisfies(r -> assertThat(r.net()).isEqualByComparingTo("1.48"));
+    }
+
+    @Test
     void anEmptyMonthIsZerosNotAnError() {
         SavingsSummaryDTO summary = reports.summary(YearMonth.of(2025, 1), env.getEnvironmentId());
         assertThat(summary.realisedNet()).isEqualByComparingTo("0");

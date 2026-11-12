@@ -110,7 +110,9 @@ class SavingsCalculatorTest {
         assertThat(SavingsCause.fromTrigger(OperationTriggerSource.LEASE)).isEqualTo(SavingsCause.LEASE);
         assertThat(SavingsCause.fromTrigger(OperationTriggerSource.IDLE_STOP)).isEqualTo(SavingsCause.IDLE_STOP);
         assertThat(SavingsCause.fromTrigger(OperationTriggerSource.MANUAL)).isEqualTo(SavingsCause.MANUAL_STOP);
-        assertThat(SavingsCause.fromTrigger(OperationTriggerSource.BUDGET)).isEqualTo(SavingsCause.OTHER);
+        assertThat(SavingsCause.fromTrigger(OperationTriggerSource.BUDGET)).isEqualTo(SavingsCause.AUTOMATION);
+        assertThat(SavingsCause.fromTrigger(OperationTriggerSource.ACCESS_AUTOMATION)).isEqualTo(SavingsCause.AUTOMATION);
+        assertThat(SavingsCause.fromTrigger(OperationTriggerSource.SYSTEM)).isEqualTo(SavingsCause.AUTOMATION);
         assertThat(SavingsCause.fromTrigger(null)).isEqualTo(SavingsCause.OTHER);
     }
 }

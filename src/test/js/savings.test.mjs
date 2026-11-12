@@ -21,8 +21,8 @@ test('Based on: the share of the month AWS billing covers', () => {
     assert.equal(M.basis(null, '2026-10', NOW).label, 'Estimates');
 });
 
-test('Saved by: the causes in order, bars against the largest, Other only when it saved', () => {
-    const bars = plain(M.causeBars([{ key: 'IDLE_STOP', net: 310 }, { key: 'SCHEDULE', net: 1120 }, { key: 'OTHER', net: 0 }, { key: 'LEASE', net: -5 }]));
+test('Saved by: the causes in order, bars against the largest, Automation only when it saved, never Other (U22-T02)', () => {
+    const bars = plain(M.causeBars([{ key: 'IDLE_STOP', net: 310 }, { key: 'SCHEDULE', net: 1120 }, { key: 'AUTOMATION', net: 0 }, { key: 'OTHER', net: 900 }, { key: 'LEASE', net: -5 }]));
     assert.deepEqual(bars.map(b => [b.label, b.value]), [['Schedules', 1120], ['Idle auto-stop', 310], ['Leases ending', 0],
         ['Stopped by hand', 0], ['Rightsizing', 0]]);
     assert.equal(bars[0].width, 100);

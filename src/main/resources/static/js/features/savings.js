@@ -13,7 +13,7 @@ const Savings = (function() {
     const AWS_MEDIAN = 83;
     /** The causes in the board's order, with the names people use. */
     const CAUSES = [['SCHEDULE', 'Schedules'], ['IDLE_STOP', 'Idle auto-stop'], ['LEASE', 'Leases ending'],
-        ['MANUAL_STOP', 'Stopped by hand'], ['RIGHTSIZING', 'Rightsizing'], ['OTHER', 'Other']];
+        ['MANUAL_STOP', 'Stopped by hand'], ['RIGHTSIZING', 'Rightsizing'], ['AUTOMATION', 'Automation and budgets']];
 
     let pageToken = null;
     let state = null;
@@ -67,10 +67,10 @@ const Savings = (function() {
         return { label: share >= 50 ? 'Mostly AWS billing' : 'Mostly estimates', note: `${share}% billed, the rest estimated`, share };
     }
 
-    /** The causes in order with their net saving and a bar width; Other only when it saved something. */
+    /** The causes in order with their net saving and a bar width; Automation only when it saved something. */
     function causeBars(byCause) {
         const net = new Map((byCause || []).map(r => [r.key, Math.max(0, Number(r.net) || 0)]));
-        const rows = CAUSES.filter(([key]) => key !== 'OTHER' || net.get(key) > 0)
+        const rows = CAUSES.filter(([key]) => key !== 'AUTOMATION' || net.get(key) > 0)
             .map(([key, label]) => ({ key, label, value: net.get(key) || 0 }));
         const most = Math.max(1, ...rows.map(r => r.value));
         return rows.map(r => ({ ...r, width: Math.round(r.value / most * 1000) / 10 }));
@@ -227,6 +227,7 @@ const Savings = (function() {
                 ${Utils.raw(rows.map(r => Utils.html`<div class="savings-cause" data-cause="${r.key}"><span>${r.label}</span>
                     <span class="savings-cause-bar"><span style="width:${String(r.width)}%"></span></span>
                     <span class="cost-mono">${money0(r.value)}</span></div>`).join(''))}
+                <p class="cost-note savings-cause-note">Counts only stops the platform made. VMs stopped outside it are not counted.</p>
             </section>`;
     }
 

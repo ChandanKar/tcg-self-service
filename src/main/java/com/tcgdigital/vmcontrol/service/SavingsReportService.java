@@ -221,12 +221,18 @@ public class SavingsReportService {
                 actual.setScale(2, RoundingMode.HALF_UP), variance, within, label);
     }
 
+    /**
+     * The month's savings rows. U22-T02: OTHER (VMs that were off without the platform stopping them) is
+     * left out of every figure, the summary, the charts, the breakdowns and the export: on staging it was
+     * $5,382 of a $5,400 'saved' against $2,404 spent, counting VMs that were simply off as savings.
+     */
     private List<SavingsLedgerEntry> entries(YearMonth month, String environmentId) {
         LocalDate start = month.atDay(1);
         LocalDate end = month.atEndOfMonth();
-        return environmentId == null
+        List<SavingsLedgerEntry> rows = environmentId == null
                 ? ledgerRepository.findByLedgerDateBetweenOrderByLedgerDateAsc(start, end)
                 : ledgerRepository.findByEnvironmentIdAndLedgerDateBetweenOrderByLedgerDateAsc(environmentId, start, end);
+        return rows.stream().filter(e -> e.getCause() != SavingsCause.OTHER).toList();
     }
 
     private EfficiencySnapshot lastSnapshot(YearMonth month, String environmentId) {
@@ -268,6 +274,7 @@ public class SavingsReportService {
             case IDLE_STOP -> "Idle stops";
             case MANUAL_STOP -> "Manual stops";
             case RIGHTSIZING -> "Rightsizing";
+            case AUTOMATION -> "Automation and budgets";
             case OTHER -> "Other";
         };
     }
