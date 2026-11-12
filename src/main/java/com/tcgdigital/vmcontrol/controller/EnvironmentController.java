@@ -118,8 +118,8 @@ public class EnvironmentController {
 
         List<Environment> environments;
 
-        // Admins and Env Admins see all environments
-        if (securityService.isEnvAdmin()) {
+        // Admins (and environment admins when their scope is global) see all environments
+        if (securityService.seesAllEnvironments()) {
             environments = includeInactive
                     ? environmentService.getAllEnvironments()
                     : environmentService.getAllActiveEnvironments();
@@ -233,7 +233,7 @@ public class EnvironmentController {
         if (region != null && !region.isBlank() && !com.tcgdigital.vmcontrol.service.aws.AwsRegions.isRegionCode(region)) {
             throw new com.tcgdigital.vmcontrol.exception.ValidationException("region must be an AWS region code, such as eu-west-1");
         }
-        return securityService.isEnvAdmin()
+        return securityService.seesAllEnvironments()
                 ? (includeInactive
                         ? environmentService.getAllEnvironments(search, running, region, pageable)
                         : environmentService.getAllActiveEnvironments(search, running, region, pageable))

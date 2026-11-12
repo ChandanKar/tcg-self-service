@@ -333,14 +333,25 @@ public class SecurityService {
     }
 
     /**
-     * The level a user gets from their global role alone: ADMIN and ENV_ADMIN both act as
-     * ADMIN for visibility and operations; every other user gets nothing from their role.
+     * The level a user gets from their global role alone: ADMIN acts as ADMIN on every
+     * environment, and so does ENV_ADMIN when security.env-admin.scope=global. Under the default
+     * "assigned" scope an ENV_ADMIN gets nothing from the role: like everyone else, what they see
+     * and operate comes from their grants (U21-T23; before, the role alone let them see, start and
+     * stop every environment, although only granted ones could be administered).
      */
     private AccessLevel globalRoleLevel(User user) {
-        if (user != null && (user.isAdmin() || user.isEnvAdmin())) {
+        if (user != null && (user.isAdmin() || (user.isEnvAdmin() && ENV_ADMIN_SCOPE_GLOBAL.equalsIgnoreCase(envAdminScope)))) {
             return AccessLevel.ADMIN;
         }
         return null;
+    }
+
+    /**
+     * Whether the current user's role shows them every environment: ADMIN, or ENV_ADMIN with
+     * security.env-admin.scope=global. Others see the environments their grants cover.
+     */
+    public boolean seesAllEnvironments() {
+        return globalRoleLevel(userService.getCurrentUser()) != null;
     }
 
     private User loadUser(String userId) {

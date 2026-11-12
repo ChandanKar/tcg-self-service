@@ -94,8 +94,8 @@ class SecurityServiceTest extends AbstractIntegrationTest {
         ReflectionTestUtils.setField(security, "envAdminScope", "assigned");
         User envAdmin = newUser("envadmin@sec.test", false, true);
 
-        // Still sees and operates everywhere (global role), but administers nothing without a grant.
-        assertMatrix(envAdmin, new Expect(true, true, false));
+        // U21-T23: without a grant the role gives nothing under 'assigned' (it used to see and operate everywhere).
+        assertMatrix(envAdmin, new Expect(false, false, false));
 
         grant(envAdmin, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.ADMIN);
         assertMatrix(envAdmin, new Expect(true, true, true));

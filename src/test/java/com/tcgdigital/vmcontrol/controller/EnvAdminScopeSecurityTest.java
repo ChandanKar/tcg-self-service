@@ -147,6 +147,35 @@ class EnvAdminScopeSecurityTest extends SecuredWebTestBase {
     }
 
     @Test
+    void assignedScopeEnvAdminSeesAndOperatesOnlyGrantedEnvironments() throws Exception {
+        // U21-T23 (acceptance J21 on staging): the role alone showed every environment and let an
+        // environment admin start and stop any of them; only administering was limited to granted ones.
+        scope("assigned");
+        grantEnv(envAdmin, envA.getEnvironmentId(), AccessLevel.ADMIN);
+
+        mockMvc.perform(get("/api/v1/environments").with(asEnvAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].environmentId", everyItem(equalTo(envA.getEnvironmentId()))));
+        mockMvc.perform(get(a("")).with(asEnvAdmin())).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/environments/" + envB.getEnvironmentId()).with(asEnvAdmin())).andExpect(status().is4xxClientError());
+        expectError(mockMvc.perform(json(post("/api/v1/environments/" + envB.getEnvironmentId() + "/operations")
+                .with(asEnvAdmin()), "{\"operationType\":\"START\"}")), 403);
+        expectError(mockMvc.perform(json(post("/api/v1/environments/" + envB.getEnvironmentId() + "/lock/acquire")
+                .with(asEnvAdmin()), "{\"reason\":\"not mine\"}")), 403);
+    }
+
+    @Test
+    void globalScopeEnvAdminStillSeesEveryEnvironment() throws Exception {
+        scope("global");
+
+        String json = mockMvc.perform(get("/api/v1/environments").with(asEnvAdmin()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        java.util.List<String> ids = com.jayway.jsonpath.JsonPath.read(json, "$[*].environmentId");
+        assertThat(ids).contains(envA.getEnvironmentId(), envB.getEnvironmentId());
+        mockMvc.perform(get("/api/v1/environments/" + envB.getEnvironmentId()).with(asEnvAdmin())).andExpect(status().isOk());
+    }
+
+    @Test
     void plainUserWithAnAdminGrantStillNeedsTheRoleForRoleGatedEndpoints() throws Exception {
         grantEnv(operator, envA.getEnvironmentId(), AccessLevel.ADMIN);
 
