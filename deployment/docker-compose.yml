@@ -34,6 +34,11 @@ services:
   app:
     image: amazoncorretto:17-alpine
     container_name: vmcontrol-app
+    # A fixed hostname (U21-T22): each operation records the host that runs it, and at startup the app
+    # fails the runs its own host left behind. Without this a recreated container (every deploy) gets a
+    # new random hostname, so an operation cut off by the deploy stayed "In progress", blocking its
+    # environment, until the 30-minute stale sweep.
+    hostname: vmcontrol-app
     restart: unless-stopped
     depends_on:
       db:
