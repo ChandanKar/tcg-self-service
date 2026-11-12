@@ -233,6 +233,32 @@ test.describe('Phone layout (admin)', () => {
     expect(await expectInViewport(page, '[data-action="start-vm"], [data-action="stop-vm"]')).toBeGreaterThan(0);
   });
 
+  test('U22-T11: on a phone the cost reads, the schedule shows, and Insights taps with the groups open', async ({ page }) => {
+    await fakeGroups(page);
+    const days = Array.from({ length: 14 }, (_, i) => ({ date: `2026-10-${String(i + 10).padStart(2, '0')}`, estimated: 1 + (i % 4), actual: null }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/cost$/, route => route.fulfill({ json: {
+      environmentId: seededEnvId, scope: 'FULL', monthToDateEstimated: 32.56, monthToDateActual: null, changePercent: null,
+      forecastMonthEnd: 65.21, forecastBasis: 'run rate', daily: days, topVms: [],
+      scheduleStatus: { ruleCount: 1, nextStop: new Date(Date.now() + 22 * 3600_000).toISOString(), nextStart: null } } }));
+    await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
+    await expect(page.locator('.phone-env-state')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#env-cost-mtd')).toContainText('$32.56', { timeout: 15_000 });
+
+    // The figure and the 14-day bars do not overlap (the bars were drawn over the figure).
+    const mtd = (await page.locator('#env-cost-mtd').boundingBox())!;
+    const bars = (await page.locator('#env-cost-trend').boundingBox())!;
+    expect(bars.y, 'the bars start below the figure').toBeGreaterThanOrEqual(mtd.y + mtd.height - 1);
+    // The schedule row shows: when it stops next.
+    await expect(page.locator('.phone-env-details #env-fact-schedule')).toBeVisible();
+    await expect(page.locator('#env-cost-schedule')).not.toHaveText('');
+
+    // With a group open, Insights at the bottom can still be tapped above the bottom bar.
+    await page.locator('.phone-group-row', { hasText: 'Web tier' }).click();
+    const insights = page.locator('.phone-env-more #btn-env-insights');
+    await insights.scrollIntoViewIfNeeded();
+    await insights.click({ timeout: 5_000 });
+  });
+
   test('a viewer on a phone gets no start, stop, lock or extend control (U16-T03)', async ({ page }) => {
     await fakeGroups(page);
     await page.route(/\/api\/v1\/environments\/[^/?]+$/, async route => {

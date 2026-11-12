@@ -1951,11 +1951,22 @@
     background: #fff;
 }
 
-/* The details as compact rows: label, value, action; no hints, no second History, no schedule row. */
-.phone-env-details .env-fact-note,
-.phone-env-details [data-lock-action="history"],
-.phone-env-details #env-fact-schedule {
+/* The details as compact rows: label, value, action; no hints, no second History. U22-T11: the schedule row
+   shows ("when does it stop" was missing on phones), and so does the budget's own line (the bar had no words). */
+.phone-env-details .env-fact-note:not(#env-budget-summary),
+.phone-env-details [data-lock-action="history"] {
     display: none;
+}
+
+/* U22-T11: the 14-day bars get their own row under the figure; they were drawn over "$32.56 this month". */
+.phone-env-details .env-cost-bars {
+    grid-column: 1 / -1;
+    grid-row: 2;
+}
+
+/* U22-T11: the last row (Insights, Access, Settings) stays above the fixed bottom bar. */
+.phone-env {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 .phone-group-row {
