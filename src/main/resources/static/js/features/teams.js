@@ -91,7 +91,7 @@ const Teams = (function() {
 
     function refresh() {
         const token = pageToken;
-        Promise.all([call('GET', Config.API.teams.overview), call('GET', Config.API.environments.list).catch(() => [])]).then(([teams, envs]) => {
+        Promise.all([call('GET', Config.API.teams.overview), call('GET', Config.API.environments.listWithGroups).catch(() => [])]).then(([teams, envs]) => { // U22-T09: groupStates, or every strip read 0/0
             if (!ContentRouter.isCurrent(token)) return;
             state.teams = teams || [];
             state.environments = {};

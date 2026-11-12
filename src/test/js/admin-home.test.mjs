@@ -30,7 +30,7 @@ test('tiles: the mockup six with their counts, details and links; zero counts ar
     assert.deepEqual(plain(M.tiles(att, NOW)).map(t => [t.count, t.title, t.detail, t.href, t.tone]), [
         [3, 'Access requests', 'Oldest waiting 2 days', '#/pending-requests', 'navy'],
         [2, 'Approvals', 'Oldest waiting 8 h', '#/approvals', 'navy'],
-        [2, 'Failed operations, 24 h', 'Analytics QA, CRM UAT', '#/audit-logs-all', 'red'],
+        [2, 'Failed operations, 24 h', 'Analytics QA, CRM UAT', '#/audit-logs-all?result=failed&range=24h', 'red'], // U22-T09
         [3, 'VMs to review', '1 drift, 2 found by discovery', '#/vm-registry', 'gold'],
         [1, 'Budget almost used', 'CRM team at 96%', '#/budgets', 'red'],
         [1, 'Late scheduled job', 'Cost snapshot, 2 h late', '#/system-health', 'gold']]);

@@ -501,8 +501,16 @@
     font-size: 14px;
 }
 
-.rs-table .rs-vm,
 .rs-table .rs-change .cost-mono {
+    white-space: nowrap;
+}
+
+/* U22-T09: a long VM name wraps, so the action column ("Resize safely…") is never cut at 1366 px. */
+.rs-table .rs-vm {
+    overflow-wrap: anywhere;
+}
+
+.rs-table td:last-child {
     white-space: nowrap;
 }
 

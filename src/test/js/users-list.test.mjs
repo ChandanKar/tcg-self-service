@@ -14,8 +14,8 @@ const M = context.U.model;
 const plain = x => JSON.parse(JSON.stringify(x));
 
 const people = [
-    { email: 'meera@x.com', displayName: 'Meera Iyer', admin: true, envAdmin: true, active: true, signInMethod: 'MICROSOFT' },
-    { email: 'sanjay@x.com', displayName: 'Sanjay Rao', envAdmin: true, active: true, signInMethod: 'MICROSOFT' },
+    { email: 'meera@x.com', displayName: 'Meera Iyer', admin: true, envAdmin: true, active: true, signInMethod: 'MICROSOFT', lastLoginAt: '2026-11-01T09:00:00Z' },
+    { email: 'sanjay@x.com', displayName: 'Sanjay Rao', envAdmin: true, active: true, signInMethod: 'MICROSOFT', lastLoginAt: '2026-11-02T09:00:00Z' },
     { email: 'ops@x.com', displayName: 'Ops service', active: true, signInMethod: 'PASSWORD' },
     { email: 'divya@x.com', displayName: 'Divya Ghosh', active: true, pendingFirstLogin: true, signInMethod: 'MICROSOFT' },
     { email: 'bot@x.com', displayName: 'Bot', active: true, serviceAccount: true, pendingFirstLogin: true, signInMethod: 'NONE' },
@@ -30,7 +30,8 @@ test('plain role names and sign-in methods', () => {
 });
 
 test('counts: active, administrators, environment admins, not signed in yet (service accounts never sign in)', () => {
-    assert.deepEqual(plain(M.counts(people)), { active: 5, admins: 1, envAdmins: 1, notSignedIn: 1 });
+    // U22-T09: everyone active who never signed in, as the rows say (Ops and Divya; the bot is a service account).
+    assert.deepEqual(plain(M.counts(people)), { active: 5, admins: 1, envAdmins: 1, notSignedIn: 2 });
 });
 
 test('last sign-in', () => {

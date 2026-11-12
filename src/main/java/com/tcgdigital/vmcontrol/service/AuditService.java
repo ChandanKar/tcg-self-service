@@ -222,6 +222,9 @@ public class AuditService {
                 : auditLogRepository.countByFilter(f.restricted, f.allowed, filter.environmentId(), filter.userId(),
                         f.anyAction, f.actions, "failed", filter.from(), filter.to(), f.text);
         int successRate = total == 0 ? 0 : (int) Math.round((total - failures) * 100.0 / total);
+        if (failures > 0 && successRate >= 100) {
+            successRate = 99; // U22-T09: never "100% succeeded" next to "3 failed" (staging)
+        }
         Pageable top = PageRequest.of(0, 1);
         com.tcgdigital.vmcontrol.dto.AuditStatsDTO.Top topUser = auditLogRepository.topUsersByFilter(f.restricted, f.allowed,
                         filter.environmentId(), filter.userId(), f.anyAction, f.actions, f.status, filter.from(), filter.to(), f.text, top)

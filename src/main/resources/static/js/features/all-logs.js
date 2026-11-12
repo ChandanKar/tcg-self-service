@@ -183,6 +183,10 @@ const AllLogs = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">The audit log is for administrators and environment admins.</div>');
             return;
         }
+        // U22-T09: Home's "Failed operations, 24 h" opens the failures, not every row (state sync noise first).
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        if (q.result === 'failed') filters.resultStatus = 'false';
+        if (q.range && PERIOD_WORDS[q.range]) filters.timeRange = q.range;
         if (filters.timeRange !== 'custom') setPresetRange(filters.timeRange);
         filters.page = 0;
         Loading.showPage('Loading the audit log…');

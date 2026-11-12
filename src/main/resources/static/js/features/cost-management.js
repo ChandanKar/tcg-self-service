@@ -1528,8 +1528,12 @@ const CostManagement = (function() {
         if (!s) return `${state.rightsizing.totalElements || 0} suggestion${state.rightsizing.totalElements === 1 ? '' : 's'}`;
         const n = s.rightsizingCandidateCount || 0;
         if (!n) return 'No VM is bigger than it needs to be';
+        // U22-T09: the list below also holds suggestions without a saving (no smaller size fits, newer
+        // generation, larger): say so, so 68 here and "1-8 of 71" there agree.
+        const total = Number(state.rightsizing.totalElements || 0);
+        const more = total > n ? ` · ${total} suggestions in all, ${total - n} without a saving` : '';
         return `<b class="cost-mono">${n}</b> VM${n === 1 ? ' is' : 's are'} bigger than ${n === 1 ? 'it needs' : 'they need'} to be
-            · <b class="cost-mono rs-save">${money0(s.rightsizingPotentialSavings)}</b> a month to save`;
+            · <b class="cost-mono rs-save">${money0(s.rightsizingPotentialSavings)}</b> a month to save${more}`;
     }
 
     function buildRightsizingFilters() {

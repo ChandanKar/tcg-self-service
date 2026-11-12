@@ -587,7 +587,8 @@ const SystemHealth = (function () {
         const auditSuccess  = auditReport ? Number(auditReport.successfulActions) || 0 : 0;
         const auditFailures = auditReport ? Number(auditReport.failedActions) || 0 : 0;
         const decided       = auditSuccess + auditFailures;
-        const successRate   = decided > 0 ? Math.round((auditSuccess / decided) * 100) : null;
+        // U22-T09: never "100%" when something failed (staging: 642 of 645).
+        const successRate   = decided > 0 ? Math.min(auditFailures > 0 ? 99 : 100, Math.round((auditSuccess / decided) * 100)) : null;
         const successText   = successRate === null ? '—' : `${successRate}%`;
 
         const topEnvList = (auditReport && auditReport.environmentActivities) || [];

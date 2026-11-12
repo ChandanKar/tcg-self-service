@@ -57,7 +57,9 @@ const UserManagement = (function() {
             active: active.length,
             admins: active.filter(u => u.admin).length,
             envAdmins: active.filter(u => u.envAdmin && !u.admin).length,
-            notSignedIn: active.filter(u => u.pendingFirstLogin && !u.serviceAccount).length
+            // U22-T09: the same rule as the rows' "Not signed in yet" (no sign-in ever); staging's header said
+            // "0 haven't signed in yet" above rows that mostly said "Not signed in yet".
+            notSignedIn: active.filter(u => !u.lastLoginAt && !u.serviceAccount).length
         };
     }
 

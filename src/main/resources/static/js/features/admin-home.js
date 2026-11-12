@@ -57,7 +57,7 @@ const AdminHome = (function() {
         const stuck = Number(failed.stuck) || 0;
         const where = (failed.environmentNames || []).join(', ');
         add('failed', (Number(failed.count24h) || 0) + stuck, 'Failed operations, 24 h',
-            [where, stuck ? `${stuck} stopped reporting` : ''].filter(Boolean).join(' · '), '#/audit-logs-all', 'red');
+            [where, stuck ? `${stuck} stopped reporting` : ''].filter(Boolean).join(' · '), '#/audit-logs-all?result=failed&range=24h', 'red');
         const vms = att.vmsToReview || {};
         const drift = Number(vms.drift) || 0;
         const found = Number(vms.pendingReview) || 0;
