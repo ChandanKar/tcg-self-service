@@ -123,7 +123,22 @@
 
         .ra-page.page-frame .ra-form-card textarea {
             min-height: 0;
-            height: 60px;
+            height: 44px;
+        }
+
+        .ra-page.page-frame .ra-level {
+            margin-bottom: 0;
+            padding: 8px 10px;
+        }
+
+        .ra-page.page-frame .ra-levels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .ra-page.page-frame .ra-levels legend {
+            grid-column: 1 / -1;
         }
     }
 
@@ -667,5 +682,18 @@
         flex: 1 1 100%;
         text-align: left;
         min-height: 44px;
+    }
+}
+
+/* U22-T08: "Part of it" and "For" side by side, so the form fits a laptop window. */
+.ra-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 767px) {
+    .ra-pair {
+        grid-template-columns: minmax(0, 1fr);
     }
 }

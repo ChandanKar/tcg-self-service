@@ -297,11 +297,13 @@ const RequestAccess = (function() {
                     <label class="ra-level"><input type="radio" name="raLevel" value="VIEWER" ${level === 'VIEWER' ? 'checked' : ''} ${viewOnly ? 'disabled' : ''}>
                         <span><b>View only</b><span>${viewOnly ? 'You have this already' : 'See its state, cost and history'}</span></span></label>
                 </fieldset>
-                <label class="ra-field" for="ra-group">Part of it
-                    <select id="ra-group" class="form-select"><option value="">The whole environment</option></select>
-                    <span class="ra-hint" id="ra-group-hint"></span></label>
-                <label class="ra-field" for="ra-days">For
-                    <select id="ra-days" class="form-select">${Utils.raw(lengths.map(d => `<option value="${d}" ${d === chosenDays ? 'selected' : ''}>${d} days</option>`).join(''))}</select></label>
+                <div class="ra-pair">
+                    <label class="ra-field" for="ra-group">Part of it
+                        <select id="ra-group" class="form-select"><option value="">The whole environment</option></select>
+                        <span class="ra-hint" id="ra-group-hint"></span></label>
+                    <label class="ra-field" for="ra-days">For
+                        <select id="ra-days" class="form-select">${Utils.raw(lengths.map(d => `<option value="${d}" ${d === chosenDays ? 'selected' : ''}>${d} days</option>`).join(''))}</select></label>
+                </div>
                 <label class="ra-field" for="ra-reason">Why you need it
                     <textarea id="ra-reason" class="form-control" rows="3" maxlength="1000" placeholder="For example: regression testing for release 4.2"
                         aria-invalid="${String(!!err.reason)}" aria-describedby="ra-reason-error"></textarea>
