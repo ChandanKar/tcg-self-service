@@ -125,3 +125,12 @@ test('without a lease the start runs to the next scheduled stop, or until someon
     assert.equal(none.text, 'They run until someone stops them: no schedule stops this environment.');
     assert.equal(M.runWithoutLease(new Date(2026, 10, 12, 9, 0).toISOString(), now).hours, null, 'a stop in the past is no stop');
 });
+
+test('a stop names the VMs someone else started (U22-T10)', () => {
+    const M = load();
+    const at = new Date(2026, 10, 12, 7, 1).toISOString();
+    const t = (name, startedBy, startedByUserId) => ({ vm: { vmId: name, name, status: 'RUNNING', startedBy, startedByUserId, startedAt: at } });
+    assert.equal(M.othersStarted([t('master-01', 'Sayan Hazra', 'u-sayan')], 'u-me'),
+        'Someone else started this VM. master-01: started by Sayan Hazra at 07:01.');
+    assert.equal(M.othersStarted([t('mine', 'Me', 'u-me'), t('sched', 'the schedule Office hours', null), t('aws', 'outside the platform', null)], 'u-me'), '');
+});

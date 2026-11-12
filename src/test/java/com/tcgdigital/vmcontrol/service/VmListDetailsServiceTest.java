@@ -101,6 +101,68 @@ class VmListDetailsServiceTest extends AbstractIntegrationTest {
         assertThat(details.get(stopped.getVmId()).stateSince().toInstant()).isEqualTo(at(19, 45));
     }
 
+    @Autowired private com.tcgdigital.vmcontrol.repository.OperationExecutionRepository executionRepository;
+    @Autowired private com.tcgdigital.vmcontrol.repository.OperationDetailRepository operationDetailRepository;
+
+    /** A completed start of vm by a person (or a schedule), finished at the given moment. */
+    private void startedBy(Vm vm, String userId, com.tcgdigital.vmcontrol.model.OperationTriggerSource source,
+                           String ruleName, Instant completedAt) {
+        com.tcgdigital.vmcontrol.model.OperationExecution e = new com.tcgdigital.vmcontrol.model.OperationExecution();
+        e.setExecutionId(UUID.randomUUID().toString());
+        e.setEnvironment(vm.getGroup().getEnvironment());
+        e.setOperationType(com.tcgdigital.vmcontrol.model.OperationType.START);
+        e.setStatus(com.tcgdigital.vmcontrol.model.ExecutionStatus.COMPLETED);
+        e.setInitiatedByUserId(userId);
+        e.setTriggerSource(source);
+        e.setTriggerName(ruleName);
+        e.setStartedAt(Timestamp.from(completedAt.minusSeconds(90)));
+        e.setTotalTargets(1);
+        executionRepository.saveAndFlush(e);
+        com.tcgdigital.vmcontrol.model.OperationDetail d = new com.tcgdigital.vmcontrol.model.OperationDetail();
+        d.setDetailId(UUID.randomUUID().toString());
+        d.setExecution(e);
+        d.setTargetType("vm");
+        d.setTargetId(vm.getVmId());
+        d.setTargetName(vm.getName());
+        d.setAction("start");
+        d.setStatus("completed");
+        d.setSequencePosition(1);
+        d.setStartedAt(Timestamp.from(completedAt.minusSeconds(90)));
+        d.setCompletedAt(Timestamp.from(completedAt));
+        operationDetailRepository.saveAndFlush(d);
+    }
+
+    @Test
+    void aRunningVmSaysWhoStartedIt() {
+        // U22-T10 (staging review): stopping someone else's VM gave no warning.
+        Instant recent = Instant.now().minus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        VmGroup group = newGroup(newEnvironment("Started by"), "app");
+        com.tcgdigital.vmcontrol.model.User sayan = newUser("sayan.started@example.com", false, false);
+        sayan.setDisplayName("Sayan Hazra");
+        userRepository.saveAndFlush(sayan);
+        Vm byPerson = newVm(group, "app-01", VmStatus.RUNNING);
+        Vm bySchedule = newVm(group, "app-02", VmStatus.RUNNING);
+        Vm inAws = newVm(group, "app-03", VmStatus.RUNNING);
+        Vm stopped = newVm(group, "app-04", VmStatus.STOPPED);
+        transition(byPerson, VmStatus.RUNNING, recent.plusSeconds(30));
+        transition(bySchedule, VmStatus.RUNNING, recent.plusSeconds(20));
+        transition(inAws, VmStatus.RUNNING, recent);
+        startedBy(byPerson, sayan.getUserId(), com.tcgdigital.vmcontrol.model.OperationTriggerSource.MANUAL, null, recent);
+        startedBy(bySchedule, sayan.getUserId(), com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE, "Office hours", recent);
+        startedBy(inAws, sayan.getUserId(), com.tcgdigital.vmcontrol.model.OperationTriggerSource.MANUAL, null,
+                recent.minus(2, ChronoUnit.HOURS)); // an older run: this time it was started in AWS
+
+        Map<String, VmListDetailsService.Details> details = detailsService.detailsFor(List.of(byPerson, bySchedule, inAws, stopped));
+
+        assertThat(details.get(byPerson.getVmId()).startedBy()).isEqualTo("Sayan Hazra");
+        assertThat(details.get(byPerson.getVmId()).startedByUserId()).isEqualTo(sayan.getUserId());
+        assertThat(details.get(byPerson.getVmId()).startedAt().toInstant()).isEqualTo(recent);
+        assertThat(details.get(bySchedule.getVmId()).startedBy()).isEqualTo("the schedule Office hours");
+        assertThat(details.get(bySchedule.getVmId()).startedByUserId()).isNull();
+        assertThat(details.get(inAws.getVmId()).startedBy()).isEqualTo("outside the platform");
+        assertThat(details.get(stopped.getVmId()).startedBy()).isNull();
+    }
+
     @Test
     void theInstanceTypeComesFromTheInventorySnapshot() {
         VmGroup group = newGroup(newEnvironment("Sizes"), "data");

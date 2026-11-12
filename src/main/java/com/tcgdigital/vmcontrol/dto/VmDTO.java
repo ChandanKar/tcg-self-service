@@ -287,6 +287,21 @@ public class VmDTO {
         this.stateSince = stateSince;
     }
 
+    /**
+     * Who started a running VM (U22-T10): a person's name, "the schedule <name>", or "outside the
+     * platform" when it began running with no start of ours; null when not running or not known.
+     */
+    private String startedBy;
+    private String startedByUserId;
+    private Timestamp startedAt;
+
+    public String getStartedBy() { return startedBy; }
+    public void setStartedBy(String startedBy) { this.startedBy = startedBy; }
+    public String getStartedByUserId() { return startedByUserId; }
+    public void setStartedByUserId(String startedByUserId) { this.startedByUserId = startedByUserId; }
+    public Timestamp getStartedAt() { return startedAt; }
+    public void setStartedAt(Timestamp startedAt) { this.startedAt = startedAt; }
+
     public java.math.BigDecimal getCpuAvg24h() {
         return cpuAvg24h;
     }

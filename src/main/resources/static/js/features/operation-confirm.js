@@ -144,6 +144,25 @@ const OperationConfirm = (function() {
         return { hours: null, text: 'They run until someone stops them: no schedule stops this environment.' };
     }
 
+    /**
+     * Before a stop (U22-T10): the running VMs someone else started, so nobody stops a colleague's work
+     * unawares. "Sayan Hazra started master-01 at 07:01." (at most three, then "and 2 more"); '' when the
+     * person stopping started them all, or nobody is known.
+     */
+    function othersStarted(targets, myUserId, now = new Date()) {
+        const others = targets.map(t => t.vm).filter(vm => vm.status === 'RUNNING' && vm.startedBy
+            && vm.startedBy !== 'outside the platform' && !vm.startedBy.startsWith('the schedule')
+            && vm.startedByUserId && vm.startedByUserId !== myUserId);
+        if (!others.length) return '';
+        const lines = others.slice(0, 3).map(vm => {
+            const at = vm.startedAt ? new Date(vm.startedAt) : null;
+            const when = at && !Number.isNaN(at.getTime()) ? ` at ${pad(at.getHours())}:${pad(at.getMinutes())}` : '';
+            return `${vm.displayName || vm.name}: started by ${vm.startedBy}${when}.`;
+        });
+        const more = others.length > 3 ? ` And ${others.length - 3} more.` : '';
+        return `Someone else started ${others.length === 1 ? 'this VM' : 'these VMs'}. ${lines.join(' ')}${more}`;
+    }
+
     /** "No approval needed", "Needs Sanjay Rao" or the block reason, from an evaluate answer. */
     function approvalText(decision) {
         if (!decision) return { text: 'Approval is checked when you start', needs: false, blocked: false };
@@ -247,7 +266,10 @@ const OperationConfirm = (function() {
             </div>
             ${chips.length ? '' : '<p class="op-confirm-hint" id="op-confirm-run" aria-live="polite"></p>'}
             <div class="op-confirm-note" id="quota-preview-line" aria-live="polite" hidden></div>` : '';
+        const me = typeof Auth !== 'undefined' && Auth.getUserId ? Auth.getUserId() : null;
+        const others = starting ? '' : othersStarted(targets, me);
         return `
+            ${others ? `<p class="op-confirm-others" id="op-confirm-others" role="note">${Utils.escapeHtml(others)}</p>` : ''}
             <p class="dialog-lead" id="op-confirm-sentence">${Utils.escapeHtml(groupSentence(env, opType, scope, targets))}
                 <span id="op-confirm-estimate"></span></p>
             ${targets.length ? `<div class="op-confirm-targets">${stripHtml(env, targets)}<span>${namesLine(targets)}</span></div>` : ''}
@@ -388,7 +410,7 @@ const OperationConfirm = (function() {
         refreshChoice();
     }
 
-    return { open, model: { targetsFor, groupSentence, durationChips, hintFor, runWithoutLease, approvalText, titleFor, costNote, joinNames } };
+    return { open, model: { targetsFor, groupSentence, durationChips, hintFor, runWithoutLease, othersStarted, approvalText, titleFor, costNote, joinNames } };
 })();
 
 if (typeof window !== 'undefined') window.OperationConfirm = OperationConfirm;

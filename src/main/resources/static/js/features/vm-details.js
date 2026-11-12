@@ -297,6 +297,10 @@ const VmDetails = (function() {
         if (line) $header.prepend(Utils.html`<div class="vm-head-kicker vm-head-extra">${line}</div>`);
         const chip = stateChip(vm);
         $header.find('h3').after(Utils.html`<span class="vm-state-chip vm-head-extra" data-kind="${chip.kind}">${chip.text}</span>`);
+        // U22-T10: who started it, so nobody stops someone else's VM without knowing.
+        const by = typeof EnvVmTable !== 'undefined' && EnvVmTable.model && EnvVmTable.model.startedByText
+            ? EnvVmTable.model.startedByText(vm) : '';
+        if (by) $header.find('.vm-state-chip').after(Utils.html`<span class="vm-started-by vm-head-extra">${by}</span>`);
         const action = headerAction(vm);
         if (action) {
             $header.find('.close-btn').before(Utils.html`<button type="button" class="btn btn-sm vm-head-extra vm-head-action ${action.op === 'STOP' ? 'btn-outline-danger' : 'btn-outline-success'}"

@@ -118,3 +118,14 @@ test('EKS capacity in words and node totals across node groups', () => {
     ] };
     assert.deepEqual({ ...M.nodeTotals(env) }, { running: 3, total: 5 });
 });
+
+test('who started a running VM (U22-T10)', () => {
+    const M = load();
+    const now = new Date(2026, 10, 12, 15, 0);
+    const at = new Date(2026, 10, 12, 7, 1).toISOString();
+    assert.equal(M.startedByText({ status: 'RUNNING', startedBy: 'Sayan Hazra', startedAt: at }, now), 'Started by Sayan Hazra at 07:01');
+    assert.equal(M.startedByText({ status: 'RUNNING', startedBy: 'the schedule Office hours', startedAt: new Date(2026, 10, 11, 6, 30).toISOString() }, now),
+        'Started by the schedule Office hours at 06:30, 11 Nov');
+    assert.equal(M.startedByText({ status: 'RUNNING', startedBy: 'outside the platform' }, now), 'Started outside the platform');
+    assert.equal(M.startedByText({ status: 'STOPPED', startedBy: 'Sayan Hazra' }, now), '');
+});

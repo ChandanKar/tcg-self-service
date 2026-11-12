@@ -46,6 +46,19 @@ const EnvVmTable = (function() {
         }
     }
 
+    /**
+     * Who started a running VM (U22-T10): "Started by Sayan Hazra at 07:01", "Started by the schedule
+     * Office hours at 06:30", "Started outside the platform"; '' when not running or not known.
+     */
+    function startedByText(vm, now = new Date()) {
+        if (!vm || vm.status !== 'RUNNING' || !vm.startedBy) return '';
+        if (vm.startedBy === 'outside the platform') return 'Started outside the platform';
+        const at = toDate(vm.startedAt);
+        if (!at) return `Started by ${vm.startedBy}`;
+        const today = at.toDateString() === now.toDateString();
+        return `Started by ${vm.startedBy} at ${pad(at.getHours())}:${pad(at.getMinutes())}${today ? '' : `, ${at.getDate()} ${MONTHS[at.getMonth()]}`}`;
+    }
+
     /** "23%" from the 24 h average; "—" without samples. */
     function cpu(vm) {
         const value = vm.cpuAvg24h;
@@ -126,7 +139,7 @@ const EnvVmTable = (function() {
                 <td class="td-primary env-vm-name" data-label="VM"><div class="env-vm-name-line"><span class="env-vm-name-text" title="${name}">` + breakable(name) + '</span>' + badges + Utils.html`</div></td>
                 <td class="env-vm-ip" data-label="IP address"><span class="mono">${vm.privateIp || '—'}</span></td>
                 <td class="env-vm-size" data-label="Size"><span class="mono">${vm.instanceType || '—'}</span></td>
-                <td class="env-vm-state" data-label="State"><span class="env-vm-state-text state-${s.kind}"><span class="env-vm-dot" aria-hidden="true"></span>${s.text}</span>`
+                <td class="env-vm-state" data-label="State"><span class="env-vm-state-text state-${s.kind}" title="${startedByText(vm)}"><span class="env-vm-dot" aria-hidden="true"></span>${s.text}</span>`
             + rdsNote(vm, opts.rdsNote) + Utils.html`</td>
 ` + (opts.noCpu ? '' : Utils.html`
                 <td class="env-vm-cpu" data-label="CPU 24 h"><span class="mono">${cpu(vm)}</span></td>`) + Utils.html`
@@ -424,7 +437,7 @@ const EnvVmTable = (function() {
 
     return {
         render, renderLarge, renderEks, nodeTotals, defaultGroupId, capacityText,
-        model: { state, cpu, vmAction, groupActions, orderText, countByState, filterVms, pageOf, groupNote, defaultGroupId,
+        model: { state, startedByText, cpu, vmAction, groupActions, orderText, countByState, filterVms, pageOf, groupNote, defaultGroupId,
             capacityText, nodeTotals },
     };
 })();
