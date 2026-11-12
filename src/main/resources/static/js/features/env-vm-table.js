@@ -145,7 +145,8 @@ const EnvVmTable = (function() {
         ).join('');
         return Utils.html`
             <tr class="env-group-row" data-group-id="${group.groupId}">
-                <th scope="rowgroup" colspan="5">${name} <span class="env-group-order">${orderText(group, groupNames)}</span></th>
+                <th scope="rowgroup" colspan="4">${name} <span class="env-group-order">${orderText(group, groupNames)}</span></th>
+                <td class="env-vm-cpu env-col-spacer" aria-hidden="true"></td>
                 <td class="td-actions env-group-actions">` + buttons + '</td></tr>';
     }
 
@@ -168,7 +169,7 @@ const EnvVmTable = (function() {
             const vms = gd.vms || [];
             const canOperate = !!opts.canOperate && (typeof gd.viewerCanOperate === 'boolean' ? gd.viewerCanOperate : true);
             const rows = vms.length ? vms.map(vm => vmRow(vm, canOperate, o)).join('')
-                : '<tr class="env-vm-row env-vm-none"><td colspan="6">No VMs in this group</td></tr>';
+                : '<tr class="env-vm-row env-vm-none"><td colspan="5">No VMs in this group</td><td class="env-vm-cpu env-col-spacer" aria-hidden="true"></td></tr>';
             return `<tbody class="env-group">${groupRow(group, vms, canOperate, groupNames)}${rows}</tbody>`;
         }).join('');
         return `
@@ -180,7 +181,7 @@ const EnvVmTable = (function() {
                             <th scope="col">IP address</th>
                             <th scope="col">Size</th>
                             <th scope="col">State</th>
-                            <th scope="col">CPU 24 h</th>
+                            <th scope="col" class="env-vm-cpu">CPU 24 h</th>
                             <th scope="col"><span class="visually-hidden">Actions</span></th>
                         </tr>
                     </thead>

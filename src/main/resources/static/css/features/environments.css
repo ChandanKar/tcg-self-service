@@ -463,6 +463,21 @@
     }
 }
 
+/* Windows under 1366 px wide (U21-T20): at 1280 x 720 the name column was about 40 px and a name such as
+   mcube_dev_poc_worker2_100.112.1.170 took seven lines. There the CPU 24 h column (and the spacer that
+   keeps each group's button in the action column) gives its width to the name. Phones show cards. */
+@media (min-width: 768px) and (max-width: 1365px) {
+    .env-vm-table .env-vm-cpu {
+        display: none;
+    }
+}
+
+@media (max-width: 767px) {
+    .env-vm-table .env-col-spacer {
+        display: none;
+    }
+}
+
 .env-vm-state-text {
     display: inline-flex;
     align-items: center;

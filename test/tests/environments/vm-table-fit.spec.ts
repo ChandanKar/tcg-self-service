@@ -11,6 +11,8 @@ import { canSignIn, devIds } from '../../fixtures/auth';
 test.describe('Environment page: the VM table fits its card', () => {
   test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
 
+  const names = ['mcube_dev_poc_master_100.112.1.135', 'mcube_dev_poc_work1_100.112.1.162', 'mcube_dev_poc_worker2_100.112.1.170'];
+
   async function api(playwright: any): Promise<APIRequestContext> {
     return playwright.request.newContext({
       baseURL: process.env.BASE_URL || 'http://localhost:8080',
@@ -18,12 +20,12 @@ test.describe('Environment page: the VM table fits its card', () => {
     });
   }
 
-  test('34-character VM names at 1366 x 657: every row and group button shows, each name is readable in full', async ({ page, playwright }) => {
+  /** An environment with ISE's three long names, its rows faked as staging shows them; returns its id. */
+  async function seedIse(page: any, playwright: any): Promise<string> {
     const admin = await api(playwright);
     const stamp = Date.now();
     const env = await (await admin.post('/api/v1/environments', { data: { name: `fit-${stamp}`, displayName: `Fit ${stamp}`,
       cloudProvider: 'AWS', region: 'ap-south-1' } })).json();
-    const names = ['mcube_dev_poc_master_100.112.1.135', 'mcube_dev_poc_work1_100.112.1.162', 'mcube_dev_poc_worker2_100.112.1.170'];
     for (let i = 0; i < names.length; i++) {
       const group = await (await admin.post(`/api/v1/environments/${env.environmentId}/groups`, { data: { name: `group-${i + 1}`,
         displayName: `Group-${i + 1}`, sequencePosition: i + 1 } })).json();
@@ -40,9 +42,14 @@ test.describe('Environment page: the VM table fits its card', () => {
         privateIp: String(vm.displayName).split('_').pop(), instanceType: 'm6a.xlarge', status: 'STOPPED', cpuAvg24h: 13 })));
       await route.fulfill({ json: groups });
     });
+    return env.environmentId;
+  }
+
+  test('34-character VM names at 1366 x 657: every row and group button shows, each name is readable in full', async ({ page, playwright }) => {
+    const envId = await seedIse(page, playwright);
     await page.setViewportSize({ width: 1366, height: 657 });
     await page.context().setExtraHTTPHeaders({ 'X-User-Id': devIds.admin! });
-    await page.goto(`/home#/environments/${env.environmentId}`);
+    await page.goto(`/home#/environments/${envId}`);
     const table = page.locator('.env-vm-table');
     await expect(table.locator('.env-vm-row')).toHaveCount(3, { timeout: 15_000 });
 
@@ -71,5 +78,36 @@ test.describe('Environment page: the VM table fits its card', () => {
     expect(fit.namesCut).toBe(0);
     expect(fit.cpuLines).toBeLessThanOrEqual(2);
     await expect(table.locator('thead th').nth(4)).toHaveText('CPU 24 h');
+  });
+
+  test('U21-T20: at 1280 x 720 the CPU column gives way, names get room and the buttons stay in their column', async ({ page, playwright }) => {
+    const envId = await seedIse(page, playwright);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.context().setExtraHTTPHeaders({ 'X-User-Id': devIds.admin! });
+    await page.goto(`/home#/environments/${envId}`);
+    const table = page.locator('.env-vm-table');
+    await expect(table.locator('.env-vm-row')).toHaveCount(3, { timeout: 15_000 });
+    await expect(table.locator('thead th', { hasText: 'CPU 24 h' })).toBeHidden();
+
+    const fit = await page.evaluate(() => {
+      const card = document.querySelector('.env-vms-panel')!.getBoundingClientRect();
+      const inCard = (el: Element) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= card.left - 1 && b.right <= card.right + 1; };
+      const buttons = [...document.querySelectorAll('.env-vm-table .env-vm-actions .btn, .env-vm-table .env-group-actions .btn')];
+      const nameCells = [...document.querySelectorAll('.env-vm-row td.env-vm-name')] as HTMLElement[];
+      const nameTexts = [...document.querySelectorAll('.env-vm-name-text')] as HTMLElement[];
+      const right = (sel: string) => [...document.querySelectorAll(sel)].map(e => Math.round(e.getBoundingClientRect().right));
+      return {
+        buttons: buttons.length, buttonsInCard: buttons.filter(inCard).length,
+        nameWidth: Math.min(...nameCells.map(c => Math.round(c.getBoundingClientRect().width))),
+        nameLines: Math.max(...nameTexts.map(n => Math.round(n.getBoundingClientRect().height / parseFloat(getComputedStyle(n).lineHeight || '18')))),
+        groupActionRight: right('.env-group-actions'), vmActionRight: right('.env-vm-row td:last-child'),
+      };
+    });
+    expect(fit.buttons).toBe(9);
+    expect(fit.buttonsInCard, `${fit.buttonsInCard} of 9 buttons inside the card`).toBe(9);
+    expect(fit.nameWidth, 'the VM name column has room').toBeGreaterThanOrEqual(110);
+    expect(fit.nameLines, 'a 34-character name takes at most three lines').toBeLessThanOrEqual(3);
+    // Each group's button sits in the same column as the VMs' buttons.
+    expect(new Set([...fit.groupActionRight, ...fit.vmActionRight]).size).toBe(1);
   });
 });
