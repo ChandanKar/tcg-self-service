@@ -77,7 +77,7 @@ test.describe('Administrator Home', () => {
     await expect(access).toContainText('Oldest waiting 2 days');
     await expect(access).toHaveAttribute('href', '#/pending-requests');
     await expect(page.locator('.ah-tile')).toHaveCount(3); // nothing for approvals, failures or budgets
-    await expect(page.locator('.ah-tile[data-tile="vms"]')).toContainText('1 drift, 2 found by discovery');
+    await expect(page.locator('.ah-tile[data-tile="vms"]')).toContainText('1 changed outside the platform, 24 h, 2 found by discovery');
     // Acceptance: a late cost snapshot job: the health line names it and links to System health.
     const health = page.locator('.ah-health');
     await expect(health).toHaveAttribute('href', '#/system-health');

@@ -667,11 +667,16 @@ const Environments = (function() {
     }
 
     /** Load another page, filter or search into the mounted list, keeping the toolbar. */
+    // Only the newest list request draws (U22): the window-fit request sent on mount, without the search,
+    // could return after a search typed meanwhile and put back the unfiltered rows.
+    let envListRequest = 0;
+
     async function refreshEnvList(page) {
         const t = ContentRouter.token();
+        const mine = ++envListRequest;
         try {
             const pageResult = await fetchEnvironmentsPage(page, envSearchTerm, envStateFilter);
-            if (!ContentRouter.isCurrent(t)) return;
+            if (!ContentRouter.isCurrent(t) || mine !== envListRequest) return;
             envCurrentPage = page;
             environmentsList = pageResult.content;
             envTotalElements = pageResult.totalElements;
@@ -683,6 +688,7 @@ const Environments = (function() {
             renderEnvPagination(envTotalElements, envCurrentPage);
             if (envListPanel) envListPanel.refresh();
         } catch (error) {
+            if (mine !== envListRequest) return;
             console.error('Failed to load environments page:', error);
             $('#env-list-body').html(`<tr><td colspan="9">${UiStates.failed({ what: 'This page of environments', xhr: error,
                 onRetry: () => refreshEnvList(envCurrentPage) })}</td></tr>`);
