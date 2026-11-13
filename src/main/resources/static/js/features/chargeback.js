@@ -96,6 +96,30 @@ const Chargeback = (function() {
         return cents === 10000 ? { ok: true, text: '100% ✓' } : { ok: false, text: `${total}%, needs 100%` };
     }
 
+    /** "12 Nov" for "2026-11-12". */
+    function dayText(value) {
+        const t = String(value || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return '';
+        const [y, m, d] = t.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    }
+
+    /**
+     * Which days the statement covers, beside its total (U23-T02). Staging's reviewer read "$4,764" as
+     * November's charge: the page opens on last month (October), and the month list reads "November 2026
+     * (so far)". The line names the month and its days; for the current month it gives Cost management's
+     * month to date (fleet), which also counts today so far, so the two can be compared honestly.
+     */
+    function periodText(statement, current, fleet) {
+        if (!statement || !statement.dataThrough) return '';
+        const month = monthLabel(statement.month);
+        const from = dayText(statement.dataFrom).split(' ')[0];
+        const days = `${month}, ${from} to ${dayText(statement.dataThrough)}, from the daily cost snapshots.`;
+        if (!current) return days;
+        if (!fleet || fleet.monthToDate === null || fleet.monthToDate === undefined) return days;
+        return `${days} Cost management's month to date, ${money0(fleet.monthToDate)}, adds today so far.`;
+    }
+
     /** What each team would have paid last month under the rule (null when it depends on their own cost). */
     function shareAmounts(method, cost, percents) {
         if (cost == null) return percents.map(() => null);
@@ -118,7 +142,7 @@ const Chargeback = (function() {
             month: /^\d{4}-\d{2}$/.test(q.month || '') ? q.month : monthValue(1),
             statement: null, statementError: false, expanded: new Set(),
             rules: null, rulesError: false, selected: null, draft: null,
-            teams: [], environments: [], lastMonth: null, tags: null
+            teams: [], environments: [], lastMonth: null, tags: null, fleet: null
         };
         render();
         loadStatement();
@@ -208,6 +232,7 @@ const Chargeback = (function() {
             if (!ContentRouter.isCurrent(token) || state.month !== month) return;
             state.statement = statement;
             if (month === monthValue(1)) state.lastMonth = statement;
+            if (month === monthValue(0)) loadFleetMonth(token);
             drawToolbar();
             updateTagTabLabel();
             drawTab();
@@ -216,6 +241,15 @@ const Chargeback = (function() {
             state.statementError = xhr || true;
             drawTab();
         });
+    }
+
+    /** Cost management's month to date for the current month's statement (U23-T01's figure). */
+    function loadFleetMonth(token) {
+        call('GET', Config.API.costManagement.month).then(fleet => {
+            if (!ContentRouter.isCurrent(token) || state.month !== monthValue(0)) return;
+            state.fleet = fleet || null;
+            drawStatement();
+        }).catch(() => {});
     }
 
     function canFinalize() {
@@ -255,7 +289,9 @@ const Chargeback = (function() {
                 <span>${String(gap.environments.length)} environment${gap.environments.length === 1 ? ' has' : 's have'} no team, so
                     <span class="cost-mono">${money0(gap.amount)}</span> sits in Unassigned.</span>
                 <a href="#/teams">Assign teams</a></div>` : '';
+        const period = periodText(s, state.month === monthValue(0), state.fleet);
         panel('statement').html(Utils.html`${Utils.raw(banner)}${Utils.raw(statementTable(s))}
+            ${Utils.raw(period ? Utils.html`<p class="cost-note" id="chargeback-period">${period}</p>` : '')}
             <p class="cost-note chargeback-foot" id="chargeback-foot">${footText(s)}</p><span id="chargeback-status" hidden>${s.status}</span>`);
     }
 
@@ -630,7 +666,7 @@ const Chargeback = (function() {
 
     return {
         load, showTab, toggle, finalize, download, loadStatement, loadRules, pick, addShare, removeShare, saveRule, deleteRule, tagNow,
-        model: { unassigned, environmentCosts, percentCheck, shareAmounts }
+        model: { unassigned, environmentCosts, percentCheck, shareAmounts, periodText }
     };
 })();
 

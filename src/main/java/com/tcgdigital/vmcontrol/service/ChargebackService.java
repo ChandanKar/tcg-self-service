@@ -229,7 +229,12 @@ public class ChargebackService {
         LocalDate end = month.atEndOfMonth();
 
         Map<String, EnvironmentMonth> byEnvironment = new LinkedHashMap<>();
+        LocalDate dataFrom = null;
+        LocalDate dataThrough = null;
         for (CostDailySnapshot s : snapshotRepository.findWithEnvironmentAndTeamBetween(Date.valueOf(start), Date.valueOf(end))) {
+            LocalDate day = s.getSnapshotDate().toLocalDate();
+            dataFrom = dataFrom == null || day.isBefore(dataFrom) ? day : dataFrom;
+            dataThrough = dataThrough == null || day.isAfter(dataThrough) ? day : dataThrough;
             EnvironmentMonth em = byEnvironment.computeIfAbsent(s.getEnvironment().getEnvironmentId(),
                     id -> new EnvironmentMonth(s.getEnvironment()));
             BigDecimal value = s.getActualCost() != null ? s.getActualCost() : s.getEstimatedCost();
@@ -311,7 +316,7 @@ public class ChargebackService {
         }
 
         return new ChargebackDTO(month.toString(), rows, totals, dataSource(actualDays, days), Instant.now(),
-                ChargebackStatement.Status.DRAFT.name());
+                ChargebackStatement.Status.DRAFT.name()).withDays(dataFrom, dataThrough);
     }
 
     private static ChargebackRowDTO row(Bucket b) {

@@ -105,6 +105,37 @@ class ChargebackServiceTest extends AbstractIntegrationTest {
         assertThat(c.dataSource()).startsWith("Estimates only");
     }
 
+    /**
+     * U23-T02: staging's statement charged CloudOps $4,764 while November's snapshots added up to
+     * $2,641. Nothing was counted twice: the page opens on last month (October, $4,764 in both review
+     * rounds), and the reviewer read the month list's "November 2026 (so far)" as the month shown.
+     * One team, no split rules: the total is the snapshots' sum, once, and the statement names its days.
+     */
+    @Test
+    void oneTeamWithoutRulesIsChargedTheSnapshotsOnce() {
+        Team ops = team("CloudOps", null);
+        Environment a = env("Ops A", ops);
+        Environment b = env("Ops B", ops);
+        for (int day = 1; day <= 12; day++) {
+            cost(a, day, "100.00", null);
+            cost(b, day, "10.00", day <= 2 ? "12.00" : null);
+        }
+        cost(b, MONTH.lengthOfMonth(), "5.00", null);
+
+        ChargebackDTO c = chargebackService.compute(MONTH);
+
+        BigDecimal snapshotsSum = new BigDecimal("1200.00").add(new BigDecimal("124.00")).add(new BigDecimal("5.00"));
+        assertThat(c.rows()).hasSize(1);
+        assertThat(row(c, "CloudOps").directCost()).isEqualByComparingTo(snapshotsSum);
+        assertThat(row(c, "CloudOps").sharedAllocated()).isEqualByComparingTo("0");
+        assertThat(row(c, "CloudOps").total()).isEqualByComparingTo(snapshotsSum);
+        assertThat(c.totals().total()).isEqualByComparingTo(snapshotsSum);
+        assertThat(c.dataFrom()).isEqualTo(MONTH.atDay(1));
+        assertThat(c.dataThrough()).isEqualTo(MONTH.atEndOfMonth());
+        // The current month: a different total, covering only its own days.
+        assertThat(chargebackService.compute(YearMonth.now()).totals().total()).isEqualByComparingTo("0");
+    }
+
     @Test
     void actualsWinOverEstimatesAndCoverageIsReported() {
         Team x = team("Billing", null);

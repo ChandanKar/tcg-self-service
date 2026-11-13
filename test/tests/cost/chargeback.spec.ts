@@ -23,7 +23,7 @@ const MONTH = lastMonth();
 
 function statement(status: 'DRAFT' | 'FINAL') {
   return {
-    month: MONTH, status, generatedAt: new Date().toISOString(),
+    month: MONTH, status, generatedAt: new Date().toISOString(), dataFrom: `${MONTH}-01`, dataThrough: `${MONTH}-28`,
     dataSource: 'Estimates only (no AWS billing data for this month)',
     rows: [
       { teamId: 't-x', teamName: 'Team X', costCenter: 'CC-X', directCost: 300, sharedAllocated: 50, total: 350, actualCoveragePct: 0,
@@ -91,6 +91,9 @@ test.describe('Chargeback page', () => {
     await expect(page.locator('#chargeback-banner')).toContainText('1 environment has no team, so $20 sits in Unassigned.');
     await expect(page.locator('#chargeback-banner').getByRole('link', { name: 'Assign teams' })).toHaveAttribute('href', '#/teams');
     await expect(page.locator('#chargeback-foot')).toContainText("Draft. It is finalised early in");
+    // U23-T02: the statement names its month and the days it covers (staging's $4,764 was read as November's).
+    await expect(page.locator('#chargeback-period')).toContainText(', 1 to 28 ');
+    await expect(page.locator('#chargeback-period')).toContainText('from the daily cost snapshots.');
     // The tab counts the real environments without a team (only the statement is faked here).
     await expect(page.getByRole('tab', { name: /^Missing tags · \d+$/ })).toBeVisible();
 

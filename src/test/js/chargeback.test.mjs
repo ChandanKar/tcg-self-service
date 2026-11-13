@@ -42,3 +42,13 @@ test("what each team would have paid last month", () => {
     assert.deepEqual(plain(M.shareAmounts('PROPORTIONAL_DIRECT', 1110, [''])), [null]);
     assert.deepEqual(plain(M.shareAmounts('EVEN', null, [''])), [null]);
 });
+
+test('U23-T02: the statement names its month and days; the current month gives Cost management\'s month to date', () => {
+    const october = { month: '2026-10', dataFrom: '2026-10-01', dataThrough: '2026-10-31' };
+    assert.equal(M.periodText(october, false, null), 'October 2026, 1 to 31 Oct, from the daily cost snapshots.');
+    const november = { month: '2026-11', dataFrom: '2026-11-01', dataThrough: '2026-11-12' };
+    assert.equal(M.periodText(november, true, { monthToDate: 2612.4 }),
+        "November 2026, 1 to 12 Nov, from the daily cost snapshots. Cost management's month to date, $2,612, adds today so far.");
+    assert.equal(M.periodText(november, true, null), 'November 2026, 1 to 12 Nov, from the daily cost snapshots.');
+    assert.equal(M.periodText({ month: '2026-09', dataThrough: null }, false, null), ''); // no data, or finalised before U23
+});
