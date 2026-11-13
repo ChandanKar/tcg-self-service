@@ -161,7 +161,14 @@ public class EnvironmentService {
 
     /** As above, also filtered to environments with a VM in {@code region} (U19-T08); null for all. */
     public Page<Environment> getAllActiveEnvironments(String search, Boolean running, String region, Pageable pageable) {
-        return environmentRepository.searchActive(blankToNull(search), running, blankToNull(region), pageable);
+        return getAllActiveEnvironments(search, running, region, null, pageable);
+    }
+
+    /** As above, also kept to the environments of team {@code teamId} (U25-T06: the team page); null for all. */
+    public Page<Environment> getAllActiveEnvironments(String search, Boolean running, String region, String teamId,
+                                                      Pageable pageable) {
+        return environmentRepository.searchActive(blankToNull(search), running, blankToNull(region),
+                blankToNull(teamId), pageable);
     }
 
     /**
@@ -177,7 +184,14 @@ public class EnvironmentService {
     }
 
     public Page<Environment> getAllEnvironments(String search, Boolean running, String region, Pageable pageable) {
-        return environmentRepository.searchAll(blankToNull(search), running, blankToNull(region), pageable);
+        return getAllEnvironments(search, running, region, null, pageable);
+    }
+
+    /** As above, also kept to the environments of team {@code teamId} (U25-T06); null for all. */
+    public Page<Environment> getAllEnvironments(String search, Boolean running, String region, String teamId,
+                                                Pageable pageable) {
+        return environmentRepository.searchAll(blankToNull(search), running, blankToNull(region),
+                blankToNull(teamId), pageable);
     }
 
     /**
@@ -198,12 +212,18 @@ public class EnvironmentService {
 
     /** As above, also filtered to environments with a VM in {@code region} (U19-T08). */
     public Page<Environment> getEnvironmentsForCurrentUser(String search, Boolean running, String region, Pageable pageable) {
+        return getEnvironmentsForCurrentUser(search, running, region, null, pageable);
+    }
+
+    /** As above, also kept to the environments of team {@code teamId} (U25-T06); null for all. */
+    public Page<Environment> getEnvironmentsForCurrentUser(String search, Boolean running, String region, String teamId,
+                                                           Pageable pageable) {
         String userId = userService.getCurrentUserId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
         // DISTINCT environments — a user with an ENVIRONMENT grant plus GROUP grants in the
         // same environment must still see it once, not once per grant.
         return accessRepository.findDistinctActiveEnvironmentsForUser(userId, blankToNull(search), now, running,
-                blankToNull(region), pageable);
+                blankToNull(region), blankToNull(teamId), pageable);
     }
 
     /** The AWS regions that hold an active VM, for the list's region filter (U19-T08). */

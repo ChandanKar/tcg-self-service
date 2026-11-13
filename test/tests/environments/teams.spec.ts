@@ -255,8 +255,26 @@ test.describe('Team page', () => {
   const MEMBERS = Array.from({ length: 14 }, (_, i) => ({ userId: `u${String(i).padStart(2, '0')}`, displayName: `Person ${String(i).padStart(2, '0')}`,
     email: `p${i}@example.com`, source: i < 12 ? 'ENTRA' : 'MANUAL' }));
 
-  async function openTeam(page: Page, opts: { quotasOn?: boolean, team?: any } = {}) {
-    const calls = { overview: 0, quotas: [] as string[] };
+  /**
+   * U25-T06: the environments table asks GET /environments/page?page&size&search&teamId for the page it shows;
+   * this fake answers from the team's environments (search on the shown name and name) and records each ask.
+   */
+  async function openTeam(page: Page, opts: { quotasOn?: boolean, team?: any, figures?: Record<string, any> } = {}) {
+    const calls = { overview: 0, quotas: [] as string[], envPages: [] as Record<string, string>[] };
+    await page.route(/\/api\/v1\/environments\/page\?/, route => {
+      const params = Object.fromEntries(new URL(route.request().url()).searchParams.entries());
+      calls.envPages.push(params);
+      const team = opts.team || TEAM;
+      const q = (params.search || '').toLowerCase();
+      const all = (params.teamId === team.teamId ? team.environments : [])
+        .filter((e: any) => !q || [e.displayName, e.name].some(v => String(v || '').toLowerCase().includes(q)))
+        .map((e: any) => ({ vmCount: 0, runningVmCount: 0, monthToDateCost: null, ...e, ...(opts.figures || {})[e.environmentId] }));
+      const size = Number(params.size || 10);
+      const number = Number(params.page || 0);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        content: all.slice(number * size, number * size + size),
+        page: { size, number, totalElements: all.length, totalPages: Math.ceil(all.length / size) } }) });
+    });
     await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
       const response = await route.fetch();
       const caps = await response.json();
@@ -328,27 +346,52 @@ test.describe('Team page', () => {
     expect(calls.quotas).toEqual([]);
   });
 
-  test('the environments table: VMs running and this month, search, paged (U25-T05)', async ({ page }) => {
+  test('the environments table pages on the server: VMs running, this month, search, pager (U25-T06)', async ({ page }) => {
     const many = Array.from({ length: 30 }, (_, i) => ({ environmentId: `env-${i}`, name: `env-${i}`,
       displayName: `Env ${String(i).padStart(2, '0')}`, production: false }));
-    await page.route(/\/api\/v1\/environments\/page\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify({ content: [{ environmentId: 'env-pay-dev', name: 'pay-dev', displayName: 'Payments Dev', vmCount: 5, runningVmCount: 3,
-        monthToDateCost: 412.4 }], page: { size: 100, number: 0, totalElements: 1, totalPages: 1 } }) }));
-    await openTeam(page, { quotasOn: false, team: { ...TEAM, environments: [TEAM.environments[0], ...many] } });
+    const calls = await openTeam(page, { quotasOn: false, team: { ...TEAM, environments: [TEAM.environments[0], ...many] },
+      figures: { 'env-pay-dev': { vmCount: 5, runningVmCount: 3, monthToDateCost: 412.4 } } });
     const rows = page.locator('#td-env-body tr');
     const pay = rows.filter({ hasText: 'Payments Dev' });
     await expect(pay.locator('td[data-label="VMs running"]')).toHaveText('3 of 5');
     await expect(pay.locator('td[data-label="This month"]')).toHaveText('$412.40');
     await expect(pay.locator('a')).toHaveAttribute('href', '#/environments/env-pay-dev');
+    await expect(rows.filter({ hasText: 'Env 00' }).locator('td[data-label="VMs running"]')).toHaveText('No VMs');
     await expect(page.locator('#td-env-pager .pager-range')).toContainText('of 31');
+    // One page at a time for this team only, never the whole fleet.
+    const last = () => calls.envPages[calls.envPages.length - 1];
+    expect(calls.envPages.every(p => p.teamId === 'tp1' && Number(p.size) <= 25)).toBe(true);
+    const size = last().size;
+    expect(last().page).toBe('0');
+    await expect(rows).toHaveCount(Number(size));
+    await page.locator('#td-env-pager .pager-btn', { hasText: 'Next' }).click();
+    await expect.poll(() => last().page).toBe('1');
+    expect(last()).toMatchObject({ size, teamId: 'tp1' });
     await page.locator('#td-env-search').fill('env 07');
+    await expect.poll(() => last().search).toBe('env 07');
+    expect(last()).toMatchObject({ page: '0', size, teamId: 'tp1' });
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Env 07');
     await page.locator('#td-env-search').fill('nothing like it');
     await expect(page.locator('#td-env-body')).toContainText('No environments match');
     await page.getByRole('button', { name: 'Show all environments' }).click();
     await expect(page.locator('#td-env-pager .pager-range')).toContainText('of 31');
+    expect(last().search).toBeUndefined();
     await expect(page.locator('#td-change-envs')).toBeVisible();
+  });
+
+  test('the environments table shows when its page does not load, and Try again asks again (U25-T06)', async ({ page }) => {
+    let fail = true;
+    const calls = await openTeam(page, { quotasOn: false });
+    await page.route(/\/api\/v1\/environments\/page\?/, route => fail
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'boom', ref: 'abcd1234' }) })
+      : route.fallback());
+    await page.locator('#td-env-search').fill('pay');
+    await expect(page.locator('#td-env-body')).toContainText("The team's environments didn't load");
+    fail = false;
+    await page.locator('#td-env-body').getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('#td-env-table a')).toHaveText('Payments Dev');
+    expect(calls.envPages[calls.envPages.length - 1]).toMatchObject({ search: 'pay', teamId: 'tp1' });
   });
 
   test('the environments dialog sends the ticked environments', async ({ page }) => {

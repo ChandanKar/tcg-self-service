@@ -7,8 +7,8 @@
  * limit) while quotas are on, and the team's environments with a dialog to change them.
  * U25-T05: the environments are a table like the Teams list (Environment, VMs running, This month),
  * with a search, as many rows a page as fit the panel; the page itself does not scroll at 1280 x 600
- * and up (page frame). VM counts and this month's cost come from the environments list (GET
- * /environments/page, 100 a call), the figures the Environments page shows.
+ * and up (page frame). U25-T06: the table pages on the server: one GET /environments/page?page&size&search&teamId
+ * a page (the figures the Environments page shows), the search sent to it, the newest answer drawn.
  */
 const TeamDetail = (function() {
     'use strict';
@@ -16,7 +16,6 @@ const TeamDetail = (function() {
     const QUIET = { suppressGlobalError: true };
     const PAGE_SIZE = 8;
     const ENV_PAGE_SIZE = 8;
-    const ENV_FETCH_SIZE = 100;
     const METRICS = [['VM_HOURS', 'VM hours'], ['COST', 'Cost']];
     const ENFORCEMENT = [['WARN', 'Warn only'], ['REQUIRE_APPROVAL', 'Ask an owner to approve each start'], ['BLOCK', 'Block new starts']];
 
@@ -67,19 +66,16 @@ const TeamDetail = (function() {
         return `${row.runningVmCount || 0} of ${row.vmCount}`;
     }
 
-    /**
-     * The Environments table's rows: the team's environments matching a search (name), each with its
-     * VMs running and this month's cost from the environments list rows (by id; null while not loaded).
-     */
-    function envRows(team, rowsById, search) {
-        const q = String(search || '').toLowerCase().trim();
-        return (team.environments || [])
-            .filter(e => !q || [e.displayName, e.name].some(v => String(v || '').toLowerCase().includes(q)))
-            .map(e => {
-                const row = rowsById ? rowsById[e.environmentId] : null;
-                return { environmentId: e.environmentId, name: e.displayName || e.name, vms: vmsText(row),
-                    cost: row ? money(row.monthToDateCost) : '—' };
-            });
+    /** The Environments table's rows from one page of GET /environments/page?teamId= (U25-T06). */
+    function envRows(content) {
+        return (content || []).map(row => ({ environmentId: row.environmentId, name: row.displayName || row.name,
+            vms: vmsText(row), cost: money(row.monthToDateCost) }));
+    }
+
+    /** Spring's Page: { content, page: { totalElements } } (older shape: totalElements at the top). */
+    function envTotal(data) {
+        const n = data && ((data.page && data.page.totalElements) ?? data.totalElements);
+        return Number(n) || 0;
     }
 
     /** The PUT /teams/{id}/quotas body from the form's values: a metric without a limit has no quota. */
@@ -112,31 +108,31 @@ const TeamDetail = (function() {
     async function load(params) {
         const token = ContentRouter.token();
         s = { token, teamId: params && params.teamId, team: null, members: [], page: 1, users: null,
-            envSearch: '', envPage: 1, envFit: null, envRows: null };
+            envSearch: '', envPage: 1, envFit: null, envResult: null, envRequest: 0 };
         Loading.showPage('Loading the team…');
         await refresh(true);
-        loadEnvRows();
     }
 
-    /** Every environment's list row (VM counts, this month), 100 a call; the table shows '—' until they come. */
-    async function loadEnvRows() {
-        if (!current() || !s.team || !(s.team.environments || []).length || s.envLoading) return;
+    /**
+     * The page of the team's environments the table shows, from the server (U25-T06). Only the newest
+     * answer draws: a page asked for before a search was typed could otherwise return last.
+     */
+    async function loadEnvs() {
+        if (!current() || !s.team) return;
         const token = s.token;
-        s.envLoading = true;
-        const pageOf = data => ((data && data.content) || []);
-        let rows = {};
+        const mine = ++s.envRequest;
+        const size = envPageSize();
+        let result;
         try {
-            const first = await call('GET', Config.API.environments.page(0, ENV_FETCH_SIZE));
-            const pages = Math.min(20, Number((first && first.page && first.page.totalPages) || (first && first.totalPages)) || 1);
-            const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) =>
-                call('GET', Config.API.environments.page(i + 1, ENV_FETCH_SIZE)).catch(() => null)));
-            [first].concat(rest).forEach(data => pageOf(data).forEach(r => { rows[r.environmentId] = r; }));
+            const data = await call('GET', Config.API.environments.page(s.envPage - 1, size, s.envSearch.trim(), { teamId: s.teamId }));
+            result = { rows: envRows(data && data.content), total: envTotal(data) };
         } catch (error) {
-            rows = {};
+            result = { failed: error };
         }
-        if (!ContentRouter.isCurrent(token)) return;
-        s.envLoading = false;
-        s.envRows = rows;
+        if (!ContentRouter.isCurrent(token) || mine !== s.envRequest) return;
+        s.envResult = result;
+        const pages = Math.max(1, Math.ceil((result.total || 0) / size));
+        if (!result.failed && s.envPage > pages) { s.envPage = pages; loadEnvs(); return; } // the last page emptied meanwhile
         drawEnvs();
     }
 
@@ -157,7 +153,6 @@ const TeamDetail = (function() {
         s.team = team;
         s.members = members || [];
         if (first) render(); else { drawHeader(); drawMembers(); drawAside(); }
-        if (!first && s.envRows === null) loadEnvRows(); // the team had no environments when the page opened
     }
 
     function render() {
@@ -239,6 +234,7 @@ const TeamDetail = (function() {
             </section>`);
         drawEnvs();
         attachEnvFit();
+        loadEnvs();
     }
 
     const envPageSize = () => s.envFit || ENV_PAGE_SIZE;
@@ -246,16 +242,21 @@ const TeamDetail = (function() {
     function drawEnvs() {
         const t = s.team;
         const all = t.environments || [];
-        const rows = envRows(t, s.envRows, s.envSearch);
+        const result = s.envResult;
+        const rows = (result && result.rows) || [];
+        const total = (result && result.total) || 0;
         const size = envPageSize();
-        s.envPage = Math.min(Math.max(1, s.envPage), Math.max(1, Math.ceil(rows.length / size)));
         let body;
-        if (rows.length) {
-            body = Pagination.slice(rows, s.envPage, size).map(r => Utils.html`<tr>
+        if (!result) {
+            body = `<tr><td colspan="3">${UiStates.loading('rows', { count: 3 })}</td></tr>`;
+        } else if (result.failed) {
+            body = `<tr><td colspan="3">${UiStates.failed({ what: "The team's environments", xhr: result.failed, onRetry: loadEnvs })}</td></tr>`;
+        } else if (rows.length) {
+            body = rows.map(r => Utils.html`<tr>
                 <td class="um-person-cell" data-label=""><a class="td-env-name" href="#/environments/${r.environmentId}">${r.name}</a></td>
                 <td data-label="VMs running"><span class="td-mono">${r.vms}</span></td>
                 <td data-label="This month"><span class="td-mono">${r.cost}</span></td></tr>`).join('');
-        } else if (all.length) {
+        } else if (s.envSearch.trim()) {
             body = `<tr><td colspan="3" class="um-empty">${UiStates.filtered({ title: `No environments match "${s.envSearch.trim()}"`,
                 text: 'Check the spelling, or clear the search.', clearLabel: 'Show all environments', onClear: clearEnvSearch })}</td></tr>`;
         } else {
@@ -263,7 +264,7 @@ const TeamDetail = (function() {
                 text: `Choose them with "Change which environments belong to ${t.displayName}".` })}</td></tr>`;
         }
         $('#td-env-body').html(body);
-        $('#td-env-pager').html(rows.length > size ? Pagination.buildPager({ page: s.envPage, pageSize: size, totalItems: rows.length,
+        $('#td-env-pager').html(total > size ? Pagination.buildPager({ page: s.envPage, pageSize: size, totalItems: total,
             action: 'td-env-page', key: 'environments' }) : `<span class="td-note">${all.length} environment${all.length === 1 ? '' : 's'}</span>`);
     }
 
@@ -271,22 +272,22 @@ const TeamDetail = (function() {
         s.envSearch = '';
         s.envPage = 1;
         $('#td-env-search').val('');
-        drawEnvs();
+        loadEnvs();
     }
 
     /** Environment rows a page follow the panel's height on the page frame (U18-T03). */
     function attachEnvFit() {
         const panel = document.getElementById('td-envs-panel');
         if (!panel || typeof ListPanel === 'undefined') return;
-        const apply = count => {
+        const apply = (count, initial) => {
             if (!count || count === envPageSize()) return;
             const first = (s.envPage - 1) * envPageSize();
             s.envFit = count;
             s.envPage = ListPanel.pageKeepingFirst(first, count);
-            drawEnvs();
+            if (!initial) loadEnvs(); // the first fit comes before drawAside asks for the page
         };
-        const handle = ListPanel.attach(panel, { rowSelector: '#td-env-body tr', rowHeight: 38, min: 3, max: 25, onFit: apply });
-        apply(handle.fitCount());
+        const handle = ListPanel.attach(panel, { rowSelector: '#td-env-body tr', rowHeight: 38, min: 3, max: 25, onFit: count => apply(count) });
+        apply(handle.fitCount(), true);
     }
 
     function limitBlock(metric, label, q) {
@@ -485,13 +486,13 @@ const TeamDetail = (function() {
             .on('click.teamDetail', '#td-add-people', addPeople)
             .on('click.teamDetail', '[data-td-remove]', function() { removeMember(this.dataset.tdRemove); })
             .on('click.teamDetail', '[data-action="td-page"]', function() { s.page = Number(this.dataset.page) || 1; drawMembers(); })
-            .on('click.teamDetail', '[data-action="td-env-page"]', function() { s.envPage = Number(this.dataset.page) || 1; drawEnvs(); })
-            .on('input.teamDetail', '#td-env-search', Utils.debounce(function() { s.envSearch = this.value; s.envPage = 1; drawEnvs(); }, 250))
+            .on('click.teamDetail', '[data-action="td-env-page"]', function() { s.envPage = Number(this.dataset.page) || 1; loadEnvs(); })
+            .on('input.teamDetail', '#td-env-search', Utils.debounce(function() { s.envSearch = this.value; s.envPage = 1; loadEnvs(); }, 250))
             .on('submit.teamDetail', '#td-limits', e => { e.preventDefault(); saveLimits(); })
             .on('click.teamDetail', '#td-change-envs', changeEnvironments);
     }
 
-    return { load, model: { headline, entraLine, quotasBody, amount, money, vmsText, envRows } };
+    return { load, model: { headline, entraLine, quotasBody, amount, money, vmsText, envRows, envTotal } };
 })();
 
 if (typeof window !== 'undefined') window.TeamDetail = TeamDetail;

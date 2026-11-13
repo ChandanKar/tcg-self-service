@@ -67,6 +67,13 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
            "AND (:region IS NULL OR EXISTS (SELECT 1 FROM Vm vr WHERE vr.group.environment = e " +
            "     AND vr.isActive = true AND vr.region = :region)) ";
 
+    /**
+     * The team page's filter (U25-T06): with {@code :teamId} only environments owned by that team; with
+     * null all (environments without a team included).
+     */
+    String TEAM_FILTER =
+           "AND (:teamId IS NULL OR e.team.teamId = :teamId) ";
+
     String RUNNING_FILTER =
            "AND (:running IS NULL " +
            "     OR (:running = true AND EXISTS (SELECT 1 FROM Vm v WHERE v.group.environment = e " +
@@ -83,10 +90,14 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           RUNNING_FILTER + REGION_FILTER +
+           RUNNING_FILTER + REGION_FILTER + TEAM_FILTER +
            "ORDER BY e.name")
     Page<Environment> searchActive(@Param("search") String search, @Param("running") Boolean running,
-                                   @Param("region") String region, Pageable pageable);
+                                   @Param("region") String region, @Param("teamId") String teamId, Pageable pageable);
+
+    default Page<Environment> searchActive(String search, Boolean running, String region, Pageable pageable) {
+        return searchActive(search, running, region, null, pageable);
+    }
 
     default Page<Environment> searchActive(String search, Boolean running, Pageable pageable) {
         return searchActive(search, running, null, pageable);
@@ -104,10 +115,14 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
            "WHERE (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           RUNNING_FILTER + REGION_FILTER +
+           RUNNING_FILTER + REGION_FILTER + TEAM_FILTER +
            "ORDER BY e.name")
     Page<Environment> searchAll(@Param("search") String search, @Param("running") Boolean running,
-                                @Param("region") String region, Pageable pageable);
+                                @Param("region") String region, @Param("teamId") String teamId, Pageable pageable);
+
+    default Page<Environment> searchAll(String search, Boolean running, String region, Pageable pageable) {
+        return searchAll(search, running, region, null, pageable);
+    }
 
     default Page<Environment> searchAll(String search, Boolean running, Pageable pageable) {
         return searchAll(search, running, null, pageable);
