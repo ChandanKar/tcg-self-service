@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.service.support.PasswordGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -165,6 +166,10 @@ public class AuthenticationService {
     /**
      * Set or update a user's password; always stores a bcrypt hash.
      *
+     * <p>U25-T04: the person always chooses their own at the next sign-in (an administrator must not
+     * keep a working password), and their web sessions end: the new passwordUpdatedAt makes
+     * CurrentUserRefreshFilter end every session that started before it.
+     *
      * @param performedByUserId the admin making the change, recorded in the audit log
      * @throws ValidationException if the password is shorter than {@value #MIN_PASSWORD_LENGTH}
      *         or longer than {@value #MAX_PASSWORD_LENGTH} characters
@@ -174,26 +179,66 @@ public class AuthenticationService {
         validateLength(password);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        if (user.getUsername() == null || user.getUsername().isBlank()) {
-            // U21-T21: a person added from the directory or by email has no username, and password
-            // sign-in finds people by username (or by email only when they have one), so the password
-            // was saved but never worked. Their email becomes their username, as for an initial
-            // password (U20-T07), and they choose their own at first sign-in.
-            if (user.getEmail() == null || user.getEmail().isBlank()) {
-                throw new ValidationException("This person has no email address to sign in with");
-            }
-            String username = user.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
-            userRepository.findByUsername(username).filter(other -> !other.getUserId().equals(user.getUserId())).ifPresent(other -> {
-                throw new ValidationException(user.getEmail() + " is already someone's username");
-            });
-            user.setUsername(username);
-            user.setPasswordChangeRequired(true);
-        }
+        ensureUsername(user);
         user.setPassword(passwordEncoder.encode(password));
         user.setPasswordUpdatedAt(new Timestamp(System.currentTimeMillis()));
+        user.setPasswordChangeRequired(true);
         userRepository.save(user);
-        log.info("Password set for user {} by {}", userId, performedByUserId);
+        log.info("Password set for user {} by {}; their sessions end", userId, performedByUserId);
         auditService.logUserPasswordSet(performedByUserId, userId, user.getEmail());
+    }
+
+    /** What a reset gives the administrator, once: the username to sign in with and the generated password. */
+    public record PasswordReset(String username, String password) {
+        /** Never in logs. */
+        @Override
+        public String toString() {
+            return "PasswordReset[username=" + username + "]";
+        }
+    }
+
+    /**
+     * Admin password reset (U25-T04): a generated password (PasswordGenerator, as Add people uses)
+     * replaces the person's password, they must choose their own at the next sign-in, and every web
+     * session of theirs that started before the reset ends (CurrentUserRefreshFilter compares the
+     * session's start with passwordUpdatedAt). API tokens are not touched. Audited as "Password reset"
+     * without the password; returned once and never stored in the clear.
+     */
+    @Transactional
+    public PasswordReset resetPassword(String userId, String performedByUserId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (user.isServiceAccount()) {
+            throw new ValidationException("A service account signs in with API tokens, not a password");
+        }
+        ensureUsername(user);
+        String password = PasswordGenerator.generate();
+        user.setPassword(passwordEncoder.encode(password));
+        user.setPasswordUpdatedAt(new Timestamp(System.currentTimeMillis()));
+        user.setPasswordChangeRequired(true);
+        userRepository.save(user);
+        log.info("Password reset for user {} by {}; their sessions end", userId, performedByUserId);
+        auditService.logUserPasswordReset(performedByUserId, userId, user.getEmail());
+        return new PasswordReset(user.getUsername(), password);
+    }
+
+    /**
+     * U21-T21: a person added from the directory or by email has no username, and password sign-in
+     * finds people by username (or by email only when they have one). Their email becomes their
+     * username, as for an initial password (U20-T07).
+     */
+    private void ensureUsername(User user) {
+        if (user.getUsername() != null && !user.getUsername().isBlank()) {
+            return;
+        }
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new ValidationException("This person has no email address to sign in with");
+        }
+        String username = user.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
+        userRepository.findByUsername(username).filter(other -> !other.getUserId().equals(user.getUserId())).ifPresent(other -> {
+            throw new ValidationException(user.getEmail() + " is already someone's username");
+        });
+        user.setUsername(username);
     }
 
     public boolean userHasPassword(String userId) {

@@ -25,6 +25,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.HashSet;
@@ -35,7 +36,8 @@ import java.util.Set;
  * Keeps an authenticated session in step with the database (H10).
  *
  * <p>On every authenticated request: the user is reloaded; an unknown or deactivated user, or a
- * session older than {@code security.session.absolute-timeout}, ends the session (401 JSON for
+ * session older than {@code security.session.absolute-timeout}, or one that started before the
+ * person's password was last changed (U25-T04: admin reset), ends the session (401 JSON for
  * /api/**, redirect to /login?expired for pages); role changes (admin / env admin) replace the
  * authorities in the security context and the session, so a demotion or promotion applies on the
  * very next request without a new login. Token authorities such as OIDC_USER and SCOPE_* are kept.
@@ -46,6 +48,9 @@ public class CurrentUserRefreshFilter extends OncePerRequestFilter {
     public static final String ISSUED_AT = "auth.issuedAt";
 
     private static final Logger log = LoggerFactory.getLogger(CurrentUserRefreshFilter.class);
+
+    /** password_updated_at has whole seconds (MySQL rounds): allow for it (U25-T04). */
+    static final long PASSWORD_CHANGE_SLACK_MS = 1000;
 
     private final UserRepository userRepository;
     private final Duration absoluteTimeout;
@@ -88,6 +93,12 @@ public class CurrentUserRefreshFilter extends OncePerRequestFilter {
         }
         if (sessionExpired(request)) {
             log.info("Ending session of user {}: absolute lifetime {} reached", user.get().getUserId(), absoluteTimeout);
+            reject(request, response);
+            return;
+        }
+        if (startedBeforePasswordChange(request, user.get())) {
+            // U25-T04: an administrator reset or set this person's password: their older sessions end.
+            log.info("Ending session of user {}: it started before their password was changed", user.get().getUserId());
             reject(request, response);
             return;
         }
@@ -136,6 +147,22 @@ public class CurrentUserRefreshFilter extends OncePerRequestFilter {
             return false;
         }
         return now - started > absoluteTimeout.toMillis();
+    }
+
+    /**
+     * Whether this session started before the person's password last changed (U25-T04: an admin reset
+     * or set password signs them out everywhere). password_updated_at is stored to the second, so a
+     * session counts as older only when it started more than a second before the change; a session
+     * started just after a change (first sign-in with the new password) is never caught.
+     */
+    private boolean startedBeforePasswordChange(HttpServletRequest request, User user) {
+        Timestamp changed = user.getPasswordUpdatedAt();
+        HttpSession session = request.getSession(false);
+        if (changed == null || session == null) {
+            return false;
+        }
+        Object issuedAt = session.getAttribute(ISSUED_AT);
+        return issuedAt instanceof Long started && started < changed.getTime() - PASSWORD_CHANGE_SLACK_MS;
     }
 
     private void refreshAuthorities(Authentication authentication, User user,

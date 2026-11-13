@@ -49,10 +49,12 @@ test('filters: search, role (environment admins who are not administrators), sta
     assert.equal(M.filterList(people, '', 'USER', 'active').length, 3);
 });
 
-test('U13-T04: the password checks: 12 to 72 characters, both match', () => {
-    assert.deepEqual(plain(M.passwordChecks('correct-horse-battery', 'correct-horse-battery')), { length: true, match: true });
-    assert.deepEqual(plain(M.passwordChecks('correct-horse-battery', 'correct-horse-batter')), { length: true, match: false });
-    assert.deepEqual(plain(M.passwordChecks('short', 'short')), { length: false, match: true });
-    assert.deepEqual(plain(M.passwordChecks('x'.repeat(73), 'x'.repeat(73))), { length: false, match: true });
-    assert.deepEqual(plain(M.passwordChecks('', '')), { length: false, match: false });
+test('U25-T04: Reset password asks first, then shows the generated password once', () => {
+    const copy = plain(M.resetPasswordCopy(people[2]));
+    assert.equal(copy.title + ' ' + copy.question,
+        'Reset the password for Ops service? They will be signed out everywhere and choose a new password at their next sign-in.');
+    assert.equal(copy.doneTitle, 'New password for Ops service');
+    assert.equal(copy.note, 'Shown once. Pass it on; they choose their own at next sign-in.');
+    assert.equal(M.resetPasswordCopy({ email: 'no.name@x.com' }).title, 'Reset the password for no.name@x.com?');
+    assert.equal(M.passwordChecks, undefined, 'the typed-password dialog is gone');
 });

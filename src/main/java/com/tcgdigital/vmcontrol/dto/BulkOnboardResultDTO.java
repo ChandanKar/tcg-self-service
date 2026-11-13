@@ -21,7 +21,19 @@ public record BulkOnboardResultDTO(
 ) {
     public enum Outcome { NEW, EXISTING, SKIPPED }
 
+    /**
+     * initialPassword (U25-T02): the password the server generated for a NEW person who asked for one,
+     * shown once to the administrator; null for everyone else and always null on a preview.
+     */
     public record PersonResult(String email, String displayName, Outcome outcome, String reason, String userId,
-                               String teamId, int grantsNew, int grantsChanged, int grantsSkipped) {
+                               String teamId, int grantsNew, int grantsChanged, int grantsSkipped,
+                               String initialPassword) {
+
+        /** Never in logs. */
+        @Override
+        public String toString() {
+            return "PersonResult[email=" + email + ", outcome=" + outcome + ", userId=" + userId
+                    + ", initialPassword=" + (initialPassword == null ? "none" : "generated") + "]";
+        }
     }
 }

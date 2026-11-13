@@ -806,6 +806,13 @@ public class AuditService {
                 "Password set by user: " + resolveUsername(performedByUserId));
     }
 
+    /** U25-T04: an administrator reset a person's password (never the password itself). */
+    public void logUserPasswordReset(String performedByUserId, String targetUserId, String email) {
+        logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, email,
+                "Password reset by user: " + resolveUsername(performedByUserId)
+                        + "; signed out everywhere, a new password is required at the next sign-in");
+    }
+
     /** An Entra sign-in tried to adopt a user row already linked to another Entra account. */
     public void logLoginConflict(String email, String existingUserId) {
         logFailure(null, AuditAction.USER_LOGIN_CONFLICT, "user", existingUserId, email,

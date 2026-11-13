@@ -21,6 +21,8 @@ import java.util.List;
  * (dryRun). People who already use the app keep their role and profile: only access and team
  * are added for them. U20-T07: a new person may get an initial password (12 to 72 characters):
  * they then sign in with their email and it, and choose their own before anything else.
+ * U25-T02: instead of a typed one, generatePassword asks the server for a separate 16-character
+ * password per new person, returned once in the result (never on a preview). Not both.
  */
 public record BulkOnboardRequestDTO(
         @NotEmpty(message = "Add at least one person") @Size(max = 100, message = "At most 100 people at once")
@@ -42,18 +44,26 @@ public record BulkOnboardRequestDTO(
             @Pattern(regexp = "^$|[A-Za-z0-9._-]+", message = "Project code can only use letters, digits, dot, dash and underscore.")
             String projectCode,
             @Size(max = 100) String teamId,
-            @Size(max = 72, message = "The initial password can be at most 72 characters.") String initialPassword) {
+            @Size(max = 72, message = "The initial password can be at most 72 characters.") String initialPassword,
+            Boolean generatePassword) {
 
         /** Without an initial password: the person signs in with Microsoft. */
         public Person(String directoryObjectId, String email, String displayName, String department, String projectCode,
                       String teamId) {
-            this(directoryObjectId, email, displayName, department, projectCode, teamId, null);
+            this(directoryObjectId, email, displayName, department, projectCode, teamId, null, null);
+        }
+
+        /** With a typed initial password (U20-T07), or none. */
+        public Person(String directoryObjectId, String email, String displayName, String department, String projectCode,
+                      String teamId, String initialPassword) {
+            this(directoryObjectId, email, displayName, department, projectCode, teamId, initialPassword, null);
         }
 
         /** Never in logs. */
         @Override
         public String toString() {
-            return "Person[email=" + email + ", initialPassword=" + (initialPassword == null ? "none" : "set") + "]";
+            return "Person[email=" + email + ", initialPassword=" + (initialPassword == null ? "none" : "set")
+                    + ", generatePassword=" + Boolean.TRUE.equals(generatePassword) + "]";
         }
     }
 

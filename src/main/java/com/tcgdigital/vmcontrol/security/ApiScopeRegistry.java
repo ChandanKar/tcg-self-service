@@ -42,6 +42,7 @@ public class ApiScopeRegistry {
             new Rule(Kind.ANY, "/api/auth/**", null),
             new Rule(Kind.ANY, "/api/v1/chat-actions/**", null),
             new Rule(Kind.ANY, "/api/v1/users/*/password", null),
+            new Rule(Kind.ANY, "/api/v1/users/*/password/**", null), // U25-T04: password reset
 
             // Operating environments
             new Rule(Kind.READ, "/api/v1/environments/*/operations/**", ApiScope.ENVIRONMENTS_READ),

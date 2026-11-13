@@ -43,6 +43,8 @@ class BulkOnboardIntegrationTest extends SecuredWebTestBase {
     @Autowired private TeamMemberRepository members;
     @Autowired private EmailLogRepository emailLog;
     @Autowired private SettingsService settings;
+    @Autowired private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    @Autowired private com.tcgdigital.vmcontrol.repository.AuditLogRepository auditLogRepository;
 
     private Environment crm;
     private Environment payments;
@@ -191,6 +193,81 @@ class BulkOnboardIntegrationTest extends SecuredWebTestBase {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(email("neha") + ": the initial password must be 12 to 72 characters"));
         assertThat(userRepository.findByEmail(email("neha"))).isEmpty();
+    }
+
+    // ---- U25-T02: a separate generated password per person ----
+
+    private String generatedFor(String... names) {
+        StringBuilder people = new StringBuilder();
+        for (String name : names) {
+            if (people.length() > 0) people.append(',');
+            people.append("{\"email\":\"").append(email(name)).append("\",\"generatePassword\":true}");
+        }
+        return "{\"people\":[" + people + ",{\"email\":\"" + operator.getEmail() + "\",\"generatePassword\":true}],\"role\":\"USER\"}";
+    }
+
+    @Test
+    void eachNewPersonGetsTheirOwnGeneratedPasswordOnceThatSignsThemInAndMustBeChanged() throws Exception {
+        String json = send(false, asAdmin(), generatedFor("neha", "ravi", "asha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.newPeople").value(3))
+                .andExpect(jsonPath("$.people[3].outcome").value("EXISTING"))
+                .andExpect(jsonPath("$.people[3].initialPassword").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        com.fasterxml.jackson.databind.JsonNode people = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).get("people");
+
+        java.util.Set<String> passwords = new java.util.HashSet<>();
+        for (int i = 0; i < 3; i++) {
+            String password = people.get(i).get("initialPassword").asText();
+            assertThat(password).hasSize(16).matches("[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789\\-_.!]{16}");
+            passwords.add(password);
+            User saved = userRepository.findByEmail(people.get(i).get("email").asText()).orElseThrow();
+            assertThat(saved.getUsername()).isEqualTo(saved.getEmail());
+            assertThat(saved.getPassword()).startsWith("$2").isNotEqualTo(password);
+            assertThat(passwordEncoder.matches(password, saved.getPassword())).isTrue();
+            assertThat(saved.isPasswordChangeRequired()).isTrue();
+        }
+        assertThat(passwords).as("a separate password per person").hasSize(3);
+        // The existing person is left as they were: no password made for them.
+        User existing = userRepository.findById(operator.getUserId()).orElseThrow();
+        assertThat(existing.getPassword()).isNull();
+        assertThat(existing.isPasswordChangeRequired()).isFalse();
+    }
+
+    @Test
+    void aPreviewReturnsNoGeneratedPasswordAndMakesNoOne() throws Exception {
+        send(true, asAdmin(), generatedFor("neha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.applied").value(false))
+                .andExpect(jsonPath("$.people[0].outcome").value("NEW"))
+                .andExpect(jsonPath("$.people[0].initialPassword").doesNotExist())
+                .andExpect(jsonPath("$.people[1].initialPassword").doesNotExist());
+        assertThat(userRepository.findByEmail(email("neha"))).isEmpty();
+    }
+
+    @Test
+    void aTypedAndAGeneratedPasswordTogetherAreRefused() throws Exception {
+        String json = "{\"people\":[{\"email\":\"" + email("neha") + "\",\"initialPassword\":\"given-by-admin-123\","
+                + "\"generatePassword\":true}],\"role\":\"USER\"}";
+        send(false, asAdmin(), json)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(email("neha") + ": give an initial password or ask for a generated one, not both"));
+        assertThat(userRepository.findByEmail(email("neha"))).isEmpty();
+    }
+
+    @Test
+    void theGeneratedPasswordNeverReachesTheLogsTheAuditOrToString() throws Exception {
+        String json = send(false, asAdmin(), generatedFor("neha")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String password = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).get("people").get(0).get("initialPassword").asText();
+        com.tcgdigital.vmcontrol.dto.BulkOnboardResultDTO.PersonResult result = new com.tcgdigital.vmcontrol.dto.BulkOnboardResultDTO.PersonResult(
+                email("neha"), "Neha", com.tcgdigital.vmcontrol.dto.BulkOnboardResultDTO.Outcome.NEW, null, "u", null, 0, 0, 0, password);
+        assertThat(result.toString()).doesNotContain(password);
+        assertThat(new com.tcgdigital.vmcontrol.dto.BulkOnboardRequestDTO.Person(null, email("neha"), null, null, null, null, null, true)
+                .toString()).contains("generatePassword=true");
+        awaitAsync(() -> assertThat(auditLogRepository.findTop100ByOrderByCreatedAtDesc())
+                .anyMatch(l -> l.getDetails() != null && l.getDetails().startsWith("Password set"))
+                .noneMatch(l -> l.getDetails() != null && l.getDetails().contains(password)));
     }
 
     @Test

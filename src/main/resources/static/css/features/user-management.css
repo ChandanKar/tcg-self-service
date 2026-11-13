@@ -263,34 +263,48 @@
     font-size: var(--fs-small);
 }
 
-.um-password {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+/* Reset password (U25-T04): the username and the generated password, shown once. */
+.um-reset-result {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 12px;
+    align-items: center;
 }
 
-.um-checks {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 16px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+.um-reset-label {
     font-size: var(--fs-small);
     color: var(--text-secondary);
 }
 
-.um-checks li::before {
-    content: "\25CB";
-    margin-right: 6px;
+.um-reset-secret {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
-.um-checks li.um-check-ok {
-    color: var(--brand-green-text);
+.um-reset-value {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface-muted);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: var(--fs-body);
+    overflow-wrap: anywhere;
+    user-select: all;
 }
 
-.um-checks li.um-check-ok::before {
-    content: "\2713";
+.um-reset-note {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 767.98px) {
+    .um-reset-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
 }
 
 /* On a phone each person is a card: the header row goes, each cell says what it is. */
