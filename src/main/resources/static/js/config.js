@@ -47,6 +47,10 @@ const Config = (function() {
             setEnvAdmin: (id) => `${API_BASE_URL}/users/${id}/env-admin`,
             reactivate: (id) => `${API_BASE_URL}/users/${id}/reactivate`,
             setPassword: (id) => `${API_BASE_URL}/users/${id}/password`,
+            // U25: an admin reset generates a password shown once, forces a change and ends the person's sessions
+            resetPassword: (id) => `${API_BASE_URL}/users/${id}/password/reset`,
+            // U25: email domains in use, for spotting a mistyped address on Add people
+            emailDomains: `${API_BASE_URL}/users/email-domains`,
             search: (query) => `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,
             bulkOnboard: (dryRun) => `${API_BASE_URL}/users/bulk-onboard?dryRun=${dryRun ? 'true' : 'false'}`, // U13-T02
             profile: (userId) => `${API_BASE_URL}/users/${encodeURIComponent(userId)}/profile`, // U13-T01
