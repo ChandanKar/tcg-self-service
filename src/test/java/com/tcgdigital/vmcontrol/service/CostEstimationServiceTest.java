@@ -118,6 +118,7 @@ class CostEstimationServiceTest {
 
     @Test
     void prefersComputeOptimizerRecommendationWhenOneExists() {
+        memoryMeasured(); // U23-T05: AWS's smaller option has less memory, followed only when memory use is known
         ComputeOptimizerService.Recommendation recommendation =
                 new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("m6a.large"));
         when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
@@ -271,6 +272,79 @@ class CostEstimationServiceTest {
         when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(99.8));
         when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(
                 INSTANCE_ID, new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("t3.medium"))));
+
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    // ---- Headroom on the smaller type (U23-T05, staging review 2) ----
+
+    /** A 30% memory peak: 16 GiB x 30% x 1.2 = 5.9 GiB, which an 8 GiB type holds. */
+    private void memoryMeasured() {
+        when(cpuStats.getMaxMemory()).thenReturn(BigDecimal.valueOf(30));
+    }
+
+    private void onlyAwsSuggests(String type) {
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(List.of()); // no rule candidacy: only AWS would suggest it
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(
+                INSTANCE_ID, new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of(type))));
+    }
+
+    @Test
+    void theRuleDoesNotHalveTheCpusOfAVmWhosePeakWouldPassTheMax() {
+        // t3.xlarge (4 vCPU) -> t3.large (2 vCPU): a 45% peak becomes about 90%, past the 80% max.
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(45));
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(0, service.getSummary().rightsizingCandidateCount());
+    }
+
+    @Test
+    void theRuleKeepsASuggestionWhoseProjectedPeakStaysBelowTheMax() {
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(35)); // about 70% on 2 vCPU
+
+        assertEquals("t3.large", onlyCandidate().suggestedInstanceType());
+    }
+
+    @Test
+    void computeOptimizerIsNotFollowedWhenTheProjectedPeakWouldPassTheMax() {
+        // Staging: m6a.xlarge peaking at 67% -> r6a.large (2 vCPU, 16 GiB), about 134%. r5.large is
+        // the bundled 2 vCPU, 16 GiB type: the same memory, so only the CPU check stops it.
+        onlyAwsSuggests("r5.large");
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(67));
+
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void computeOptimizerIsFollowedWhenTheSmallerTypeKeepsHeadroom() {
+        onlyAwsSuggests("r5.large");
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(30)); // about 60% on 2 vCPU, memory unchanged
+
+        RightsizingCandidateDTO row = onlyCandidate();
+        assertEquals("compute-optimizer", row.source());
+        assertEquals("r5.large", row.suggestedInstanceType());
+    }
+
+    @Test
+    void computeOptimizerIsNotFollowedToLessMemoryWhenMemoryUseIsUnknown() {
+        // t3.xlarge (16 GiB) -> m6a.large (8 GiB) with no memory figures: nobody knows it would fit.
+        onlyAwsSuggests("m6a.large");
+
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void anOptionNotNamedInThePriceListIsSizedFromItsName() {
+        // r6a.large is not in the bundled list: 2 vCPU from "large", 16 GiB from the r family.
+        com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService priceList =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService.class);
+        org.mockito.Mockito.lenient().when(priceList.ec2Hourly(any(), any())).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.lenient().when(priceList.ec2Hourly(REGION, "r6a.large")).thenReturn(java.util.Optional.of(new BigDecimal("0.1134")));
+        PricingReferenceService pricing = (PricingReferenceService) ReflectionTestUtils.getField(service, "pricingReferenceService");
+        ReflectionTestUtils.setField(pricing, "priceList", priceList);
+        onlyAwsSuggests("r6a.large");
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(67));
 
         assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
     }
@@ -464,6 +538,7 @@ class CostEstimationServiceTest {
 
     @Test
     void theSameSuggestionFromBothIsAnAgreementAndOptionsCarryTheirRisk() {
+        memoryMeasured(); // U23-T05: AWS's smaller option has less memory, followed only when memory use is known
         when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
                 .thenReturn(Map.of(INSTANCE_ID, co("OVER_PROVISIONED",
                         coOption(1, "t3.large", "1.50"), coOption(2, "t4g.large", "2.00", "Architecture"))));
@@ -485,6 +560,7 @@ class CostEstimationServiceTest {
 
     @Test
     void anInstanceOnlyComputeOptimizerFlagsIsListedAsOnlyAws() {
+        memoryMeasured(); // U23-T05: AWS's smaller option has less memory, followed only when memory use is known
         quietVm("t3.xlarge");
         when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
                 .thenReturn(Map.of(INSTANCE_ID, co("OVER_PROVISIONED", coOption(1, "t3.large", "1.00"))));
@@ -499,6 +575,7 @@ class CostEstimationServiceTest {
 
     @Test
     void aGravitonOptionChosenByComputeOptimizerIsNotApplicable() {
+        memoryMeasured(); // U23-T05: AWS's smaller option has less memory, followed only when memory use is known
         when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
                 .thenReturn(Map.of(INSTANCE_ID, co("OVER_PROVISIONED", coOption(1, "t4g.large", "0.50", "Architecture"))));
 
@@ -663,6 +740,7 @@ class CostEstimationServiceTest {
 
     @Test
     void aComputeOptimizerOptionDearerThanTheCurrentTypeIsSkipped() {
+        memoryMeasured(); // U23-T05: AWS's smaller option has less memory, followed only when memory use is known
         // t3.xlarge now; the top option (t3.2xlarge) costs more, the next (m6a.large) is cheaper.
         ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
                 INSTANCE_ID, "OVER_PROVISIONED", List.of("t3.2xlarge", "m6a.large"));

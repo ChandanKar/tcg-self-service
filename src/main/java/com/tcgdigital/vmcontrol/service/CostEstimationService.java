@@ -451,18 +451,85 @@ public class CostEstimationService {
     }
 
     /** The best-ranked option priced below the current hourly rate, or null. */
-    private String firstCheaperOption(ComputeOptimizerService.Recommendation recommendation, String provider,
+    private String firstCheaperOption(VmCostBundle b, ComputeOptimizerService.Recommendation recommendation, String provider,
                                       String region, BigDecimal currentHourlyRate) {
         if (currentHourlyRate == null) {
             return null;
         }
         for (String type : recommendation.optionTypesByRank()) {
             PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, region);
-            if (rate.priceKnown() && rate.hourlyRate().compareTo(currentHourlyRate) < 0) {
+            // U23-T05: an option that would run the CPU peak past the max, or cut memory nobody has
+            // measured, is not offered (staging: m6a.xlarge peaking at 67% -> r6a.large, about 134%).
+            if (rate.priceKnown() && rate.hourlyRate().compareTo(currentHourlyRate) < 0
+                    && !projectedPeakTooHigh(b, type) && !cutsUnmeasuredMemory(b, type)) {
                 return type;
             }
         }
         return null;
+    }
+
+    /**
+     * U23-T05: the CPU peak on a smaller type, peak x current vCPUs / new vCPUs, reaches
+     * rightsizing.scale-down.cpu-peak-max. False when the peak or either vCPU count is unknown.
+     */
+    private boolean projectedPeakTooHigh(VmCostBundle b, String targetType) {
+        Integer now = vcpusOf(b.instanceType());
+        Integer after = vcpusOf(targetType);
+        if (b.peakCpu() == null || now == null || after == null || after >= now) {
+            return false;
+        }
+        BigDecimal projected = b.peakCpu().multiply(BigDecimal.valueOf(now)).divide(BigDecimal.valueOf(after), 1, RoundingMode.HALF_UP);
+        return projected.compareTo(live("rightsizing.scale-down.cpu-peak-max", scaleDownCpuPeakMax)) >= 0;
+    }
+
+    /** U23-T05: the target has less memory than the current type and the VM's memory use is unknown. */
+    private boolean cutsUnmeasuredMemory(VmCostBundle b, String targetType) {
+        if (b.peakMemory() != null) {
+            return false;
+        }
+        Integer now = b.currentMemoryMib() != null ? b.currentMemoryMib() : memoryMibOf(b.instanceType());
+        Integer after = memoryMibOf(targetType);
+        return now != null && after != null && after < now;
+    }
+
+    private static final java.util.regex.Pattern SIZED_XLARGE = java.util.regex.Pattern.compile("(\\d+)xlarge");
+    private static final java.util.regex.Pattern MEMORY_RATIO_FAMILY = java.util.regex.Pattern.compile("^([cmr])\\d[a-z0-9-]*\\..+");
+
+    /**
+     * vCPUs of a type: its spec, else read from the size for types the bundled list lacks (Compute
+     * Optimizer may name r6a.large): large 2, xlarge 4, Nxlarge 4N; null otherwise.
+     */
+    private Integer vcpusOf(String type) {
+        if (type == null) {
+            return null;
+        }
+        Optional<PricingReferenceService.InstanceSpec> spec = pricingReferenceService.getSpec(type);
+        if (spec.isPresent()) {
+            return spec.get().vcpu();
+        }
+        String size = type.substring(type.indexOf('.') + 1);
+        if ("large".equals(size)) return 2;
+        if ("xlarge".equals(size)) return 4;
+        java.util.regex.Matcher m = SIZED_XLARGE.matcher(size);
+        return m.matches() ? 4 * Integer.parseInt(m.group(1)) : null;
+    }
+
+    /** Memory of a type: its spec, else 2, 4 or 8 GiB a vCPU for the c, m and r families; null otherwise. */
+    private Integer memoryMibOf(String type) {
+        if (type == null) {
+            return null;
+        }
+        Optional<PricingReferenceService.InstanceSpec> spec = pricingReferenceService.getSpec(type);
+        if (spec.isPresent()) {
+            return spec.get().memoryMib();
+        }
+        java.util.regex.Matcher m = MEMORY_RATIO_FAMILY.matcher(type);
+        Integer vcpus = vcpusOf(type);
+        if (!m.matches() || vcpus == null) {
+            return null;
+        }
+        int perVcpu = switch (m.group(1)) { case "c" -> 2048; case "m" -> 4096; default -> 8192; };
+        return vcpus * perVcpu;
     }
 
     /** Drop the cached bundles, e.g. after a backfill or a resize (E08-T04). */
@@ -722,7 +789,7 @@ public class CostEstimationService {
                     eks || inCooldown ? null : recommendationsByInstanceId.get(b.vm().getProviderVmId());
             // A Compute Optimizer option counts only if it is actually cheaper (E08-T05, M11).
             String cheaperOption = co == null || !co.overProvisioned() ? null
-                    : firstCheaperOption(co, provider, region, b.estimate().hourlyRate());
+                    : firstCheaperOption(b, co, provider, region, b.estimate().hourlyRate());
 
             String direction;
             List<String> reasons = new ArrayList<>(b.reasons());
@@ -765,6 +832,11 @@ public class CostEstimationService {
                         ? pricingReferenceService.suggestSmallerType(provider, b.instanceType()).orElse(null)
                         : pricingReferenceService.suggestLargerType(provider, b.instanceType()).orElse(null);
                 source = "cpu-threshold-rule";
+            }
+
+            // U23-T05: the smaller type must keep CPU headroom: peak x current vCPUs / new vCPUs below the max.
+            if (isScaleDown && suggestedType != null && projectedPeakTooHigh(b, suggestedType)) {
+                continue;
             }
 
             // A smaller type must hold the observed memory peak plus headroom (E30-T03).
@@ -919,6 +991,7 @@ public class CostEstimationService {
             String reason = eks ? "Change the node group in EKS"
                     : archReason != null ? archReason
                     : scaleDown && !memoryFits(b, type) ? "Would not hold the memory peak"
+                    : scaleDown && projectedPeakTooHigh(b, type) ? "Would not hold the CPU peak"
                     : null;
             Priced priced = price(b, provider, nodes, type);
             byType.put(type, new RightsizingOptionDTO(type, kind, source, typeArchitecture,
