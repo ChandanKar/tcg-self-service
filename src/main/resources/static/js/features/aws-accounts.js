@@ -44,7 +44,7 @@ const AwsAccounts = (function() {
                         Add an account</button>`,
                     helpPage: typeof HelpLink !== 'undefined' ? 'aws-accounts' : null, helpLabel: 'AWS accounts' })}
                 <div id="aws-account-list"><div class="aa-note" role="status">Loading accounts…</div></div>
-                ${orgs ? '' : '<p class="aa-note" id="aws-orgs-off">Finding accounts automatically from AWS Organizations is off. It is switched on in the server settings (AWS_ORGANIZATIONS_ENABLED).</p>'}
+                ${orgs ? '' : '<p class="aa-note" id="aws-orgs-off">Finding accounts automatically from AWS Organizations is off. An administrator can switch it on in the server configuration (AWS_ORGANIZATIONS_ENABLED, needs a restart).</p>'}
             </div>`);
         refresh();
     }

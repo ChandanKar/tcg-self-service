@@ -14,6 +14,8 @@ const Help = (function() {
     let current = null;
 
     function visible(topic) {
+        // A topic about a switched-off feature is left out (U23-T13), once the switches are known.
+        if (topic.feature && typeof Capabilities !== 'undefined' && !Capabilities.has(topic.feature)) return false;
         if (!topic.roles || !topic.roles.length) return true;
         if (typeof Auth === 'undefined') return false;
         return topic.roles.some(r => (r === 'ADMIN' && Auth.isAdmin()) || (r === 'ENV_ADMIN' && Auth.isEnvAdmin()));

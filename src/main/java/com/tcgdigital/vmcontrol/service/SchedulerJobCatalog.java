@@ -89,6 +89,28 @@ public class SchedulerJobCatalog {
                     "webhooks.enabled", false),
             cron("carbon_ingestion", "Carbon export (daily)", "carbon.cron", "0 0 6 * * *", "carbon.enabled", false));
 
+    /** The jobs whose cron runs in UTC ({@code @Scheduled(zone = "UTC")}); the others use the server's zone. */
+    private static final java.util.Set<String> UTC_JOBS = java.util.Set.of("approval_expiry", "aws_cost_forecast",
+            "budget_evaluation", "carbon_ingestion", "chargeback_statement", "cost_anomaly_ingest", "eks_split_cost",
+            "quota_warnings", "savings_ledger", "team_membership_sync", "waste_sweep");
+
+    /** The zone a job's cron is read in, as its scheduler declares it (U23-T13: System health shows local times). */
+    static java.time.ZoneId zoneOf(String jobName) {
+        if ("weekly_notification_reports".equals(jobName)) return java.time.ZoneId.of("Asia/Kolkata");
+        return UTC_JOBS.contains(jobName) ? java.time.ZoneOffset.UTC : java.time.ZoneId.systemDefault();
+    }
+
+    /** When a cron job next runs, or null for a fixed-rate job or an expression that cannot be read. */
+    static java.time.Instant nextRun(String jobName, String cron, java.time.Instant now) {
+        if (cron == null) return null;
+        try {
+            java.time.ZonedDateTime next = CronExpression.parse(cron).next(now.atZone(zoneOf(jobName)));
+            return next == null ? null : next.toInstant();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** A job as the health view needs it; cron is its expression, or null for a fixed-rate job (U14-T02). */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled, String cron) {
     }

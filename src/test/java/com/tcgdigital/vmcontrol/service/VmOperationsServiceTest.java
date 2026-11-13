@@ -168,6 +168,23 @@ class VmOperationsServiceTest extends AbstractIntegrationTest {
         assertEquals(2, execution.getTotalTargets());
     }
 
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Test
+    void startingAnOperationSendsNoRequestedNotice() {
+        // U23-T08: one notice per operation (completed or failed), not also "<person> requested start".
+        lockService.acquireLock(testEnvironment.getEnvironmentId(), opsUserId, "t", null);
+        StartOperationDTO dto = new StartOperationDTO();
+        dto.setOperationType(OperationType.START);
+        dto.setSkipAlreadyInTargetState(false);
+
+        operationsService.startOperation(testEnvironment.getEnvironmentId(), opsUserId, dto);
+
+        assertTrue(notificationRepository.findAll().stream()
+                .noneMatch(n -> n.getType() == NotificationType.OPERATION_REQUESTED));
+    }
+
     @Test
     void testStartOperation_CreatesExecution() {
         // Given

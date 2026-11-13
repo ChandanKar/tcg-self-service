@@ -83,3 +83,12 @@ test('when: today, yesterday, a weekday this week, else the date', () => {
     assert.equal(L.whenText(new Date(2026, 9, 16, 19, 0), now), 'Fri 19:00');
     assert.equal(L.whenText(new Date(2026, 9, 12, 9, 5), now), '12 Oct 09:05');
 });
+
+test('U23-T13: people are named, never by their id; choosing one\'s own password says so', () => {
+    assert.equal(say({ action: 'USER_DEACTIVATED', targetName: '1b626463-36fc-4234-b1e3-7bee42d02d81' }), 'Deactivated the user');
+    assert.equal(say({ action: 'USER_DEACTIVATED', targetName: 'Asha Rao' }), 'Deactivated user "Asha Rao"');
+    assert.equal(say({ action: 'USER_UPDATED', userId: 'u1', targetId: 'u1', targetName: 'v@x.com', details: 'Password set by user: v' }),
+        'Chose a new password');
+    assert.equal(say({ action: 'USER_UPDATED', userId: 'a', targetId: 'u1', targetName: 'v@x.com', details: 'Password set by user: admin' }),
+        'Set a password for v@x.com');
+});

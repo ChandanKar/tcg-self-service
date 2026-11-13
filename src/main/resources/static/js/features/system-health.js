@@ -46,6 +46,21 @@ const SystemHealth = (function () {
         return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
     }
 
+    /**
+     * How often a job runs, its time in the viewer's zone as the last run is (U23-T13: 'Daily 02:30' was the
+     * server's time beside a local 'Today 03:30'): the time, weekday or day of month come from nextRunAt.
+     */
+    function cadenceText(job) {
+        const c = String((job && job.cadence) || '');
+        const next = job && job.nextRunAt ? new Date(job.nextRunAt) : null;
+        if (!next || !Number.isFinite(next.getTime())) return c;
+        const time = `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
+        if (/^Daily \d\d:\d\d$/.test(c)) return `Daily ${time}`;
+        if (/^Weekly, \w{3} \d\d:\d\d$/.test(c)) return `Weekly, ${next.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}`;
+        if (/^Monthly, day \d+ \d\d:\d\d$/.test(c)) return `Monthly, day ${next.getDate()} ${time}`;
+        return c;
+    }
+
     /** The status pill: {text, kind} with kind ok, late or off. */
     function status(job) {
         if (job.status === 'OFF') return { text: 'Switched off', kind: 'off' };
@@ -149,9 +164,13 @@ const SystemHealth = (function () {
         });
     }
 
-    function fetchStateChanges() {
-        return apiFetch(Config.API.monitoring.stateChanges, []);
+    /** Every state change in the range (U23-T09: the same 24 hours as the 'outside the platform' count). */
+    function fetchStateChanges(range) {
+        return apiFetch(`${Config.API.monitoring.stateChanges}?${rangeQuery(range)}`, []);
     }
+
+    /** The server sends at most this many changes for a range (MonitoringController.STATE_CHANGES_LIMIT). */
+    const CHANGES_LIMIT = 2000;
 
     /** Drift events in the range: the first page of rows plus the total across the range. */
     function fetchDriftEvents(range, size = 20) {
@@ -194,7 +213,9 @@ const SystemHealth = (function () {
     function load() {
         const q = ContentRouter.query ? ContentRouter.query() : {};
         s = { token: ContentRouter.token(), tab: ['reports', 'fleet', 'regions'].includes(q.tab) ? q.tab : 'now', jobs: null, view: 'problems',
-            page: 1, reportsLoaded: false, fleetLoaded: false, regionsLoaded: false, eks: false };
+            page: 1, reportsLoaded: false, fleetLoaded: false, regionsLoaded: false, eks: false,
+            // U23-T09: Home's 'changed outside the platform' opens Reports with only those changes.
+            outsideFirst: q.changes === 'outside' };
         renderShell();
         loadNow();
         if (s.tab === 'reports') loadReports();
@@ -231,7 +252,7 @@ const SystemHealth = (function () {
             <section class="sh-panel" id="sh-panel-now" role="tabpanel" aria-labelledby="sh-tab-now"${s.tab === 'now' ? '' : ' hidden'}>
                 <div class="sh-tiles" id="sh-tiles"><p class="sh-note">Loading&hellip;</p></div>
                 <section class="sh-card sh-jobs" aria-labelledby="sh-jobs-title">
-                    <div class="sh-card-head"><h2 id="sh-jobs-title">Scheduled jobs</h2>
+                    <div class="sh-card-head"><h2 id="sh-jobs-title">Scheduled jobs</h2><span class="sh-note sh-jobs-zone">Times in your time zone</span>
                         <div class="sh-toggle" role="group" aria-label="Show" id="sh-jobs-view"></div></div>
                     <div id="sh-jobs-body"></div>
                 </section>
@@ -301,6 +322,23 @@ const SystemHealth = (function () {
         return parts.length ? parts.join(' · ') : 'Nothing found';
     }
 
+    /**
+     * Why a region was not read, in words (U23-T13: the page showed 'Unable to execute HTTP request: Connect to
+     * ec2.me-south-1.amazonaws.com:443 ... failed: Connect timed out'). A refusal keeps AWS's reason.
+     */
+    function scanErrorText(r) {
+        const raw = String((r && r.error) || '');
+        if (!r || r.refused) return raw;
+        return /unable to execute http request|connect|timed out|unknownhost|unreachable/i.test(raw) ? `Couldn't reach ${r.region}.` : raw;
+    }
+
+    /** The line when no service left a note: it claims every region answered only when every scan was read. */
+    function notesSummary(rows) {
+        const unread = (rows || []).filter(r => r.error).length;
+        return unread ? `${plural(unread, "region wasn't", "regions weren't")} read (see above); every other service answered.`
+            : 'Every service answered in every region it was asked in.';
+    }
+
     /** A note's kind in words. */
     function noteKind(kind) {
         return { NOT_IN_REGION: 'Not offered there', NOT_OPTED_IN: 'Not turned on', ACCESS_DENIED: 'Access refused',
@@ -338,7 +376,7 @@ const SystemHealth = (function () {
 
     function scanRowHtml(r, now) {
         const status = r.error
-            ? Utils.html`<span class="sh-pill sh-pill-${r.refused ? 'off' : 'late'}">${r.refused ? 'Refused access' : 'Not read'}</span> <span class="sh-region-why">${r.error}</span>`
+            ? Utils.html`<span class="sh-pill sh-pill-${r.refused ? 'off' : 'late'}">${r.refused ? 'Refused access' : 'Not read'}</span> <span class="sh-region-why">${scanErrorText(r)}</span>`
             : '<span class="sh-pill sh-pill-ok">Read</span>';
         return Utils.html`<tr><td class="sh-mono">${r.region}</td><td>${r.accountName || ''}</td><td>${foundText(r.found)}</td>
             <td class="sh-mono">${lastRun(r.scannedAt, now)}</td><td>` + status + '</td></tr>';
@@ -366,7 +404,7 @@ const SystemHealth = (function () {
             : UiStates.empty({ title: 'No scan has run yet', text: 'Discovery, EKS sync and Found in AWS scan every enabled region when they run.' });
         const notes = d.notes || [];
         const notesHtml = notes.length ? `<ul class="sh-region-notes">${notes.map(noteHtml).join('')}</ul>`
-            : '<p class="sh-note">Every service answered in every region it was asked in.</p>';
+            : Utils.html`<p class="sh-note">${notesSummary(rows)}</p>`;
         $('#sh-panel-regions').html(`
             <section class="sh-card" aria-labelledby="sh-region-accounts-title">
                 <div class="sh-card-head"><h2 id="sh-region-accounts-title">Accounts</h2></div>
@@ -453,7 +491,7 @@ const SystemHealth = (function () {
         const now = new Date();
         const rows = Pagination.slice(list, s.page, PAGE_SIZE).map(j => {
             const st = status(j);
-            return Utils.html`<tr data-job="${j.jobName}"><td class="sh-job-name">${j.name}</td><td>${j.cadence}</td>
+            return Utils.html`<tr data-job="${j.jobName}"><td class="sh-job-name">${j.name}</td><td>${cadenceText(j)}</td>
                 <td class="sh-mono">${lastRun(j.lastRunAt, now)}</td><td><span class="sh-pill sh-pill-${st.kind}">${st.text}</span></td></tr>`;
         }).join('');
         $('#sh-jobs-body').html(`<div class="sh-table-scroll"><table class="sh-jobs-table" id="sh-jobs-table">
@@ -471,7 +509,7 @@ const SystemHealth = (function () {
         const range = lastDay();
         const canAdmin = Auth.isEnvAdmin();
         const [stateChanges, drift, auditReport, lockReport, vmOpsReport, emailLog] = await Promise.all([
-            canAdmin ? fetchStateChanges() : Promise.resolve([]),
+            canAdmin ? fetchStateChanges(range) : Promise.resolve([]),
             canAdmin ? fetchDriftEvents(range) : Promise.resolve({ events: [], total: 0 }),
             canAdmin ? fetchAuditReport(range) : Promise.resolve(null),
             canAdmin ? fetchLockReport(range) : Promise.resolve([]),
@@ -479,16 +517,20 @@ const SystemHealth = (function () {
             fetchEmailLog()
         ]);
         if (!ContentRouter.isCurrent(token)) return;
-        s.changes = { list: Array.isArray(stateChanges) ? stateChanges : [], outsideOnly: false, page: 1 };
-        $('#sh-panel-reports').html(reportsHtml({ canAdmin, driftCount: drift.total || 0, auditReport, lockReport, vmOpsReport, emailLog }));
+        const list = Array.isArray(stateChanges) ? stateChanges : [];
+        s.changes = { list, outsideOnly: !!s.outsideFirst, page: 1, truncated: list.length >= CHANGES_LIMIT };
+        // The count and the list cover the same 24 hours; the count is the server's when the list was cut short.
+        const driftCount = s.changes.truncated ? (drift.total || 0) : changeRows(list, true).length;
+        $('#sh-panel-reports').html(reportsHtml({ canAdmin, driftCount, outsideOnly: s.changes.outsideOnly, auditReport, lockReport, vmOpsReport, emailLog }));
         drawChanges();
     }
 
     // ─── state changes (U20-T09: one table; drift is a change found outside the platform) ─────
 
-    /** Where a change came from, in words. */
+    /** Where a change came from, in words. A settle shows where the change it completes came from (U23-T09). */
     function sourceText(c) {
         if (c.drift || c.changeSource === 'state_sync') return 'Outside the platform';
+        if (c.changeSource === 'sync_settled' && c.settledFrom === 'state_sync') return 'Outside the platform, finished';
         if (c.changeSource === 'operation') return c.changedByUsername ? `Platform, by ${c.changedByUsername}` : 'Platform';
         return c.changedByUsername || 'Platform';
     }
@@ -517,7 +559,8 @@ const SystemHealth = (function () {
                     <td>${Utils.escapeHtml(sourceText(r))}</td>
                     <td class="text-muted" title="${absTime(r.changedAt)}">${relativeTime(r.changedAt)}</td></tr>`).join('')}</tbody></table></div>
             ${rows.length > PAGE_SIZE ? Pagination.buildPager({ page: c.page, pageSize: PAGE_SIZE, totalItems: rows.length,
-                action: 'sh-changes-page', key: 'changes' }) : ''}`
+                action: 'sh-changes-page', key: 'changes' }) : ''}
+            ${c.truncated ? `<p class="sh-note">The newest ${CHANGES_LIMIT.toLocaleString('en-US')} changes of the 24 hours are listed.</p>` : ''}`
             : UiStates.empty({ title: c.outsideOnly ? 'Nothing changed outside the platform' : 'No recent state changes' }));
     }
 
@@ -598,7 +641,7 @@ const SystemHealth = (function () {
 
     // ─── Reports ──────────────────────────────────────────────────────────────
 
-    function reportsHtml({ canAdmin, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
+    function reportsHtml({ canAdmin, driftCount, outsideOnly, auditReport, lockReport, vmOpsReport, emailLog }) {
 
         const auditTotal    = auditReport ? (auditReport.totalActions || 0) : 0;
         // Counted by the server over the whole window (E12-T06), not from the 20-row sample.
@@ -620,13 +663,13 @@ const SystemHealth = (function () {
             <div class="card sh-summary-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-chart-bar text-primary"></i>
-                    <strong>Audit Summary — Last 24 Hours</strong>
+                    <strong>Audit summary, last 24 hours</strong>
                 </div>
                 <div class="card-body">
                     <div class="row text-center g-0">
                         <div class="col border-end">
                             <div class="sh-stat-value">${auditTotal.toLocaleString()}</div>
-                            <div class="sh-stat-label">Total Actions</div>
+                            <div class="sh-stat-label">Actions</div>
                         </div>
                         <div class="col border-end">
                             <div class="sh-stat-value text-success">${auditSuccess.toLocaleString()}</div>
@@ -638,11 +681,11 @@ const SystemHealth = (function () {
                         </div>
                         <div class="col border-end">
                             <div class="sh-stat-value">${successText}</div>
-                            <div class="sh-stat-label">Success Rate</div>
+                            <div class="sh-stat-label">Success rate</div>
                         </div>
                         <div class="col">
                             <div class="sh-stat-value text-truncate" title="${Utils.escapeHtml(topEnv)}">${Utils.escapeHtml(topEnv)}</div>
-                            <div class="sh-stat-label">Most Active Env</div>
+                            <div class="sh-stat-label">Busiest environment</div>
                         </div>
                     </div>
                 </div>
@@ -655,18 +698,18 @@ const SystemHealth = (function () {
                     <i class="fas fa-exchange-alt text-info" aria-hidden="true"></i>
                     <strong>State changes</strong>
                     <span class="sh-changes-count">${Utils.escapeHtml(plural(driftCount, 'change', 'changes'))} outside the platform in 24 hours</span>
-                    <label class="re-check ms-auto"><input type="checkbox" id="sh-changes-outside" data-action-change="sh-changes-outside">
+                    <label class="re-check ms-auto"><input type="checkbox" id="sh-changes-outside" data-action-change="sh-changes-outside"${outsideOnly ? ' checked' : ''}>
                         Only outside the platform</label>
                 </div>
                 <div class="card-body" id="sh-changes"></div>
             </div>` : ''}
 
             ${canAdmin ? `
-            <!-- Lock Compliance Report -->
+            <!-- Lock report -->
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-lock text-warning"></i>
-                    <strong>Lock Compliance Report — Last 24 Hours</strong>
+                    <strong>Locks, last 24 hours</strong>
                     <span class="badge bg-secondary ms-auto">${lockReport.length} events</span>
                 </div>
                 <div class="card-body">
@@ -678,7 +721,7 @@ const SystemHealth = (function () {
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-play-circle text-success"></i>
-                    <strong>VM Operations Report — Last 24 Hours</strong>
+                    <strong>VM operations, last 24 hours</strong>
                     <span class="badge bg-secondary ms-auto">${vmOpsReport.length} events</span>
                 </div>
                 <div class="card-body">
@@ -690,7 +733,7 @@ const SystemHealth = (function () {
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-envelope text-info"></i>
-                    <strong>Email Notifications Sent</strong>
+                    <strong>Emails sent</strong>
                     <span class="badge bg-secondary ms-auto">${emailLog.length} recent</span>
                 </div>
                 <div class="card-body">
@@ -703,21 +746,29 @@ const SystemHealth = (function () {
 
     // ─── table builders ───────────────────────────────────────────────────────
 
+    /** One lock or operation audit row in words: who, what and Done / Failed (U23-T13). */
+    function complianceRow(log) {
+        const said = typeof AuditText !== 'undefined' ? AuditText.what(log) : null;
+        return {
+            who: (typeof AuditText !== 'undefined' ? AuditText.who(log) : null) || log.userDisplayName || log.userEmail || 'The platform',
+            what: (said && said.text) || log.actionDisplay || actionLabel(log.action),
+            result: said && said.result ? said.result : (log.success === false ? 'Failed' : 'Done')
+        };
+    }
+
     function buildComplianceTable(logs, columns) {
         if (!logs || logs.length === 0) {
             return UiStates.empty({ title: 'No events in the last 24 hours' });
         }
         const hasResult = columns.includes('Result');
         const rows = logs.map(log => {
-            const resultCell = hasResult
-                ? `<td class="text-center">${log.success !== false
-                    ? '<i class="fas fa-check-circle text-success"></i>'
-                    : '<i class="fas fa-times-circle text-danger"></i>'}</td>`
-                : '';
+            // U23-T13: the action in words ("Stopped 3 VMs", not "Vm stop completed") and the result as a word.
+            const said = complianceRow(log);
+            const resultCell = hasResult ? `<td>${Utils.escapeHtml(said.result)}</td>` : '';
             return `
                 <tr>
-                    <td>${Utils.escapeHtml(log.userDisplayName || log.userEmail || 'System')}</td>
-                    <td><span class="badge bg-secondary">${Utils.escapeHtml(log.actionDisplay || actionLabel(log.action))}</span></td>
+                    <td>${Utils.escapeHtml(said.who)}</td>
+                    <td>${Utils.escapeHtml(said.what)}</td>
                     <td>${Utils.escapeHtml(log.environmentName || log.environmentId || '—')}</td>
                     <td>${Utils.escapeHtml(log.targetName || '—')}</td>
                     ${resultCell}
@@ -767,7 +818,7 @@ const SystemHealth = (function () {
     // ─── shared ──────────────────────────────────────────────────────────────
 
     return { load, triggerSync, triggerEksSync, setChangesOutsideOnly, changesPage,
-        model: { span, lastRun, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows } };
+        model: { span, lastRun, cadenceText, complianceRow, scanErrorText, notesSummary, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows } };
 })();
 
 if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;

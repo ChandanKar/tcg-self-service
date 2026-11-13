@@ -39,6 +39,19 @@ const AuditText = (function() {
         return plural(m, 'minute');
     }
 
+    const RAW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    /** The person a user row is about: their name, or "someone" where older rows kept only an id (U23-T13). */
+    function personRef(log) {
+        const name = String(log.targetName || '').trim();
+        return name && !RAW_ID.test(name) ? name : 'someone';
+    }
+
+    /** The row with a raw id as target name left out, so it reads 'Deactivated the user'. */
+    function withPerson(log) {
+        return RAW_ID.test(String(log.targetName || '').trim()) ? Object.assign({}, log, { targetName: '' }) : log;
+    }
+
     /** "Name (email)" from describeUser, shortened to the name. */
     function personName(s) {
         return String(s || '').replace(/\s*\([^)]*@[^)]*\)\s*$/, '').trim();
@@ -223,6 +236,13 @@ const AuditText = (function() {
             case 'AUTOMATION_RULE_UPDATED': text = `Changed rule "${log.targetName || ''}"`; break;
             case 'AUTOMATION_RULE_DELETED': text = `Deleted rule "${log.targetName || ''}"`; break;
             case 'HOLIDAY_CALENDAR_CHANGED': text = `Changed holiday calendar "${log.targetName || ''}"`; break;
+            case 'USER_UPDATED':
+                // U23-T13: choosing one's own password read 'Changed user "uat.viewer@example.com"'.
+                if (/^Password set/.test(d)) {
+                    text = log.userId && log.userId === log.targetId ? 'Chose a new password' : `Set a password for ${personRef(log)}`;
+                } else text = fallback(withPerson(log));
+                break;
+            case 'USER_DEACTIVATED': text = fallback(withPerson(log)); break;
             default:
                 text = fallback(log);
         }

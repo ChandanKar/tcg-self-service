@@ -270,8 +270,8 @@ const ApiAccess = (function() {
         if (!enabled) {
             $('#api-access-body').html(`<section class="api-off" id="api-access-off" aria-labelledby="api-off-title">
                 <h2 id="api-off-title">API tokens are switched off</h2>
-                <p>Nobody can create or use a token until they are on. They are switched on in the server settings
-                    (<code>API_TOKENS_ENABLED</code>), after the token secret (<code>API_TOKEN_PEPPER</code>) is set; the setup guide explains both steps.</p>
+                <p>Nobody can create or use a token until they are on. An administrator switches them on in the server configuration
+                    (<code>API_TOKENS_ENABLED</code>, needs a restart), after the token secret (<code>API_TOKEN_PEPPER</code>) is set; the setup guide explains both steps.</p>
                 <a class="btn btn-secondary" href="#/help/api-access">Setup guide</a>
             </section>`);
             return;

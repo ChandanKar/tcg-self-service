@@ -199,6 +199,43 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
                         hasItem("jane.doe")));
     }
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    private void changedMinutesAgo(VmStateHistory row, int minutes) {
+        jdbc.update("UPDATE vm_state_history SET created_at = ? WHERE history_id = ?",
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(minutes * 60L)), row.getHistoryId());
+    }
+
+    @Test
+    void aSettleShowsTheOriginOfTheChangeItFinishesAndTheRangeListsOnlyItsHours() throws Exception {
+        // U23-T09: RUNNING -> STOPPING made in AWS, then STOPPING -> STOPPED settles: the settle read 'Platform'.
+        stateHistoryRepository.deleteAll();
+        changedMinutesAgo(stateSyncService.recordStateChange(testVm, VmStatus.STOPPED, VmStatus.RUNNING, "operation",
+                null, null, "Start"), 26 * 60); // outside the 24 hours
+        changedMinutesAgo(stateSyncService.recordStateChange(testVm, VmStatus.RUNNING, VmStatus.STOPPING, "state_sync",
+                null, null, "Changed in AWS"), 10);
+        VmStateHistory settle = stateSyncService.recordStateChange(testVm, VmStatus.STOPPING, VmStatus.STOPPED, "sync_settled",
+                null, null, "Settled to the state the cloud reports");
+        changedMinutesAgo(settle, 5);
+        java.time.Instant to = java.time.Instant.now().plusSeconds(1);
+        java.time.Instant from = to.minusSeconds(24 * 3600);
+
+        mockMvc.perform(get("/api/v1/monitoring/state-changes").param("from", from.toString()).param("to", to.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].changeSource").value("sync_settled"))
+                .andExpect(jsonPath("$[0].settledFrom").value("state_sync"))
+                .andExpect(jsonPath("$[0].drift").value(false))
+                .andExpect(jsonPath("$[1].settledFrom").doesNotExist());
+
+        // A previous row older than the range is found in the database.
+        mockMvc.perform(get("/api/v1/monitoring/state-changes").param("from", to.minusSeconds(6 * 60).toString())
+                        .param("to", to.toString()))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].settledFrom").value("state_sync"));
+    }
+
     @Test
     void testGetDriftEvents() throws Exception {
         // Create a drift event

@@ -49,9 +49,11 @@ class NotificationPreferenceServiceTest {
 
     @Test
     void everythingIsOnUntilTurnedOffAndRequiredBellsAreLocked() {
+        settings.put("lease.enabled", "true");
         List<NotificationPreferenceDTO> list = service.list("u1");
 
-        assertThat(list).hasSize(NotificationType.values().length);
+        assertThat(list).hasSize(NotificationType.values().length - 1);
+        assertThat(list).noneMatch(p -> p.type().equals("OPERATION_REQUESTED")); // no longer sent (U23-T08)
         assertThat(list).allMatch(p -> p.inApp() && p.email());
         NotificationPreferenceDTO lockBroken = list.stream().filter(p -> p.type().equals("LOCK_BROKEN")).findFirst().orElseThrow();
         assertThat(lockBroken.inAppLocked()).isTrue();
@@ -113,5 +115,13 @@ class NotificationPreferenceServiceTest {
 
     private static NotificationPreferenceDTO find(List<NotificationPreferenceDTO> list, String type) {
         return list.stream().filter(p -> p.type().equals(type)).findFirst().orElseThrow();
+    }
+
+    @Test
+    void leaseRowsAreLeftOutWhileLeasesAreSwitchedOff() {
+        // U23-T13: My account listed "Lease expiring / Lease expired" with leases off.
+        assertThat(service.list("u1")).noneMatch(p -> p.type().startsWith("LEASE_"));
+        settings.put("lease.enabled", "true");
+        assertThat(service.list("u1")).anyMatch(p -> p.type().equals("LEASE_EXPIRING"));
     }
 }

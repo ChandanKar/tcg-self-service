@@ -377,6 +377,59 @@ class NotificationServiceTest {
         verify(repo, times(1)).findByUserIdInAndNotificationType(anyList(), any()); // one query for the broadcast
     }
 
+    /** Every notification the broadcasts saved. */
+    @SuppressWarnings("unchecked")
+    private List<com.tcgdigital.vmcontrol.model.Notification> broadcastNotices() {
+        ArgumentCaptor<Iterable<com.tcgdigital.vmcontrol.model.Notification>> saved = ArgumentCaptor.forClass(Iterable.class);
+        verify(notificationRepository, org.mockito.Mockito.atLeast(0)).saveAll(saved.capture());
+        List<com.tcgdigital.vmcontrol.model.Notification> all = new java.util.ArrayList<>();
+        saved.getAllValues().forEach(batch -> batch.forEach(all::add));
+        return all;
+    }
+
+    @Test
+    void aScheduledStopIsCreditedToTheScheduleNotToThePersonItRanAs() {
+        // U23-T08: the bell said "admin's stop completed" while History said Schedule "ise start-stop".
+        service.notifyOperationCompletedForEnvironment("env-A", "ise", "user-admin", "STOP", 1, 0,
+                com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE, "ise start-stop");
+
+        List<com.tcgdigital.vmcontrol.model.Notification> notices = broadcastNotices();
+        assertFalse(notices.isEmpty());
+        for (com.tcgdigital.vmcontrol.model.Notification n : notices) {
+            assertEquals("Schedule \"ise start-stop\" stopped ise", n.getTitle(), "for " + n.getUserId());
+            assertEquals("Schedule \"ise start-stop\" stopped 1 VM in \"ise\".", n.getMessage());
+        }
+    }
+
+    @Test
+    void aScheduledStartThatFailsNamesTheScheduleAndAManualOneStillNamesThePerson() {
+        service.notifyOperationFailedForEnvironment("env-A", "ise", "user-admin", "START", "boom",
+                com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE, "ise start-stop");
+        List<com.tcgdigital.vmcontrol.model.Notification> failed = broadcastNotices();
+        assertFalse(failed.isEmpty());
+        assertTrue(failed.stream().allMatch(n ->
+                n.getTitle().equals("Schedule \"ise start-stop\" couldn't start ise")
+                        && n.getMessage().endsWith("Reason: boom")));
+
+        org.mockito.Mockito.clearInvocations(notificationRepository);
+        service.notifyOperationCompletedForEnvironment("env-A", "ise", "user-admin", "STOP", 2, 0,
+                com.tcgdigital.vmcontrol.model.OperationTriggerSource.MANUAL, null);
+        assertTrue(broadcastNotices().stream().anyMatch(n ->
+                n.getUserId().equals("user-admin") && n.getTitle().startsWith("Your stop completed")));
+    }
+
+    @Test
+    void theOtherStartersAreNamedPlainly() {
+        assertEquals("Rule \"on access\"", NotificationService.startedByLabel(
+                com.tcgdigital.vmcontrol.model.OperationTriggerSource.ACCESS_AUTOMATION, "on access"));
+        assertEquals("A schedule", NotificationService.startedByLabel(
+                com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE, " "));
+        assertEquals("Idle auto-stop", NotificationService.startedByLabel(
+                com.tcgdigital.vmcontrol.model.OperationTriggerSource.IDLE_STOP, null));
+        assertNull(NotificationService.startedByLabel(com.tcgdigital.vmcontrol.model.OperationTriggerSource.MANUAL, "x"));
+        assertNull(NotificationService.startedByLabel(null, null));
+    }
+
     @Test
     void aUserWhoTurnedOffTheAccessExpiringEmailStillGetsTheBellOnly() {
         com.tcgdigital.vmcontrol.repository.UserNotificationPreferenceRepository repo = usePreferences();

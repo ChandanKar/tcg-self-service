@@ -109,12 +109,18 @@ test('U22-T14: the EC2 instances Found in AWS lists are named under the title, w
     const found = { items: [
         { kind: 'EC2', state: 'running' }, { kind: 'EC2', state: 'stopped' }, { kind: 'EC2', state: 'RUNNING' },
         { kind: 'EKS', state: null }] };
-    assert.deepEqual(plain(M.unregisteredCount(found)), { instances: 3, running: 2 });
+    assert.deepEqual(plain(M.unregisteredCount(found)), { instances: 3, running: 2, clusters: 1 });
     const html = M.unregisteredHtml({ instances: 3, running: 2 });
     assert.match(html, /3 instances in AWS \(2 running\) are not in the registry, so their cost is not counted here\./);
     assert.match(html, /data-action="cost-found-in-aws" title="Opens Found in AWS">Review them</);
     assert.match(M.unregisteredHtml({ instances: 1, running: 0 }), /^ 1 instance in AWS is not in the registry, so its cost/);
     assert.equal(M.unregisteredHtml({ instances: 0, running: 0 }), '');
     assert.equal(M.unregisteredHtml(null), '');
-    assert.deepEqual(plain(M.unregisteredCount(null)), { instances: 0, running: 0 });
+    assert.deepEqual(plain(M.unregisteredCount(null)), { instances: 0, running: 0, clusters: 0 });
+});
+
+test('U23-T13: the EKS clusters Found in AWS lists are counted with the instances', () => {
+    assert.match(M.unregisteredHtml({ instances: 129, running: 41, clusters: 10 }),
+        /^ 129 instances in AWS \(41 running\) and 10 EKS clusters are not in the registry, so their cost/);
+    assert.match(M.unregisteredHtml({ instances: 0, running: 0, clusters: 1 }), /^ 1 EKS cluster in AWS is not in the registry, so its cost/);
 });

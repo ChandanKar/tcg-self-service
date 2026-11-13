@@ -81,8 +81,11 @@ test.describe('System Health', () => {
     const change = (i: number, outside: boolean) => ({ historyId: `h${i}`, vmId: `vm-${i}`, vmName: `web-${String(i).padStart(2, '0')}`,
       previousStatus: outside ? 'RUNNING' : 'STOPPED', newStatus: outside ? 'STOPPED' : 'RUNNING',
       changeSource: outside ? 'state_sync' : 'operation', drift: outside, changedByUsername: outside ? null : 'Asha Rao', changedAt: at(i) });
-    await page.route('**/api/v1/monitoring/state-changes', route => route.fulfill({
-      json: Array.from({ length: 14 }, (_, i) => change(i + 1, i % 4 === 0)) }));
+    const asked: string[] = [];
+    await page.route(/\/api\/v1\/monitoring\/state-changes\?/, route => {
+      asked.push(route.request().url());
+      return route.fulfill({ json: Array.from({ length: 14 }, (_, i) => change(i + 1, i % 4 === 0)) });
+    });
     await page.route(/\/api\/v1\/monitoring\/drift-events\?/, route => route.fulfill({
       json: { content: [], page: { size: 20, number: 0, totalElements: 4, totalPages: 1 } } }));
     await openHealth(page);
@@ -102,6 +105,36 @@ test.describe('System Health', () => {
     await page.getByLabel('Only outside the platform').check();
     await expect(table.locator('tbody tr')).toHaveCount(4);
     await expect(table.locator('tbody tr.sh-change-outside')).toHaveCount(4);
+  });
+
+  test('U23-T09: the list covers the 24 hours its count does; Home's link opens only the changes outside', async ({ page }) => {
+    const at = (min: number) => new Date(Date.now() - min * 60000).toISOString();
+    const asked: string[] = [];
+    await page.route(/\/api\/v1\/monitoring\/state-changes\?/, route => {
+      asked.push(route.request().url());
+      return route.fulfill({ json: [
+        { historyId: 'h1', vmId: 'vm-1', vmName: 'web-01', previousStatus: 'STOPPING', newStatus: 'STOPPED',
+          changeSource: 'sync_settled', settledFrom: 'state_sync', drift: false, changedAt: at(1) },
+        { historyId: 'h2', vmId: 'vm-1', vmName: 'web-01', previousStatus: 'RUNNING', newStatus: 'STOPPING',
+          changeSource: 'state_sync', drift: true, changedAt: at(6) },
+        { historyId: 'h3', vmId: 'vm-2', vmName: 'web-02', previousStatus: 'STOPPED', newStatus: 'RUNNING',
+          changeSource: 'operation', drift: false, changedByUsername: 'Asha Rao', changedAt: at(9) }] });
+    });
+    await page.route(/\/api\/v1\/monitoring\/drift-events\?/, route => route.fulfill({
+      json: { content: [], page: { size: 20, number: 0, totalElements: 1, totalPages: 1 } } }));
+    await openHealth(page, '#/system-health?tab=reports&changes=outside');
+
+    const table = page.locator('#sh-changes-table');
+    await expect(page.getByLabel('Only outside the platform')).toBeChecked({ timeout: 10_000 });
+    await expect(page.locator('.sh-changes-count')).toHaveText('1 change outside the platform in 24 hours');
+    await expect(table.locator('tbody tr')).toHaveCount(1);
+    const p = new URL(asked[0]).searchParams;
+    expect(Math.round((Date.parse(p.get('to')!) - Date.parse(p.get('from')!)) / 3600000)).toBe(24);
+
+    await page.getByLabel('Only outside the platform').uncheck();
+    await expect(table.locator('tbody tr')).toHaveCount(3);
+    await expect(table.locator('tbody tr').first()).toContainText('Outside the platform, finished');
+    await expect(table.locator('tbody tr.sh-change-outside')).toHaveCount(1);
   });
 
   test('now: four figures and the jobs, problems first; All follows the catalog; 10 a page', async ({ page }) => {

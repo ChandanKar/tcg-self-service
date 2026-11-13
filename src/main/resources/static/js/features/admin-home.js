@@ -14,6 +14,8 @@ const AdminHome = (function() {
     const FLEET_ROWS = 7;
     const EXTRAS_FRESH_MS = 60000;
     const SYNC_BEHIND_MS = 30 * 60000;
+    /** System health's Reports with only the changes made outside the platform, 24 h (U23-T09). */
+    const DRIFT_HREF = '#/system-health?tab=reports&changes=outside';
 
     let extras = null; // {at, attention, trend, attentionFailed, trendFailed}
     const fleetGroups = new Map(); // environmentId -> power strip groups, to redraw a row's strip
@@ -62,7 +64,9 @@ const AdminHome = (function() {
         const drift = Number(vms.drift) || 0;
         const found = Number(vms.pendingReview) || 0;
         add('vms', drift + found, 'VMs to review',
-            [drift ? `${drift} changed outside the platform, 24 h` : '', found ? `${found} found by discovery` : ''].filter(Boolean).join(', '), '#/vm-registry', 'gold');
+            [drift ? `${drift} changed outside the platform, 24 h` : '', found ? `${found} found by discovery` : ''].filter(Boolean).join(', '),
+            // U23-T09: the changes are listed in System health's Reports (the registry showed nothing about them).
+            drift ? DRIFT_HREF : '#/vm-registry', 'gold');
         const budgets = att.budgets || {};
         const near = Number(budgets.nearLimit) || 0;
         const risk = budgetRisk(budgets.top);

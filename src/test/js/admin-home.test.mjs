@@ -31,10 +31,12 @@ test('tiles: the mockup six with their counts, details and links; zero counts ar
         [3, 'Access requests', 'Oldest waiting 2 days', '#/pending-requests', 'navy'],
         [2, 'Approvals', 'Oldest waiting 8 h', '#/approvals', 'navy'],
         [2, 'Failed operations, 24 h', 'Analytics QA, CRM UAT', '#/audit-logs-all?result=failed&range=24h', 'red'], // U22-T09
-        [3, 'VMs to review', '1 changed outside the platform, 24 h, 2 found by discovery', '#/vm-registry', 'gold'], // U22-T12
+        [3, 'VMs to review', '1 changed outside the platform, 24 h, 2 found by discovery', '#/system-health?tab=reports&changes=outside', 'gold'], // U22-T12, U23-T09
         [1, 'Budget almost used', 'CRM team at 96%', '#/budgets', 'red'],
         [1, 'Late scheduled job', 'Cost snapshot, 2 h late', '#/system-health', 'gold']]);
     assert.deepEqual(plain(M.tiles(NONE, NOW)), []);
+    // U23-T09: with nothing changed outside the platform, the tile opens the registry for the VMs found.
+    assert.equal(plain(M.tiles({ ...NONE, vmsToReview: { drift: 0, pendingReview: 2 } }, NOW))[0].href, '#/vm-registry');
     assert.deepEqual(plain(M.tiles({ ...NONE, failedOperations: { count24h: 0, stuck: 1, environmentNames: [] } }, NOW))
         .map(t => [t.count, t.detail]), [[1, '1 stopped reporting']]);
 });
