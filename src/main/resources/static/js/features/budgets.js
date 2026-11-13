@@ -109,14 +109,11 @@ const Budgets = (function() {
 
     /**
      * The budget line under the environment's cost (U22-T04): no second forecast (the cost card has the
-     * forecast) and the day the budget's spend runs to, since budgets are evaluated on complete days while
-     * the card's month to date includes today. Staging showed "$31.10 of $50.00 · forecast $65.57" under
-     * "$32.55 this month · if the current rate continues: $65.21".
+     * forecast). U24-T03: a budget's spend includes today, as the card's month to date does, so the line
+     * no longer names the day it runs to ("$34.23 of the $50.00 budget, to 12 Nov" under "$35.45").
      */
     function envSummary(b) {
-        const asOf = b.asOf ? new Date(`${b.asOf}T00:00:00Z`) : null;
-        const day = asOf && !isNaN(asOf) ? `, to ${asOf.getUTCDate()} ${MONTHS[asOf.getUTCMonth()].slice(0, 3)}` : '';
-        return `${money(b.spendToDate)} of the ${money(b.monthlyAmount)} budget${day}`;
+        return `${money(b.spendToDate)} of the ${money(b.monthlyAmount)} budget`;
     }
 
     // ============= Budgets page =============
@@ -245,7 +242,7 @@ const Budgets = (function() {
         }).join('');
         $('#budget-list-panel').html(`${totals}<div class="bd-list list-panel-body" id="budgets-list" tabindex="0" role="region" aria-label="Budgets, scrolls">${rows}</div>
             <div class="list-panel-foot bd-foot">${pager}
-            <p class="bd-note">Spend uses AWS billing where available, otherwise the estimate, up to yesterday.</p></div>`);
+            <p class="bd-note">Spend uses AWS billing where available, otherwise the estimate, including today so far. Alerts count finished days only.</p></div>`);
         attachFit();
     }
 
@@ -594,7 +591,7 @@ const Budgets = (function() {
         retry: key => { delete page.errors[key]; fetchPage([key]); },
         goToPage: n => { if (!page) return; page.listPage = Number(n) || 1; drawPage(); },
         setForEnvironment: () => envPanel && openForm(null, { scopeType: 'ENVIRONMENT', scopeId: envPanel.env.environmentId }),
-        model: { dollars, chipOf, actionText, kindText, totalsOf, monthDay, thresholdProblem }
+        model: { dollars, chipOf, actionText, kindText, totalsOf, monthDay, thresholdProblem, envSummary }
     };
 })();
 

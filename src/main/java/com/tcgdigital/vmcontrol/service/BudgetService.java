@@ -55,9 +55,13 @@ public class BudgetService {
     private final AuditService auditService;
     private final AwsBudgetSyncService awsBudgetSync;
     private final com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit;
+    private final EnvironmentCostService environmentCostService;
 
-    /** Replaceable in tests. */
-    private Clock clock = Clock.systemUTC();
+    /**
+     * Replaceable in tests. The server's zone (U24-T03): today follows the snapshot job's calendar, as
+     * on the environment page; the alert job keeps its own clock (BudgetEvaluationService).
+     */
+    private Clock clock = Clock.systemDefaultZone();
 
     @org.springframework.beans.factory.annotation.Value("${budgets.actions.enabled:false}")
     private boolean actionsEnabled = false;
@@ -70,7 +74,9 @@ public class BudgetService {
     public BudgetService(BudgetRepository budgetRepository, EnvironmentRepository environmentRepository,
                          CostDailySnapshotRepository snapshotRepository, TeamResolver teamResolver,
                          SecurityService securityService, AuditService auditService,
-                         AwsBudgetSyncService awsBudgetSync, com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit) {
+                         AwsBudgetSyncService awsBudgetSync, com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit,
+                         EnvironmentCostService environmentCostService) {
+        this.environmentCostService = environmentCostService;
         this.awsBudgetSync = awsBudgetSync;
         this.afterCommit = afterCommit;
         this.budgetRepository = budgetRepository;
@@ -228,14 +234,25 @@ public class BudgetService {
 
     // ============= Spend =============
 
-    /** Spend to date over complete days up to {@code asOf}, and the month-end forecast (null without data). */
+    /**
+     * Spend to date up to {@code asOf}, and the month-end forecast (null without data). Over complete
+     * days for the alert job; {@link #currentSpend} adds today, so its asOf is today.
+     */
     public record Spend(YearMonth month, LocalDate asOf, BigDecimal toDate, BigDecimal forecast) {}
 
-    /** This month's spend as of yesterday (today is not complete yet). */
+    /**
+     * This month's spend as the screens show it (U24-T03): the complete days up to yesterday plus today's
+     * live estimate, and the forecast at the same run rate for the days after today, the environment
+     * page's figures. Staging's ISE budget said $34.23 spent and a $67.25 forecast while its page said
+     * $35.45 this month and $66.61. Budget alerts keep {@link #spend} over complete days only
+     * (BudgetEvaluationService), so a part day never fires a threshold.
+     */
     @Transactional(readOnly = true)
     public Spend currentSpend(Budget budget) {
-        LocalDate today = LocalDate.now(clock);
-        return spend(budget, YearMonth.from(today), today.minusDays(1));
+        List<String> environmentIds = environmentIds(budget);
+        EnvironmentCostService.LiveToday live = environmentCostService.liveToday(environmentIds, clock);
+        LocalDate today = live.date();
+        return spend(environmentIds, YearMonth.from(today), today.minusDays(1), live.soFar());
     }
 
     /**
@@ -245,10 +262,14 @@ public class BudgetService {
      */
     @Transactional(readOnly = true)
     public Spend spend(Budget budget, YearMonth month, LocalDate asOf) {
+        return spend(environmentIds(budget), month, asOf, null);
+    }
+
+    /** With todaySoFar, the day after {@code asOf} (today) counts that much and is no longer a day left. */
+    private Spend spend(List<String> environmentIds, YearMonth month, LocalDate asOf, BigDecimal todaySoFar) {
         LocalDate monthStart = month.atDay(1);
         LocalDate monthEnd = month.atEndOfMonth();
         LocalDate until = asOf.isAfter(monthEnd) ? monthEnd : asOf;
-        List<String> environmentIds = environmentIds(budget);
         Map<LocalDate, BigDecimal> perDay = new TreeMap<>();
         LocalDate from = until.minusDays(RUN_RATE_DAYS - 1L).isBefore(monthStart) ? until.minusDays(RUN_RATE_DAYS - 1L) : monthStart;
         if (!environmentIds.isEmpty() && !until.isBefore(from)) {
@@ -263,8 +284,14 @@ public class BudgetService {
                 .filter(e -> !e.getKey().isBefore(until.minusDays(RUN_RATE_DAYS - 1L)))
                 .map(Map.Entry::getValue).toList();
         int daysRemaining = monthEnd.getDayOfMonth() - (until.isBefore(monthStart) ? 0 : until.getDayOfMonth());
+        LocalDate shownAsOf = until;
+        if (todaySoFar != null) {
+            toDate = toDate.add(todaySoFar);
+            daysRemaining = Math.max(0, daysRemaining - 1);
+            shownAsOf = until.plusDays(1);
+        }
         BigDecimal forecast = CostRunRate.forecast(toDate, recent, daysRemaining);
-        return new Spend(month, until, money(toDate), forecast == null ? null : money(forecast));
+        return new Spend(month, shownAsOf, money(toDate), forecast == null ? null : money(forecast));
     }
 
     /** The environments a budget covers: its environment, or the active environments of its team. */

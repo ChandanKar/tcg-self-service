@@ -60,6 +60,8 @@ test.describe('Budgets', () => {
     await fillBudgetForm(page, '1000');
 
     await expect(page.locator('#env-budget-summary')).toContainText('of the $1,000.00 budget');
+    // U24-T03: the budget's spend includes today, so the line names no day it runs to.
+    await expect(page.locator('#env-budget-summary')).not.toContainText(', to ');
     await expect(page.locator('.budget-env-card .budget-bar')).toHaveCount(1);
   });
 

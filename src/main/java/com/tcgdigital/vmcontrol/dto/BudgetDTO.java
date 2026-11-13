@@ -10,7 +10,8 @@ import java.util.List;
 
 /**
  * A budget with this month's spend (E20-T01): actual cost where AWS billing has it, else the
- * estimate, over complete days up to {@code asOf}; the month-end forecast at the recent run rate.
+ * estimate, over the complete days plus today's live estimate (U24-T03, {@code asOf} is today); the
+ * month-end forecast at the recent run rate for the days after today, as the environment page shows it.
  */
 public record BudgetDTO(
         String budgetId,

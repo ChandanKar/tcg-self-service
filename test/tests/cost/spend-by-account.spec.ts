@@ -33,6 +33,9 @@ async function open(page: Page, accounts: any[]) {
   await page.route(/\/cost-management\/spend-trend-by-team\?/, r => r.fulfill({ json: [
     { date: `${ym}-01`, team: 'Payments', estimatedCost: 300 }, { date: `${ym}-01`, team: 'Data', estimatedCost: 500 },
     { date: '2020-01-01', team: 'Data', estimatedCost: 9999 }] }));
+  // U24-T03: By team this month comes from the server's month to date per team (snapshots plus today).
+  await page.route(/\/cost-management\/month-by-team$/, r => r.fulfill({ json: [
+    { dimensionKey: 'Data', dimensionLabel: 'Data', cost: 512 }, { dimensionKey: 'Payments', dimensionLabel: 'Payments', cost: 300 }] }));
   await page.route(/\/cost-management\/rightsizing\?/, r => r.fulfill({ json: page1([
     { vmId: 'v1', vmName: 'etl-1', environmentName: 'Data Lake Dev', currentInstanceType: 'r6i.4xlarge', suggestedInstanceType: 'r6i.2xlarge',
       peakCpuUtilization: 22, estimatedMonthlySavings: 540, costKnown: true, direction: 'SCALE_DOWN' }]) }));
@@ -75,7 +78,7 @@ test.describe('Cost overview', () => {
     await expect(page).toHaveURL(/[?&]by=team/);
     await expect(page.locator('[data-cost-panel="breakdown"] .cost-bar-row')).toHaveCount(2);
     await expect(page.locator('[data-cost-panel="breakdown"] .cost-bar-row').first()).toContainText('Data');
-    await expect(page.locator('[data-cost-panel="breakdown"] .cost-bar-row').first()).toContainText('$500');
+    await expect(page.locator('[data-cost-panel="breakdown"] .cost-bar-row').first()).toContainText('$512');
     await expect(page.locator('[data-cost-panel="breakdown"]')).toContainText('this month');
   });
 

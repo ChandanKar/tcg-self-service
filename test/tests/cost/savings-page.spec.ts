@@ -95,7 +95,8 @@ test.describe('Savings page', () => {
 
     const table = page.locator('[data-kpi="table"]');
     await expect(table.locator('.savings-tile-value')).toHaveText('$1,051', { timeout: 15_000 });
-    await expect(table.locator('.cost-kpi-note')).toHaveText('Idle VMs $612 · Rightsizing $391 · Waste $48');
+    // U24-T04: with how it counts (Rightsizing here leaves out VMs already counted as idle).
+    await expect(table.locator('.cost-kpi-note')).toHaveText('Idle VMs $612 · Rightsizing $391 · Waste $48. Each VM counted once, by its larger saving.');
     await expect(page.locator('#savings-trend-svg')).toBeVisible();
     await expect(page.getByText(/median/i)).toHaveCount(0);
   });

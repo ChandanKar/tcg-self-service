@@ -77,14 +77,18 @@ const Savings = (function() {
 
     /**
      * What "Still on the table" is made of (U23-T06): "Idle VMs $X · Rightsizing $Y · Waste $Z", the
-     * waste only while its checks are on; empty for a past month (only its total was kept).
+     * waste only while its checks are on; empty for a past month (only its total was kept). U24-T04: and
+     * how it counts. Each VM counts once, by its larger saving (PotentialSavingsService), so Rightsizing
+     * here leaves out VMs already counted as idle: staging showed $323 here and $361 on Cost management.
      */
     function potentialParts(parts) {
         if (!parts) return '';
         const out = [`Idle VMs ${money0(parts.idle)}`, `Rightsizing ${money0(parts.rightsizing)}`];
         if (parts.waste !== null && parts.waste !== undefined) out.push(`Waste ${money0(parts.waste)}`);
-        return out.join(' · ');
+        return `${out.join(' · ')}. ${ONCE}`;
     }
+
+    const ONCE = 'Each VM counted once, by its larger saving.';
 
     /** The efficiency line in a 440 × 150 box (0–100%). */
     function efficiencyLine(trend, width = 440, height = 150) {
@@ -217,7 +221,7 @@ const Savings = (function() {
         return `<section class="savings-tiles" aria-label="${Utils.escapeHtml(monthName(state.month))}">
                 ${tile('net', 'Saved, net', money0(s.realisedNet), `${money0(s.realisedGross)} before running storage and IPs`, '', 'cost-mono savings-green')}
                 ${tile('table', 'Still on the table', s.potentialSavings == null ? '—' : money0(s.potentialSavings),
-                    parts || 'a month', 'A month. A VM both idle and too big counts once, as idle.', 'cost-mono')}
+                    parts || 'a month', 'A month. A VM both idle and too big counts once, by its larger saving, so Rightsizing here can be less than on Cost management.', 'cost-mono')}
                 ${tile('efficiency', 'Cost efficiency', s.efficiencyPercent == null ? '—' : `${Math.round(Number(s.efficiencyPercent))}%`,
                     'of spend is not on the table', '1 − still on the table / spend', 'cost-mono')}
                 ${tile('basis', 'Based on', b.label, b.note, quality, 'savings-tile-words')}
