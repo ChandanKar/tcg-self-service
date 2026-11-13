@@ -64,6 +64,23 @@ const EnvInsights = (function() {
         }).filter(Boolean);
     }
 
+    /**
+     * The budget line at the top of What to do (U23-T10), as on Home: "ISE heading for 131% of its budget."
+     * when the month-end forecast passes the amount. Staging's ISE said "Nothing to do right now" with a
+     * forecast of $65.57 against its $50 budget. Null otherwise, or for a switched-off budget.
+     */
+    function budgetLine(budget, name) {
+        if (!budget || budget.enabled === false) return null;
+        const amount = num(budget.monthlyAmount);
+        const forecast = num(budget.forecastMonthEnd);
+        if (amount === null || forecast === null || amount <= 0 || forecast <= amount) return null;
+        const percent = num(budget.forecastPercent) !== null ? Number(budget.forecastPercent) : (forecast / amount) * 100;
+        const money = v => `$${Number(v).toFixed(2)}`;
+        return { title: `${name} heading for ${Math.round(percent)}% of its budget.`,
+            detail: `Forecast ${money(forecast)} of ${money(amount)} this month, ${money(num(budget.spendToDate) || 0)} spent so far.`,
+            saves: '', tone: 'gold', action: null };
+    }
+
     /** "6 h 10 min". */
     function duration(minutes) {
         const m = Math.max(0, Math.round(num(minutes) || 0));
@@ -115,7 +132,7 @@ const EnvInsights = (function() {
     /** Open for an environment ({environmentId, displayName, viewerCanOperate, viewerCanAdminister, groups}). */
     function open(env, window = '24h') {
         state = { env, window: WINDOWS.some(w => w[0] === window) ? window : '24h', data: undefined, anomalies: undefined,
-            token: Date.now() + Math.random() };
+            budget: null, token: Date.now() + Math.random() };
         Slideout.open(`${env.displayName || env.name} insights`, '<div class="env-insights"></div>', { variant: 'env-insights', width: 820 });
         borrowAbout();
         render();
@@ -124,6 +141,9 @@ const EnvInsights = (function() {
         ApiClient.get(Config.API.costAnomalies.forEnvironment(env.environmentId, 90), { suppressGlobalError: true })
             .done(list => { if (state && state.token === token) { state.anomalies = list || []; render(); } })
             .fail(() => { if (state && state.token === token) { state.anomalies = null; render(); } });
+        // U23-T10: a budget heading over is something to do (204 when the environment has no budget).
+        ApiClient.get(Config.API.budgets.forEnvironment(env.environmentId), { suppressGlobalError: true })
+            .done(budget => { if (state && state.token === token) { state.budget = budget || null; render(); } });
     }
 
     /**
@@ -172,7 +192,8 @@ const EnvInsights = (function() {
         if (data === undefined) { $root.html('<p class="vm-panel-empty">Loading…</p>'); return; }
         if (data === null) { $root.html('<p class="vm-panel-empty" role="alert">Couldn\'t load the insights.</p>'); return; }
         const env = state.env;
-        const lines = actionLines(data.actions, env.viewerCanOperate === true, env.viewerCanAdminister === true);
+        const budget = budgetLine(state.budget, env.displayName || env.name);
+        const lines = (budget ? [budget] : []).concat(actionLines(data.actions, env.viewerCanOperate === true, env.viewerCanAdminister === true));
         const todo = lines.length ? lines.map(l => Utils.html`<div class="ins-todo" data-tone="${l.tone}">
                 <span class="ins-todo-text"><b>${l.title}</b> <span>${l.detail}</span></span>
                 <span class="ins-saves mono">${l.saves}</span>
@@ -251,7 +272,7 @@ const EnvInsights = (function() {
             });
     }
 
-    return { open, model: { subtitle, actionLines, idleRows, busiest, groupRows, storageRows, duration } };
+    return { open, model: { subtitle, actionLines, budgetLine, idleRows, busiest, groupRows, storageRows, duration } };
 })();
 
 if (typeof window !== 'undefined') window.EnvInsights = EnvInsights;

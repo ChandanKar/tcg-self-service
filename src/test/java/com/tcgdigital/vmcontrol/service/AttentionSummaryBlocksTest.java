@@ -62,7 +62,19 @@ class AttentionSummaryBlocksTest {
                 budget("Off", "99", "120", false)), List.of(), true).summary();
 
         assertThat(s.budgets().nearLimit()).isEqualTo(3);
-        assertThat(s.budgets().top()).isEqualTo(new AttentionSummaryDTO.BudgetUse("Analytics", new BigDecimal("97")));
+        // U23-T10: the most at risk by the larger of spent and forecast (Payments: forecast 105%).
+        assertThat(s.budgets().top()).isEqualTo(new AttentionSummaryDTO.BudgetUse("Payments", new BigDecimal("92.5"), new BigDecimal("105")));
+    }
+
+    @Test
+    void aBudgetForecastPastItsAmountIsRankedByItsForecast() {
+        // Staging: "Budget almost used: ISE at 62%" while ISE's forecast was 131% of its $50.
+        AttentionSummaryDTO s = service(List.of(
+                budget("Analytics", "95", "97", true),
+                budget("ISE", "62", "131", true)), List.of(), true).summary();
+
+        assertThat(s.budgets().nearLimit()).isEqualTo(2);
+        assertThat(s.budgets().top()).isEqualTo(new AttentionSummaryDTO.BudgetUse("ISE", new BigDecimal("62"), new BigDecimal("131")));
     }
 
     @Test

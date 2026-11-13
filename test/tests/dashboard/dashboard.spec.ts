@@ -99,6 +99,14 @@ test.describe('Administrator Home', () => {
     await expect(page.locator('#ah-summary')).toContainText('28 of 44 VMs running across 8 environments · $6,284 this month, heading for $9,950');
   });
 
+  test('U23-T10: a budget whose forecast passes its amount is named by the forecast', async ({ page }) => {
+    await openHome(page, { ...NONE, budgets: { nearLimit: 1, top: { scopeName: 'ISE', percentUsed: 62, forecastPercent: 131 } } });
+    const tile = page.locator('.ah-tile[data-tile="budgets"]');
+    await expect(tile).toContainText('Budget heading over');
+    await expect(tile).toContainText('ISE heading for 131% of its budget');
+    await expect(tile).toHaveAttribute('href', '#/budgets');
+  });
+
   test('fleet right now: the 7 busiest environments with strips, linking to each', async ({ page }) => {
     await openHome(page, NONE);
     const rows = page.locator('.ah-fleet-row');

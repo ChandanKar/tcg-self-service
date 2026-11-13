@@ -164,11 +164,19 @@ public class AttentionSummaryService {
                 .filter(BudgetDTO::enabled)
                 .filter(b -> atLeast(b.percentUsed(), NEAR_LIMIT_PERCENT) || atLeast(b.forecastPercent(), OVER_PERCENT))
                 .toList();
+        // U23-T10: ranked by the larger of spent and forecast. Staging said "ISE at 62%" while ISE's
+        // forecast was 131% of its budget; the tile now names the real risk.
         AttentionSummaryDTO.BudgetUse top = near.stream()
-                .max(Comparator.comparing(b -> b.percentUsed() == null ? BigDecimal.ZERO : b.percentUsed()))
-                .map(b -> new AttentionSummaryDTO.BudgetUse(b.scopeName(), b.percentUsed()))
+                .max(Comparator.comparing(AttentionSummaryService::risk))
+                .map(b -> new AttentionSummaryDTO.BudgetUse(b.scopeName(), b.percentUsed(), b.forecastPercent()))
                 .orElse(null);
         return new AttentionSummaryDTO.Budgets(near.size(), top);
+    }
+
+    /** The larger of the spent and forecast percentages. */
+    private static BigDecimal risk(BudgetDTO budget) {
+        BigDecimal used = budget.percentUsed() == null ? BigDecimal.ZERO : budget.percentUsed();
+        return budget.forecastPercent() == null ? used : used.max(budget.forecastPercent());
     }
 
     private static boolean atLeast(BigDecimal value, BigDecimal limit) {

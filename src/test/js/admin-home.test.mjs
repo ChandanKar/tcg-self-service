@@ -39,6 +39,20 @@ test('tiles: the mockup six with their counts, details and links; zero counts ar
         .map(t => [t.count, t.detail]), [[1, '1 stopped reporting']]);
 });
 
+test('U23-T10: the budget tile names the real risk, the forecast when it passes the budget', () => {
+    const tile = top => plain(M.tiles({ ...NONE, budgets: { nearLimit: 1, top } }, NOW))[0];
+    assert.deepEqual([tile({ scopeName: 'ISE', percentUsed: 62, forecastPercent: 131.1 })].map(t => [t.title, t.detail]),
+        [['Budget heading over', 'ISE heading for 131% of its budget']]);
+    assert.deepEqual([tile({ scopeName: 'CRM team', percentUsed: 96.2, forecastPercent: 99 })].map(t => [t.title, t.detail]),
+        [['Budget almost used', 'CRM team at 96%']]);
+    // Spent 95%, forecast 120%: almost used, and the forecast says by how much.
+    assert.deepEqual([tile({ scopeName: 'Payments', percentUsed: 95, forecastPercent: 120 })].map(t => [t.title, t.detail]),
+        [['Budget almost used', 'Payments heading for 120% of its budget']]);
+    assert.equal(tile({ scopeName: 'Old', percentUsed: 91 }).detail, 'Old at 91%'); // no forecast field
+    assert.equal(plain(M.tiles({ ...NONE, budgets: { nearLimit: 2, top: { scopeName: 'ISE', percentUsed: 62, forecastPercent: 131 } } }, NOW))[0].title,
+        'Budgets heading over');
+});
+
 test('fleet: most running first, then by name; at most 7; only environments with a strip', () => {
     const card = (name, running, strip = true) => ({ environmentId: name, displayName: name, runningVms: running, groupStates: strip ? [{}] : [] });
     const cards = [card('B', 2), card('A', 2), card('C', 6), card('D', 0), card('E', 9, false),
