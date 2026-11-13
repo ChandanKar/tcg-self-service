@@ -9,6 +9,8 @@
  * (RequestAccess.model), tested in src/test/js/request-access.test.mjs.
  * On a phone (U16-T04) the list and the form are two views: picking an environment shows the form on
  * its own with "Back to environments".
+ * U23-T12: the list is read a page at a time, the search going to the server (staging sent all 161
+ * environments, 165 KB in 4.3 s, and the page said "Loading…" until then).
  */
 const RequestAccess = (function() {
     'use strict';
@@ -109,6 +111,26 @@ const RequestAccess = (function() {
         }
     }
 
+    /**
+     * The address of one page of the environments you can ask for (U23-T12), with those you can only view
+     * (to ask for Operator). around: an environment whose page is wanted instead (one named in the address).
+     */
+    function availableUrl(base, page, size, search, around) {
+        const params = [`page=${page}`, `size=${size}`, 'includeViewOnly=true'];
+        if (search) params.push(`search=${encodeURIComponent(search)}`);
+        if (around) params.push(`around=${encodeURIComponent(around)}`);
+        return `${base}?${params.join('&')}`;
+    }
+
+    /** A page answer as {rows, total, number}; an older server's whole list is taken as it is. */
+    function pageOf(answer) {
+        if (Array.isArray(answer)) return { rows: answer, total: answer.length, number: 0 };
+        const rows = (answer && answer.content) || [];
+        const meta = (answer && answer.page) || {};
+        const total = Number.isFinite(Number(meta.totalElements)) && meta.totalElements !== null ? Number(meta.totalElements) : rows.length;
+        return { rows, total, number: Number(meta.number) || 0 };
+    }
+
     // ---------------------------------------------------------------- the page
 
     let s = null;   // page state
@@ -120,7 +142,7 @@ const RequestAccess = (function() {
         const q = ContentRouter.query ? ContentRouter.query() : {};
         s = {
             tab: q.tab === 'mine' ? 'mine' : 'new',
-            envs: [], requests: [], viewEnvIds: new Set(), waitingEnvIds: new Set(),
+            envs: [], total: 0, selectedEnv: null, listToken: 0, requests: [], viewEnvIds: new Set(), waitingEnvIds: new Set(),
             selected: q.env || q.environmentId || null,
             preset: { group: q.group || null, groupName: q.groupName || null, level: q.level || null, name: q.name || null },
             query: '', page: 0, minePage: 0, maxDays: 90, groups: {}, sending: false, errors: {}, fit: null,
@@ -130,7 +152,8 @@ const RequestAccess = (function() {
         $('#content-area').html('<div class="loading-state"><div class="spinner-border text-primary" role="status"></div><p>Loading…</p></div>');
         try {
             const [available, mine, grants, profile] = await Promise.all([
-                get(Config.API.environments.available, [], true),
+                // The page of the environment named in the address, else the first.
+                get(availableUrl(Config.API.environments.available, 0, PAGE_SIZE, '', s.selected), null, true),
                 get(Config.API.access.myRequests, []),
                 get(Config.API.access.myEnvironments, []),
                 get(Config.API.users.myProfile, null)
@@ -153,28 +176,52 @@ const RequestAccess = (function() {
         });
     }
 
-    /** Available environments plus those you can only view (to ask for Operator). */
+    /**
+     * The first page of environments you can ask for (the server adds those you can only view, to ask for
+     * Operator; the page of the environment named in the address), your requests and grants.
+     */
     function setData(available, mine, grants) {
         s.requests = (mine || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         s.waitingEnvIds = new Set(s.requests.filter(r => r.status === 'PENDING').map(r => r.environmentId));
-        const byId = new Map((available || []).map(e => [e.environmentId, e]));
         const levels = {};
         (grants || []).filter(g => g.status === 'ACTIVE').forEach(g => {
             const rank = { VIEWER: 1, USER: 2, ADMIN: 3 }[g.accessLevel] || 0;
             levels[g.environmentId] = Math.max(levels[g.environmentId] || 0, rank);
         });
         s.viewEnvIds = new Set(Object.keys(levels).filter(id => levels[id] === 1));
-        (grants || []).filter(g => s.viewEnvIds.has(g.environmentId) && !byId.has(g.environmentId))
-            .forEach(g => byId.set(g.environmentId, { environmentId: g.environmentId, displayName: g.environmentName, vmCount: null }));
-        s.envs = Array.from(byId.values()).sort((a, b) => envName(a).localeCompare(envName(b)));
-        if (s.selected && !byId.has(s.selected) && s.preset.name) {
-            s.envs.unshift({ environmentId: s.selected, displayName: s.preset.name });
-        }
+        const first = pageOf(available);
+        s.envs = first.rows;
+        s.total = first.total;
+        s.page = first.number;
+        s.selectedEnv = !s.selected ? null : s.envs.find(e => e.environmentId === s.selected)
+            || (s.preset.name ? { environmentId: s.selected, displayName: s.preset.name } : null);
         // U22-T08: nothing is picked for you (staging opened on an empty environment, "adma poc aws · 0 VMs").
-        if (!s.selected || !s.envs.some(e => e.environmentId === s.selected)) s.selected = null;
-        // Show the page of the selected environment.
-        const index = s.envs.findIndex(e => e.environmentId === s.selected);
-        s.page = index > 0 ? Math.floor(index / pageSize()) : 0;
+        if (!s.selectedEnv) s.selected = null;
+    }
+
+    /** The environment shown in the form: on this page, or the one picked earlier. */
+    function findEnv(id) {
+        return s.envs.find(e => e.environmentId === id) || (s.selectedEnv && s.selectedEnv.environmentId === id ? s.selectedEnv : null);
+    }
+
+    /** Reads the current page (s.page, s.query) and redraws the list; only the newest answer draws. */
+    function fetchPage() {
+        const state = s;
+        const token = ++state.listToken;
+        const size = pageSize();
+        return get(availableUrl(Config.API.environments.available, state.page, size, state.query), null, true).then(answer => {
+            if (s !== state || token !== state.listToken) return;
+            const p = pageOf(answer);
+            const pages = Math.max(1, Math.ceil(p.total / size));
+            if (state.page >= pages && p.total > 0) { state.page = pages - 1; fetchPage(); return; }
+            state.envs = p.rows;
+            state.total = p.total;
+            $('#ra-env-list').html(listHtml());
+            renderPagers();
+        }, xhr => {
+            if (s !== state || token !== state.listToken) return;
+            $('#ra-env-list').html(UiStates.failed({ what: 'the environments', xhr, retryAction: 'ra-list-retry' }));
+        });
     }
 
     /** Environments a page: as many rows as fit the list on the page frame, at most PAGE_SIZE (U18-T02). */
@@ -189,12 +236,18 @@ const RequestAccess = (function() {
         const apply = count => {
             if (!count || count === pageSize()) return;
             // Keep the chosen environment in view, else the first row of the page.
-            const chosen = filtered().findIndex(e => e.environmentId === s.selected);
-            const first = chosen >= 0 ? chosen : s.page * pageSize();
+            const chosen = s.envs.findIndex(e => e.environmentId === s.selected);
+            const first = s.page * pageSize() + Math.max(0, chosen);
             s.fit = count;
             s.page = ListPanel.pageKeepingFirst(first, count) - 1;
-            $('#ra-env-list').html(listHtml());
-            renderPagers();
+            if (s.page === 0 && s.envs.length >= Math.min(count, s.total)) {
+                // The first page already read holds these rows: no second request.
+                s.envs = s.envs.slice(0, count);
+                $('#ra-env-list').html(listHtml());
+                renderPagers();
+            } else {
+                fetchPage();
+            }
         };
         const panel = ListPanel.attach(card, { rowSelector: '.ra-env', rowHeight: 52, min: 4, max: PAGE_SIZE, onFit: apply });
         apply(panel.fitCount());
@@ -202,11 +255,6 @@ const RequestAccess = (function() {
         if (form && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(form, form, 'Request form');
         const mine = document.getElementById('ra-mine-list');
         if (mine && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(mine, mine, 'Your requests');
-    }
-
-    function filtered() {
-        const q = s.query.toLowerCase();
-        return q ? s.envs.filter(e => [envName(e), e.name, e.description].some(v => String(v || '').toLowerCase().includes(q))) : s.envs;
     }
 
     function render() {
@@ -246,15 +294,12 @@ const RequestAccess = (function() {
     }
 
     function listHtml() {
-        const list = filtered();
-        const pages = Math.max(1, Math.ceil(list.length / pageSize()));
-        if (s.page >= pages) s.page = pages - 1;
-        if (!s.envs.length) return UiStates.empty({ title: 'You can use every environment.', text: 'There is nothing left to ask for.' });
-        if (!list.length) {
+        if (!s.total && !s.query) return UiStates.empty({ title: 'You can use every environment.', text: 'There is nothing left to ask for.' });
+        if (!s.envs.length) {
             return UiStates.filtered({ title: `No environments match "${s.query}".`, text: 'Check the spelling, or clear the search to see them all.',
                 clearLabel: 'Clear search', clearData: { 'ra-clear': '1' } });
         }
-        return list.slice(s.page * pageSize(), (s.page + 1) * pageSize()).map(env => {
+        return s.envs.slice(0, pageSize()).map(env => {
             const tag = envTag(env, s.waitingEnvIds, s.viewEnvIds);
             return Utils.html`<button type="button" class="ra-env" data-ra-env="${env.environmentId}" aria-pressed="${String(env.environmentId === s.selected)}">
                 <span class="ra-env-text"><span class="ra-env-name">${envName(env)}</span>
@@ -270,7 +315,7 @@ const RequestAccess = (function() {
                 stroke-linejoin="round" aria-hidden="true"><path d="m12 4-6 6 6 6"/></svg>Back to environments</button>`;
 
     function formHtml() {
-        const env = s.envs.find(e => e.environmentId === s.selected);
+        const env = findEnv(s.selected);
         if (!env) return '<h2 id="ra-form-title">Request access</h2><p class="ra-pick">Pick an environment on the left.</p>';
         return BACK + formBodyHtml(env);
     }
@@ -359,11 +404,10 @@ const RequestAccess = (function() {
 
     function renderPagers() {
         if ($('#ra-env-pager').length) {
-            const list = filtered();
             Pagination.renderNumbered('#ra-env-pager', {
-                page: s.page, totalItems: list.length, pageSize: pageSize(), itemLabel: 'environments', zeroIndexed: true,
+                page: s.page, totalItems: s.total, pageSize: pageSize(), itemLabel: 'environments', zeroIndexed: true,
                 bindAncestor: '#content-area',
-                onPageChange: page => { s.page = page; $('#ra-env-list').html(listHtml()); renderPagers(); }
+                onPageChange: page => { s.page = page; fetchPage(); }
             });
         }
         if ($('#ra-mine-pager').length) {
@@ -455,17 +499,17 @@ const RequestAccess = (function() {
             .on('input.reqAccess', '#ra-search', Utils.debounce(function() {
                 s.query = this.value.trim();
                 s.page = 0;
-                $('#ra-env-list').html(listHtml());
-                renderPagers();
+                fetchPage();
             }, 250))
             .on('click.reqAccess', '[data-ra-clear]', () => {
                 s.query = '';
+                s.page = 0;
                 $('#ra-search').val('').trigger('focus');
-                $('#ra-env-list').html(listHtml());
-                renderPagers();
+                fetchPage();
             })
             .on('click.reqAccess', '[data-ra-env]', function() {
                 s.selected = this.getAttribute('data-ra-env');
+                s.selectedEnv = s.envs.find(e => e.environmentId === s.selected) || null;
                 s.preset = {};
                 s.errors = {};
                 $('#ra-env-list [data-ra-env]').attr('aria-pressed', 'false');
@@ -487,7 +531,8 @@ const RequestAccess = (function() {
                 s.selected = this.getAttribute('data-ra-again');
                 s.preset = { group: this.getAttribute('data-ra-group') || null, groupName: this.getAttribute('data-ra-group-name') || null,
                     level: this.getAttribute('data-ra-level') || null, name: this.getAttribute('data-ra-name') || null };
-                if (!s.envs.some(e => e.environmentId === s.selected)) s.envs.unshift({ environmentId: s.selected, displayName: s.preset.name || 'This environment' });
+                s.selectedEnv = s.envs.find(e => e.environmentId === s.selected)
+                    || { environmentId: s.selected, displayName: s.preset.name || 'This environment' };
                 s.tab = 'new';
                 s.showForm = true;
                 render();
@@ -504,7 +549,9 @@ const RequestAccess = (function() {
         }
     }
 
-    return { load, model: { requestLine, envTag, envDescription, durations, reasonProblem, joinNames } };
+    return { load, retryList: () => s && fetchPage(),
+        model: { requestLine, envTag, envDescription, durations, reasonProblem, joinNames, availableUrl, pageOf } };
 })();
 
 if (typeof window !== 'undefined') window.RequestAccess = RequestAccess;
+if (typeof Actions !== 'undefined') Actions.register('ra-list-retry', () => RequestAccess.retryList());

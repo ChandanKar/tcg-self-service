@@ -346,6 +346,9 @@ test.describe('Request access (requester)', () => {
   });
 
   test('a search with no match says so and clears', async ({ page }) => {
+    // U23-T12: the list is read a page at a time and the search goes to the server.
+    const asked: string[] = [];
+    page.on('request', r => { if (r.url().includes('/environments/available')) asked.push(r.url()); });
     await signIn(page, 'user');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(() => { location.hash = '#/request-access'; });
@@ -353,6 +356,8 @@ test.describe('Request access (requester)', () => {
     await expect(search).toBeVisible({ timeout: 15_000 });
     await search.fill('zz-no-such-environment-zz');
     await expect(page.locator('#ra-env-list')).toContainText('No environments match "zz-no-such-environment-zz".');
+    expect(asked[0]).toContain('page=0');
+    expect(asked.some(u => u.includes('search=zz-no-such-environment-zz'))).toBe(true);
     await page.getByRole('button', { name: 'Clear search' }).click();
     await expect(page.locator('#ra-env-list .ra-env').first()).toBeVisible();
     await expect(page.locator('#ra-env-list .ra-env')).toHaveCount(await page.locator('#ra-env-list .ra-env').count());

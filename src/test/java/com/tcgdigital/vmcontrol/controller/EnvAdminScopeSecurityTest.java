@@ -186,6 +186,49 @@ class EnvAdminScopeSecurityTest extends SecuredWebTestBase {
         assertThat(ids).contains(envA.getEnvironmentId(), envB.getEnvironmentId());
     }
 
+    private org.springframework.test.web.servlet.ResultActions available(String search, int size, boolean viewOnly,
+            org.springframework.test.web.servlet.request.RequestPostProcessor who) throws Exception {
+        return mockMvc.perform(get("/api/v1/environments/available").param("page", "0").param("size", String.valueOf(size))
+                .param("search", search).param("includeViewOnly", String.valueOf(viewOnly)).with(who))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void requestAccessIsPagedAndSearchedOnTheServer() throws Exception {
+        // U23-T12 (staging review): all 161 environments (165 KB, 4.3 s) came before the page showed anything.
+        available("", 5, true, asAdmin())
+                .andExpect(jsonPath("$.content.length()").value(0))
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+        available(envA.getName(), 5, false, asUser())
+                .andExpect(jsonPath("$.content[*].environmentId").value(org.hamcrest.Matchers.contains(envA.getEnvironmentId())))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].vmCount").exists());
+        // An environment's id finds it (a link to one environment).
+        available(envB.getEnvironmentId(), 1, false, asUser())
+                .andExpect(jsonPath("$.content[*].environmentId").value(org.hamcrest.Matchers.contains(envB.getEnvironmentId())));
+        // One to a page: the total counts them all.
+        String json = available("", 1, false, asUser())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+        Integer total = com.jayway.jsonpath.JsonPath.read(json, "$.page.totalElements");
+        assertThat(total).isGreaterThanOrEqualTo(2);
+        // around: the page that holds an environment (a link to it opens on it).
+        String aroundJson = mockMvc.perform(get("/api/v1/environments/available").param("page", "0").param("size", "1")
+                        .param("around", envB.getEnvironmentId()).with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].environmentId").value(envB.getEnvironmentId()))
+                .andReturn().getResponse().getContentAsString();
+        Integer number = com.jayway.jsonpath.JsonPath.read(aroundJson, "$.page.number");
+        assertThat(number).isGreaterThanOrEqualTo(0);
+        // View only: left out, unless asked for (to ask for Operator).
+        grantEnv(operator, envA.getEnvironmentId(), AccessLevel.VIEWER);
+        available(envA.getName(), 5, false, asUser()).andExpect(jsonPath("$.page.totalElements").value(0));
+        available(envA.getName(), 5, true, asUser()).andExpect(jsonPath("$.page.totalElements").value(1));
+        // Operator access: never offered.
+        grantEnv(operator, envB.getEnvironmentId(), AccessLevel.USER);
+        available(envB.getName(), 5, true, asUser()).andExpect(jsonPath("$.page.totalElements").value(0));
+    }
+
     @Test
     void plainUserWithAnAdminGrantStillNeedsTheRoleForRoleGatedEndpoints() throws Exception {
         grantEnv(operator, envA.getEnvironmentId(), AccessLevel.ADMIN);
