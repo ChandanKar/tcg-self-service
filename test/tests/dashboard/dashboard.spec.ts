@@ -78,6 +78,8 @@ test.describe('Administrator Home', () => {
     await expect(access).toHaveAttribute('href', '#/pending-requests');
     await expect(page.locator('.ah-tile')).toHaveCount(3); // nothing for approvals, failures or budgets
     await expect(page.locator('.ah-tile[data-tile="vms"]')).toContainText('1 changed outside the platform, 24 h, 2 found by discovery');
+    // U23-T09: the tile opens the list of those changes (System health › Reports, only outside the platform).
+    await expect(page.locator('.ah-tile[data-tile="vms"]')).toHaveAttribute('href', '#/system-health?tab=reports&changes=outside');
     // Acceptance: a late cost snapshot job: the health line names it and links to System health.
     const health = page.locator('.ah-health');
     await expect(health).toHaveAttribute('href', '#/system-health');

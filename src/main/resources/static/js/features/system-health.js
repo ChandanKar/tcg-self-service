@@ -149,9 +149,13 @@ const SystemHealth = (function () {
         });
     }
 
-    function fetchStateChanges() {
-        return apiFetch(Config.API.monitoring.stateChanges, []);
+    /** Every state change in the range (U23-T09: the same 24 hours as the 'outside the platform' count). */
+    function fetchStateChanges(range) {
+        return apiFetch(`${Config.API.monitoring.stateChanges}?${rangeQuery(range)}`, []);
     }
+
+    /** The server sends at most this many changes for a range (MonitoringController.STATE_CHANGES_LIMIT). */
+    const CHANGES_LIMIT = 2000;
 
     /** Drift events in the range: the first page of rows plus the total across the range. */
     function fetchDriftEvents(range, size = 20) {
@@ -194,7 +198,9 @@ const SystemHealth = (function () {
     function load() {
         const q = ContentRouter.query ? ContentRouter.query() : {};
         s = { token: ContentRouter.token(), tab: ['reports', 'fleet', 'regions'].includes(q.tab) ? q.tab : 'now', jobs: null, view: 'problems',
-            page: 1, reportsLoaded: false, fleetLoaded: false, regionsLoaded: false, eks: false };
+            page: 1, reportsLoaded: false, fleetLoaded: false, regionsLoaded: false, eks: false,
+            // U23-T09: Home's 'changed outside the platform' opens Reports with only those changes.
+            outsideFirst: q.changes === 'outside' };
         renderShell();
         loadNow();
         if (s.tab === 'reports') loadReports();
@@ -471,7 +477,7 @@ const SystemHealth = (function () {
         const range = lastDay();
         const canAdmin = Auth.isEnvAdmin();
         const [stateChanges, drift, auditReport, lockReport, vmOpsReport, emailLog] = await Promise.all([
-            canAdmin ? fetchStateChanges() : Promise.resolve([]),
+            canAdmin ? fetchStateChanges(range) : Promise.resolve([]),
             canAdmin ? fetchDriftEvents(range) : Promise.resolve({ events: [], total: 0 }),
             canAdmin ? fetchAuditReport(range) : Promise.resolve(null),
             canAdmin ? fetchLockReport(range) : Promise.resolve([]),
@@ -479,16 +485,20 @@ const SystemHealth = (function () {
             fetchEmailLog()
         ]);
         if (!ContentRouter.isCurrent(token)) return;
-        s.changes = { list: Array.isArray(stateChanges) ? stateChanges : [], outsideOnly: false, page: 1 };
-        $('#sh-panel-reports').html(reportsHtml({ canAdmin, driftCount: drift.total || 0, auditReport, lockReport, vmOpsReport, emailLog }));
+        const list = Array.isArray(stateChanges) ? stateChanges : [];
+        s.changes = { list, outsideOnly: !!s.outsideFirst, page: 1, truncated: list.length >= CHANGES_LIMIT };
+        // The count and the list cover the same 24 hours; the count is the server's when the list was cut short.
+        const driftCount = s.changes.truncated ? (drift.total || 0) : changeRows(list, true).length;
+        $('#sh-panel-reports').html(reportsHtml({ canAdmin, driftCount, outsideOnly: s.changes.outsideOnly, auditReport, lockReport, vmOpsReport, emailLog }));
         drawChanges();
     }
 
     // ─── state changes (U20-T09: one table; drift is a change found outside the platform) ─────
 
-    /** Where a change came from, in words. */
+    /** Where a change came from, in words. A settle shows where the change it completes came from (U23-T09). */
     function sourceText(c) {
         if (c.drift || c.changeSource === 'state_sync') return 'Outside the platform';
+        if (c.changeSource === 'sync_settled' && c.settledFrom === 'state_sync') return 'Outside the platform, finished';
         if (c.changeSource === 'operation') return c.changedByUsername ? `Platform, by ${c.changedByUsername}` : 'Platform';
         return c.changedByUsername || 'Platform';
     }
@@ -517,7 +527,8 @@ const SystemHealth = (function () {
                     <td>${Utils.escapeHtml(sourceText(r))}</td>
                     <td class="text-muted" title="${absTime(r.changedAt)}">${relativeTime(r.changedAt)}</td></tr>`).join('')}</tbody></table></div>
             ${rows.length > PAGE_SIZE ? Pagination.buildPager({ page: c.page, pageSize: PAGE_SIZE, totalItems: rows.length,
-                action: 'sh-changes-page', key: 'changes' }) : ''}`
+                action: 'sh-changes-page', key: 'changes' }) : ''}
+            ${c.truncated ? `<p class="sh-note">The newest ${CHANGES_LIMIT.toLocaleString('en-US')} changes of the 24 hours are listed.</p>` : ''}`
             : UiStates.empty({ title: c.outsideOnly ? 'Nothing changed outside the platform' : 'No recent state changes' }));
     }
 
@@ -598,7 +609,7 @@ const SystemHealth = (function () {
 
     // ─── Reports ──────────────────────────────────────────────────────────────
 
-    function reportsHtml({ canAdmin, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
+    function reportsHtml({ canAdmin, driftCount, outsideOnly, auditReport, lockReport, vmOpsReport, emailLog }) {
 
         const auditTotal    = auditReport ? (auditReport.totalActions || 0) : 0;
         // Counted by the server over the whole window (E12-T06), not from the 20-row sample.
@@ -655,7 +666,7 @@ const SystemHealth = (function () {
                     <i class="fas fa-exchange-alt text-info" aria-hidden="true"></i>
                     <strong>State changes</strong>
                     <span class="sh-changes-count">${Utils.escapeHtml(plural(driftCount, 'change', 'changes'))} outside the platform in 24 hours</span>
-                    <label class="re-check ms-auto"><input type="checkbox" id="sh-changes-outside" data-action-change="sh-changes-outside">
+                    <label class="re-check ms-auto"><input type="checkbox" id="sh-changes-outside" data-action-change="sh-changes-outside"${outsideOnly ? ' checked' : ''}>
                         Only outside the platform</label>
                 </div>
                 <div class="card-body" id="sh-changes"></div>

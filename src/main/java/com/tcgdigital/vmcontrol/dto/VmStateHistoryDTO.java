@@ -30,6 +30,11 @@ public class VmStateHistoryDTO {
      */
     private String triggerSource;
     private String triggerName;
+    /**
+     * For a settle row ('sync_settled'): the source of the change it completes, e.g. 'state_sync' when
+     * a stop made in AWS settles (U23-T09). It is not a change of its own, so it is never counted as drift.
+     */
+    private String settledFrom;
     private String operationType;
     private Integer operationTargets;
 
@@ -61,6 +66,14 @@ public class VmStateHistoryDTO {
             this.operationType = run.getOperationType() == null ? null : run.getOperationType().name();
             this.operationTargets = run.getTotalTargets();
         }
+    }
+
+    public String getSettledFrom() {
+        return settledFrom;
+    }
+
+    public void setSettledFrom(String settledFrom) {
+        this.settledFrom = settledFrom;
     }
 
     public String getTriggerSource() {

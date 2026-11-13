@@ -288,14 +288,32 @@ public class MonitoringController {
             summary = "Get recent state changes",
             description = "Returns recent VM state changes across all VMs"
     )
-    public ResponseEntity<List<VmStateHistoryDTO>> getRecentStateChanges() {
-        List<VmStateHistory> changes = stateSyncService.getRecentStateChanges();
+    public ResponseEntity<List<VmStateHistoryDTO>> getRecentStateChanges(
+            @Parameter(description = "From (ISO instant, inclusive); with to, every change in the range up to "
+                    + STATE_CHANGES_LIMIT + ", else the latest 50") @RequestParam(required = false)
+                @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+                java.time.Instant from,
+            @Parameter(description = "To (ISO instant, exclusive)") @RequestParam(required = false)
+                @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+                java.time.Instant to) {
+        // U23-T09: with a range, the list covers the same 24 hours as the 'outside the platform' count.
+        List<VmStateHistory> changes = from != null && to != null
+                ? stateSyncService.getStateChanges(java.sql.Timestamp.from(from), java.sql.Timestamp.from(to), STATE_CHANGES_LIMIT)
+                : stateSyncService.getRecentStateChanges();
+        Map<String, String> settledFrom = stateSyncService.settledOrigins(changes);
         List<VmStateHistoryDTO> dtos = changes.stream()
-                .map(VmStateHistoryDTO::fromEntity)
+                .map(h -> {
+                    VmStateHistoryDTO dto = VmStateHistoryDTO.fromEntity(h);
+                    dto.setSettledFrom(settledFrom.get(h.getHistoryId()));
+                    return dto;
+                })
                 .toList();
         resolveUsernames(dtos);
         return ResponseEntity.ok(dtos);
     }
+
+    /** At most this many changes in a range (System health's Reports pages them in the browser). */
+    static final int STATE_CHANGES_LIMIT = 2000;
 
     @GetMapping("/drift-events")
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")

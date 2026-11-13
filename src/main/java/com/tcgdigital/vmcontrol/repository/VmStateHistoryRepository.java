@@ -65,6 +65,18 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     @Query("SELECT COUNT(h) FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime")
     long countDriftEventsInRange(Timestamp startTime, Timestamp endTime);
 
+    /**
+     * Every state change in [start, end), newest first, VM loaded, at most a page (U23-T09: System
+     * health's state-change list covers the same 24 hours as its 'outside the platform' count).
+     */
+    @Query("SELECT h FROM VmStateHistory h JOIN FETCH h.vm WHERE h.changedAt >= :start AND h.changedAt < :end "
+            + "ORDER BY h.changedAt DESC")
+    List<VmStateHistory> findChangesBetween(@Param("start") Timestamp start, @Param("end") Timestamp end, Pageable pageable);
+
+    /** The VMs changed outside the platform in a time range (U23-T09: Home's figure, per person). */
+    @Query("SELECT DISTINCT h.vm.vmId FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime")
+    List<String> findDriftVmIdsInRange(@Param("startTime") Timestamp startTime, @Param("endTime") Timestamp endTime);
+
     /** VMs changed outside the platform in a time range (U22-T12: the one drift figure). */
     @Query("SELECT COUNT(DISTINCT h.vm.vmId) FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime")
     long countDriftVmsInRange(Timestamp startTime, Timestamp endTime);

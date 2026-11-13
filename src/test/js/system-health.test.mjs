@@ -87,6 +87,13 @@ test('U20-T09: one state-changes list; where each change came from; only outside
     assert.deepEqual(M.changeRows(list, true).map(c => c.changeSource), ['state_sync']);
 });
 
+test('U23-T09: a settle shows where the change it finishes came from, and is not another change outside', () => {
+    const list = [{ changeSource: 'sync_settled', settledFrom: 'state_sync' }, { changeSource: 'sync_settled', settledFrom: 'operation' },
+        { changeSource: 'sync_settled' }, { changeSource: 'state_sync', drift: true }];
+    assert.deepEqual(list.map(M.sourceText), ['Outside the platform, finished', 'Platform', 'Platform', 'Outside the platform']);
+    assert.equal(M.changeRows(list, true).length, 1);
+});
+
 test('U22-T12: changed outside the platform shows the VMs, as Home does, with the starts and stops behind them', () => {
     const t = (driftVms, driftCount) => plain(M.tiles({ syncStatus: {}, jobs: [], driftVms, driftCount, stats: null }, NOW).drift);
     assert.deepEqual(t(102, 289), { value: '102', sub: 'VMs, in 289 starts and stops made in AWS' });

@@ -42,6 +42,42 @@ class DashboardScopeIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.summary.totalVms", greaterThanOrEqualTo(5)));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.StateSyncService stateSyncService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository stateHistory;
+
+    @Test
+    void theSummaryCountsTheVmsChangedOutsideThePlatformIn24HoursAsHomesAttentionDoes() throws Exception {
+        // U23-T09 (CloudOps finding H): the summary said 0 from the drift flag (cleared at the next sync)
+        // while the attention said 102. Now both count the VMs with a change made outside in 24 h.
+        jdbcTemplate.update("DELETE FROM vm_state_history");
+        Environment env = newEnvironment("Dash drift");
+        VmGroup web = newGroup(env, "web");
+        VmGroup db = newGroup(env, "db");
+        com.tcgdigital.vmcontrol.model.Vm web1 = newVm(web, "web-1", VmStatus.STOPPED);
+        com.tcgdigital.vmcontrol.model.Vm web2 = newVm(web, "web-2", VmStatus.STOPPED);
+        com.tcgdigital.vmcontrol.model.Vm db1 = newVm(db, "db-1", VmStatus.STOPPED);
+        stateSyncService.recordStateChange(web1, VmStatus.RUNNING, VmStatus.STOPPED, "state_sync", null, null, "x");
+        stateSyncService.recordStateChange(web1, VmStatus.STOPPED, VmStatus.RUNNING, "state_sync", null, null, "x");
+        stateSyncService.recordStateChange(db1, VmStatus.RUNNING, VmStatus.STOPPED, "state_sync", null, null, "x");
+        String old = stateSyncService.recordStateChange(web2, VmStatus.RUNNING, VmStatus.STOPPED, "state_sync", null, null, "x").getHistoryId();
+        jdbcTemplate.update("UPDATE vm_state_history SET created_at = ? WHERE history_id = ?",
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(25 * 3600)), old);
+        stateSyncService.recordStateChange(web2, VmStatus.STOPPED, VmStatus.RUNNING, "operation", null, null, "x");
+        grantGroup(operator, web.getGroupId(), AccessLevel.USER);
+
+        mockMvc.perform(get("/api/v1/dashboard/summary").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.driftedVms").value(2))
+                .andExpect(jsonPath("$.riskCompliance[?(@.title == 'State drift')].description")
+                        .value(org.hamcrest.Matchers.contains("2 VMs changed outside the platform in 24 h.")));
+        mockMvc.perform(get("/api/v1/dashboard/summary").with(asUser()))
+                .andExpect(jsonPath("$.summary.driftedVms").value(1)); // web-1 only: db-1 is not theirs, web-2's is old
+        org.junit.jupiter.api.Assertions.assertEquals(2, stateHistory.countDriftVmsInRange(
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(24 * 3600)), java.sql.Timestamp.from(java.time.Instant.now())));
+    }
+
     // ---- Scheduler health (E12-T05) ----
 
     @org.springframework.beans.factory.annotation.Autowired

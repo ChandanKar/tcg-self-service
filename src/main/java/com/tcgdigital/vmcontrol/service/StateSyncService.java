@@ -574,6 +574,42 @@ public class StateSyncService {
         return stateHistoryRepository.findTop50ByOrderByChangedAtDesc();
     }
 
+    /** Every state change in [from, to), newest first, at most {@code limit} (U23-T09). */
+    public List<VmStateHistory> getStateChanges(Timestamp from, Timestamp to, int limit) {
+        return stateHistoryRepository.findChangesBetween(from, to, PageRequest.of(0, Math.max(1, limit)));
+    }
+
+    /**
+     * For each settle row ('sync_settled', U22-T12) of {@code changes}: the source of the change it
+     * completes, i.e. the VM's previous row (U23-T09: a STOPPING -> STOPPED settle after a stop made in
+     * AWS read 'Platform'). Looked up in the list (newest first) and, when the previous row is older
+     * than the list, in the database. Keyed by history id; settles without a previous row are left out.
+     */
+    public java.util.Map<String, String> settledOrigins(List<VmStateHistory> changes) {
+        java.util.Map<String, String> origins = new java.util.HashMap<>();
+        for (int i = 0; i < changes.size(); i++) {
+            VmStateHistory row = changes.get(i);
+            if (!"sync_settled".equals(row.getChangeSource()) || row.getVm() == null) continue;
+            String vmId = row.getVm().getVmId();
+            VmStateHistory previous = null;
+            for (int j = i + 1; j < changes.size(); j++) {
+                VmStateHistory other = changes.get(j);
+                if (other.getVm() != null && vmId.equals(other.getVm().getVmId())) {
+                    previous = other;
+                    break;
+                }
+            }
+            if (previous == null && row.getChangedAt() != null) {
+                previous = stateHistoryRepository.findTopByVmVmIdAndChangedAtLessThanOrderByChangedAtDesc(vmId, row.getChangedAt())
+                        .orElse(null);
+            }
+            if (previous != null && previous.getChangeSource() != null) {
+                origins.put(row.getHistoryId(), previous.getChangeSource());
+            }
+        }
+        return origins;
+    }
+
     /**
      * Get drift events (unexpected state changes).
      */

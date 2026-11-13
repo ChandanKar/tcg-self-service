@@ -18,7 +18,7 @@ const FleetUse = (function() {
     /** The server's risk rows in plain words, with where each is fixed. */
     const RISKS = {
         'EBS encryption': ['Unencrypted disks', 'EBS volumes without encryption', '#/waste', 'bad'],
-        'State drift': ['Changed outside the platform', 'VMs whose state differs from what the platform expects', '#/vm-registry', 'warn'],
+        'State drift': ['Changed outside the platform', 'VMs started or stopped outside the platform in 24 h', '#/system-health?tab=reports&changes=outside', 'warn'],
         'Metric coverage': ['No metrics', 'VMs without recent CloudWatch data', '#/system-health?tab=fleet', 'warn'],
         'Idle exposure': ['Idle VMs', 'Running VMs that are barely used', '#/waste', 'warn'],
         'Inventory gaps': ['Inventory gaps', 'Volumes or VMs the inventory knows too little about', '#/vm-registry', 'info']

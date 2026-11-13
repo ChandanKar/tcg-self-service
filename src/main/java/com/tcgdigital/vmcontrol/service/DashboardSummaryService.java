@@ -51,6 +51,25 @@ public class DashboardSummaryService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private PricingReferenceService pricingReferenceService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository stateHistoryRepository;
+
+    /**
+     * The VMs changed outside the platform in the last 24 hours (U23-T09, CloudOps finding H): the
+     * summary said 0 from the drift flag, which the next sync clears, while Home's attention said 102.
+     * Now the attention's measure: every such VM for an administrator, the viewer's own VMs otherwise.
+     */
+    int driftVms24h(String persona, List<String> vmIds, Timestamp end) {
+        if (stateHistoryRepository == null) return 0;
+        Timestamp dayAgo = Timestamp.from(end.toInstant().minus(24, ChronoUnit.HOURS));
+        if ("ADMIN".equals(persona)) {
+            return Math.toIntExact(stateHistoryRepository.countDriftVmsInRange(dayAgo, end));
+        }
+        if (vmIds.isEmpty()) return 0;
+        Set<String> mine = new java.util.HashSet<>(vmIds);
+        return (int) stateHistoryRepository.findDriftVmIdsInRange(dayAgo, end).stream().filter(mine::contains).count();
+    }
+
     /** A lease ending within this time is something the viewer should act on. */
     static final java.time.Duration LEASE_ENDING_SOON = java.time.Duration.ofHours(3);
 
@@ -134,7 +153,7 @@ public class DashboardSummaryService {
         int runningVms = countStatus(vms, VmStatus.RUNNING);
         int stoppedVms = countStatus(vms, VmStatus.STOPPED);
         int idleVms = (int) idleSummaries.stream().filter(summary -> Boolean.TRUE.equals(summary.getIdle())).count();
-        int driftedVms = (int) vms.stream().filter(vm -> Boolean.TRUE.equals(vm.getStateDriftDetected())).count();
+        int driftedVms = driftVms24h(persona, vmIds, end);
         Set<String> lockedEnvironmentIds = lockRepository.findByIsActiveTrue().stream()
                 .map(lock -> lock.getEnvironment().getEnvironmentId())
                 .filter(environmentIds::contains)
@@ -531,8 +550,8 @@ public class DashboardSummaryService {
                 driftedVms > 0 ? "danger" : "success",
                 "State drift",
                 driftedVms > 0
-                        ? driftedVms + " VM(s) differ from expected state."
-                        : "No state drift detected.",
+                        ? (driftedVms == 1 ? "1 VM" : driftedVms + " VMs") + " changed outside the platform in 24 h."
+                        : "Nothing changed outside the platform in 24 h.",
                 driftedVms
         ));
         rows.add(new DashboardSummaryDTO.RiskComplianceDTO(
@@ -599,8 +618,8 @@ public class DashboardSummaryService {
                     idleVms + " VM(s) show sustained low utilization.", idleVms));
         }
         if (driftedVms > 0) {
-            items.add(new DashboardSummaryDTO.RecommendationDTO("danger", "Resolve state drift",
-                    driftedVms + " VM(s) differ from their expected state.", driftedVms));
+            items.add(new DashboardSummaryDTO.RecommendationDTO("danger", "Review VMs changed outside the platform",
+                    (driftedVms == 1 ? "1 VM" : driftedVms + " VMs") + " changed outside the platform in 24 h.", driftedVms));
         }
         if (coverage.metricsPercent() < 90 && totalVms > 0) {
             items.add(new DashboardSummaryDTO.RecommendationDTO("info", "Improve metric coverage",
