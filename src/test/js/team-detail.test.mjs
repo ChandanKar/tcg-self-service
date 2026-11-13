@@ -41,3 +41,17 @@ test('amounts: hours and dollars', () => {
     assert.equal(M.amount('VM_HOURS', 1840.4), '1,840 h');
     assert.equal(M.amount('COST', 2500), '$2,500');
 });
+
+// U25-T05: the Environments table's rows: VMs running and this month from the environments list, filtered by a search.
+test('environment rows: name, VMs running, this month; search by name', () => {
+    const team = { environments: [{ environmentId: 'a', name: 'pay-dev', displayName: 'Payments Dev' },
+        { environmentId: 'b', name: 'pay-qa', displayName: null }, { environmentId: 'c', name: 'crm', displayName: 'CRM UAT' }] };
+    const rows = { a: { vmCount: 5, runningVmCount: 3, monthToDateCost: 412.4 }, b: { vmCount: 0, runningVmCount: 0, monthToDateCost: null } };
+    assert.deepEqual(plain(M.envRows(team, rows, '')), [
+        { environmentId: 'a', name: 'Payments Dev', vms: '3 of 5', cost: '$412.40' },
+        { environmentId: 'b', name: 'pay-qa', vms: 'No VMs', cost: '—' },
+        { environmentId: 'c', name: 'CRM UAT', vms: '—', cost: '—' }]);
+    assert.deepEqual(plain(M.envRows(team, rows, 'PAY').map(r => r.environmentId)), ['a', 'b']);
+    assert.deepEqual(plain(M.envRows(team, null, 'crm').map(r => r.vms)), ['—']);
+    assert.deepEqual(plain(M.envRows({}, rows, '')), []);
+});

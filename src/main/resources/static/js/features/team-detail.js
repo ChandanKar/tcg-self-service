@@ -5,12 +5,18 @@
  * source ("Entra" / "Added by hand"), Remove only for people added by hand, Add people. Aside:
  * Monthly limits (VM hours and cost: used of limit with the warning point, Limit, Warn at %, At the
  * limit) while quotas are on, and the team's environments with a dialog to change them.
+ * U25-T05: the environments are a table like the Teams list (Environment, VMs running, This month),
+ * with a search, as many rows a page as fit the panel; the page itself does not scroll at 1280 x 600
+ * and up (page frame). VM counts and this month's cost come from the environments list (GET
+ * /environments/page, 100 a call), the figures the Environments page shows.
  */
 const TeamDetail = (function() {
     'use strict';
 
     const QUIET = { suppressGlobalError: true };
     const PAGE_SIZE = 8;
+    const ENV_PAGE_SIZE = 8;
+    const ENV_FETCH_SIZE = 100;
     const METRICS = [['VM_HOURS', 'VM hours'], ['COST', 'Cost']];
     const ENFORCEMENT = [['WARN', 'Warn only'], ['REQUIRE_APPROVAL', 'Ask an owner to approve each start'], ['BLOCK', 'Block new starts']];
 
@@ -47,6 +53,35 @@ const TeamDetail = (function() {
         return `Linked to Entra group ${team.entraGroupName || team.entraGroupId} · ${n} member${n === 1 ? '' : 's'} from it${synced}`;
     }
 
+    /** "$1,234.56", or '—' without a figure. */
+    function money(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        const n = Number(value);
+        return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    }
+
+    /** "3 of 5", "No VMs", or '—' while the environment's row is unknown. */
+    function vmsText(row) {
+        if (!row || typeof row.vmCount !== 'number') return '—';
+        if (!row.vmCount) return 'No VMs';
+        return `${row.runningVmCount || 0} of ${row.vmCount}`;
+    }
+
+    /**
+     * The Environments table's rows: the team's environments matching a search (name), each with its
+     * VMs running and this month's cost from the environments list rows (by id; null while not loaded).
+     */
+    function envRows(team, rowsById, search) {
+        const q = String(search || '').toLowerCase().trim();
+        return (team.environments || [])
+            .filter(e => !q || [e.displayName, e.name].some(v => String(v || '').toLowerCase().includes(q)))
+            .map(e => {
+                const row = rowsById ? rowsById[e.environmentId] : null;
+                return { environmentId: e.environmentId, name: e.displayName || e.name, vms: vmsText(row),
+                    cost: row ? money(row.monthToDateCost) : '—' };
+            });
+    }
+
     /** The PUT /teams/{id}/quotas body from the form's values: a metric without a limit has no quota. */
     function quotasBody(rows) {
         return rows.filter(r => r.limit !== '' && r.limit !== null && Number(r.limit) > 0).map(r => ({
@@ -76,9 +111,33 @@ const TeamDetail = (function() {
 
     async function load(params) {
         const token = ContentRouter.token();
-        s = { token, teamId: params && params.teamId, team: null, members: [], page: 1, users: null };
+        s = { token, teamId: params && params.teamId, team: null, members: [], page: 1, users: null,
+            envSearch: '', envPage: 1, envFit: null, envRows: null };
         Loading.showPage('Loading the team…');
         await refresh(true);
+        loadEnvRows();
+    }
+
+    /** Every environment's list row (VM counts, this month), 100 a call; the table shows '—' until they come. */
+    async function loadEnvRows() {
+        if (!current() || !s.team || !(s.team.environments || []).length || s.envLoading) return;
+        const token = s.token;
+        s.envLoading = true;
+        const pageOf = data => ((data && data.content) || []);
+        let rows = {};
+        try {
+            const first = await call('GET', Config.API.environments.page(0, ENV_FETCH_SIZE));
+            const pages = Math.min(20, Number((first && first.page && first.page.totalPages) || (first && first.totalPages)) || 1);
+            const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) =>
+                call('GET', Config.API.environments.page(i + 1, ENV_FETCH_SIZE)).catch(() => null)));
+            [first].concat(rest).forEach(data => pageOf(data).forEach(r => { rows[r.environmentId] = r; }));
+        } catch (error) {
+            rows = {};
+        }
+        if (!ContentRouter.isCurrent(token)) return;
+        s.envLoading = false;
+        s.envRows = rows;
+        drawEnvs();
     }
 
     async function refresh(first) {
@@ -98,11 +157,12 @@ const TeamDetail = (function() {
         s.team = team;
         s.members = members || [];
         if (first) render(); else { drawHeader(); drawMembers(); drawAside(); }
+        if (!first && s.envRows === null) loadEnvRows(); // the team had no environments when the page opened
     }
 
     function render() {
         $('#content-area').html(`
-            <div class="content-view td-page" id="team-detail-view">
+            <div class="content-view page page-frame td-page" id="team-detail-view">
                 <div id="td-header"></div>
                 <div class="td-grid">
                     <section class="td-card" aria-labelledby="td-members-title">
@@ -161,13 +221,72 @@ const TeamDetail = (function() {
                     <div class="re-error" id="td-limits-error" role="alert" hidden></div>
                     <button type="submit" class="btn btn-primary btn-sm">Save limits</button></form>
             </section>` : '';
-        const envs = (t.environments || []).length ? Utils.html`<ul class="td-envs">${Utils.raw(t.environments.map(e =>
-            Utils.html`<li><a href="#/environments/${e.environmentId}">${e.displayName || e.name}</a></li>`).join(''))}</ul>`
-            : '<p class="td-note">No environments yet.</p>';
-        $('#td-aside').html(`${limits}<section class="td-card" aria-labelledby="td-envs-title">
-                <h2 id="td-envs-title">Environments</h2>${envs}
-                <button type="button" class="td-link" id="td-change-envs">${Utils.escapeHtml(`Change which environments belong to ${t.displayName}`)}</button>
+        $('#td-aside').html(`${limits}<section class="list-panel td-envs-panel" id="td-envs-panel" aria-labelledby="td-envs-title">
+                <div class="list-panel-head"><h2 id="td-envs-title">Environments</h2>
+                    <label class="um-search td-env-search">
+                        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+                        <span class="visually-hidden">Search the team's environments</span>
+                        <input type="search" class="form-control form-control-sm" id="td-env-search" placeholder="Environment name" autocomplete="off" value="${Utils.escapeHtml(s.envSearch)}">
+                    </label></div>
+                <div class="list-panel-body" tabindex="0" role="region" aria-label="${Utils.escapeHtml(`Environments of ${t.displayName}, scrolls`)}">
+                    <table class="um-table td-env-table table-cards" id="td-env-table">
+                        <thead><tr><th scope="col">Environment</th><th scope="col">VMs running</th><th scope="col">This month</th></tr></thead>
+                        <tbody id="td-env-body"></tbody>
+                    </table>
+                </div>
+                <div class="list-panel-foot td-foot"><div id="td-env-pager"></div>
+                    <button type="button" class="td-link" id="td-change-envs">${Utils.escapeHtml(`Change which environments belong to ${t.displayName}`)}</button></div>
             </section>`);
+        drawEnvs();
+        attachEnvFit();
+    }
+
+    const envPageSize = () => s.envFit || ENV_PAGE_SIZE;
+
+    function drawEnvs() {
+        const t = s.team;
+        const all = t.environments || [];
+        const rows = envRows(t, s.envRows, s.envSearch);
+        const size = envPageSize();
+        s.envPage = Math.min(Math.max(1, s.envPage), Math.max(1, Math.ceil(rows.length / size)));
+        let body;
+        if (rows.length) {
+            body = Pagination.slice(rows, s.envPage, size).map(r => Utils.html`<tr>
+                <td class="um-person-cell" data-label=""><a class="td-env-name" href="#/environments/${r.environmentId}">${r.name}</a></td>
+                <td data-label="VMs running"><span class="td-mono">${r.vms}</span></td>
+                <td data-label="This month"><span class="td-mono">${r.cost}</span></td></tr>`).join('');
+        } else if (all.length) {
+            body = `<tr><td colspan="3" class="um-empty">${UiStates.filtered({ title: `No environments match "${s.envSearch.trim()}"`,
+                text: 'Check the spelling, or clear the search.', clearLabel: 'Show all environments', onClear: clearEnvSearch })}</td></tr>`;
+        } else {
+            body = `<tr><td colspan="3" class="um-empty">${UiStates.empty({ title: 'No environments yet',
+                text: `Choose them with "Change which environments belong to ${t.displayName}".` })}</td></tr>`;
+        }
+        $('#td-env-body').html(body);
+        $('#td-env-pager').html(rows.length > size ? Pagination.buildPager({ page: s.envPage, pageSize: size, totalItems: rows.length,
+            action: 'td-env-page', key: 'environments' }) : `<span class="td-note">${all.length} environment${all.length === 1 ? '' : 's'}</span>`);
+    }
+
+    function clearEnvSearch() {
+        s.envSearch = '';
+        s.envPage = 1;
+        $('#td-env-search').val('');
+        drawEnvs();
+    }
+
+    /** Environment rows a page follow the panel's height on the page frame (U18-T03). */
+    function attachEnvFit() {
+        const panel = document.getElementById('td-envs-panel');
+        if (!panel || typeof ListPanel === 'undefined') return;
+        const apply = count => {
+            if (!count || count === envPageSize()) return;
+            const first = (s.envPage - 1) * envPageSize();
+            s.envFit = count;
+            s.envPage = ListPanel.pageKeepingFirst(first, count);
+            drawEnvs();
+        };
+        const handle = ListPanel.attach(panel, { rowSelector: '#td-env-body tr', rowHeight: 38, min: 3, max: 25, onFit: apply });
+        apply(handle.fitCount());
     }
 
     function limitBlock(metric, label, q) {
@@ -366,11 +485,13 @@ const TeamDetail = (function() {
             .on('click.teamDetail', '#td-add-people', addPeople)
             .on('click.teamDetail', '[data-td-remove]', function() { removeMember(this.dataset.tdRemove); })
             .on('click.teamDetail', '[data-action="td-page"]', function() { s.page = Number(this.dataset.page) || 1; drawMembers(); })
+            .on('click.teamDetail', '[data-action="td-env-page"]', function() { s.envPage = Number(this.dataset.page) || 1; drawEnvs(); })
+            .on('input.teamDetail', '#td-env-search', Utils.debounce(function() { s.envSearch = this.value; s.envPage = 1; drawEnvs(); }, 250))
             .on('submit.teamDetail', '#td-limits', e => { e.preventDefault(); saveLimits(); })
             .on('click.teamDetail', '#td-change-envs', changeEnvironments);
     }
 
-    return { load, model: { headline, entraLine, quotasBody, amount } };
+    return { load, model: { headline, entraLine, quotasBody, amount, money, vmsText, envRows } };
 })();
 
 if (typeof window !== 'undefined') window.TeamDetail = TeamDetail;
