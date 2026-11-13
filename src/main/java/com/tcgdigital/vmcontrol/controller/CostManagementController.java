@@ -131,6 +131,13 @@ public class CostManagementController {
         return ResponseEntity.ok(environmentCostService.fleetMonth());
     }
 
+    /** Each team's month to date, on the fleet month's definition (U24-T03): By team on Cost management. */
+    @GetMapping("/month-by-team")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<SpendByDimensionDTO>> getMonthByTeam() {
+        return ResponseEntity.ok(environmentCostService.teamMonth());
+    }
+
     @GetMapping("/spend-by-environment")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SpendByDimensionDTO>> getSpendByEnvironment() {

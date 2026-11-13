@@ -331,4 +331,63 @@ class EnvironmentCostServiceTest {
         assertThat(service.getMyEnvironmentsCost(user).environments()).isEmpty();
         org.mockito.Mockito.verify(snapshots, org.mockito.Mockito.never()).findDailyByEnvironmentIdsBetween(anyList(), any(), any());
     }
+
+    // ---- U24-T03: one forecast per environment ----
+
+    /**
+     * The budget shows the environment page's month to date and forecast: complete days plus today, and
+     * the run rate over the days after today. Staging's ISE budget said $34.23 spent and $67.25 forecast
+     * (yesterday + 18 days) while its page said $35.45 and $66.61 (today + 17 days). The alert job keeps
+     * the complete days.
+     */
+    @Test
+    void theBudgetShowsTheEnvironmentPagesMonthToDateAndForecast() {
+        for (int d = 1; d <= 6; d++) {
+            snapshot(LocalDate.of(2026, 10, d), "10", null);
+        }
+        when(vmRepository.findActiveByEnvironmentIdsFetchGroupAndEnvironment(List.of("env-1"))).thenReturn(vms);
+        when(snapshots.findDailyWithActualByEnvironmentIdsBetween(eq(List.of("env-1")), any(), any())).thenAnswer(inv -> {
+            LocalDate from = ((Date) inv.getArgument(1)).toLocalDate();
+            LocalDate to = ((Date) inv.getArgument(2)).toLocalDate();
+            return stored.stream().filter(s -> !s.getSnapshotDate().toLocalDate().isBefore(from)
+                            && !s.getSnapshotDate().toLocalDate().isAfter(to))
+                    .map(s -> (CostDailySnapshotRepository.EnvironmentDailyActualCost) new CostDailySnapshotRepository.EnvironmentDailyActualCost() {
+                        public String getEnvironmentId() { return "env-1"; }
+                        public Date getSnapshotDate() { return s.getSnapshotDate(); }
+                        public BigDecimal getEstimatedCost() { return s.getEstimatedCost(); }
+                        public BigDecimal getActualCost() { return s.getActualCost(); }
+                    }).toList();
+        });
+        BudgetService budgets = new BudgetService(org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.BudgetRepository.class),
+                environmentRepository, snapshots, org.mockito.Mockito.mock(TeamResolver.class), securityService,
+                org.mockito.Mockito.mock(AuditService.class), org.mockito.Mockito.mock(AwsBudgetSyncService.class),
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.support.AfterCommit.class), service);
+        org.springframework.test.util.ReflectionTestUtils.setField(budgets, "clock", Clock.fixed(NOW, ZoneOffset.UTC));
+        com.tcgdigital.vmcontrol.model.Budget budget = new com.tcgdigital.vmcontrol.model.Budget();
+        budget.setScopeType(com.tcgdigital.vmcontrol.model.BudgetScopeType.ENVIRONMENT);
+        budget.setScopeId("env-1");
+
+        EnvironmentCostDTO page = service.getCost("env-1", user);
+        BudgetService.Spend shown = budgets.currentSpend(budget);
+
+        assertThat(shown.toDate()).isEqualByComparingTo("63.00").isEqualByComparingTo(page.monthToDateEstimated());
+        assertThat(shown.forecast()).isEqualByComparingTo("303.00").isEqualByComparingTo(page.forecastMonthEnd());
+        assertThat(shown.asOf()).isEqualTo(TODAY);
+        // Alerts: the complete days to yesterday, 25 days left (BudgetEvaluationService).
+        BudgetService.Spend alerts = budgets.spend(budget, java.time.YearMonth.of(2026, 10), TODAY.minusDays(1));
+        assertThat(alerts.toDate()).isEqualByComparingTo("60.00");
+        assertThat(alerts.forecast()).isEqualByComparingTo("310.00");
+        assertThat(alerts.asOf()).isEqualTo(TODAY.minusDays(1));
+    }
+
+    @Test
+    void todaySoFarIsTheLiveEstimateOnTheGivenCalendar() {
+        when(vmRepository.findActiveByEnvironmentIdsFetchGroupAndEnvironment(List.of("env-1"))).thenReturn(vms);
+
+        EnvironmentCostService.LiveToday live = service.liveToday(List.of("env-1"), Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(live.date()).isEqualTo(TODAY);
+        assertThat(live.soFar()).isEqualByComparingTo("3.00"); // 2 VMs x 1.50
+        assertThat(service.liveToday(List.of(), Clock.fixed(NOW, ZoneOffset.UTC)).soFar()).isEqualByComparingTo("0");
+    }
 }

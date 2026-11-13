@@ -345,6 +345,11 @@ public class EnvironmentCostService {
      */
     private void addTodaysLiveEstimate(Map<String, Map<LocalDate, BigDecimal>> daily, List<String> ids,
                                        Instant now, LocalDate today) {
+        addTodaysLiveEstimate(daily, ids, now, today, clock.getZone());
+    }
+
+    private void addTodaysLiveEstimate(Map<String, Map<LocalDate, BigDecimal>> daily, List<String> ids,
+                                       Instant now, LocalDate today, ZoneId zone) {
         if (ids.isEmpty()) {
             return;
         }
@@ -353,7 +358,7 @@ public class EnvironmentCostService {
         if (vms.isEmpty()) {
             return;
         }
-        Instant todayStart = today.atStartOfDay(clock.getZone()).toInstant();
+        Instant todayStart = today.atStartOfDay(zone).toInstant();
         Map<String, CostDataProvider.VmCostEstimate> estimates =
                 costDataProvider.estimateCosts(vms, Timestamp.from(todayStart), Timestamp.from(now));
         for (Vm vm : vms) {
@@ -425,6 +430,69 @@ public class EnvironmentCostService {
         return new com.tcgdigital.vmcontrol.dto.FleetMonthDTO(monthStart, yesterday, money(mtd), money(complete),
                 money(todaySoFar), billedDays, estimatedDays, firstDay, average, recent.size(), daysLeft,
                 forecast == null ? null : money(forecast));
+    }
+
+    /** Today on the snapshot calendar and the environments' live estimate from midnight to now (U24-T03). */
+    public record LiveToday(LocalDate date, BigDecimal soFar) {
+    }
+
+    /**
+     * Today's part of a month to date for the given environments (U24-T03): budgets add it to their
+     * complete days so a budget's "spent so far" and forecast match the environment page. On staging
+     * ISE's budget said $34.23 spent (to yesterday) while its page said $35.45 this month.
+     */
+    @Transactional(readOnly = true)
+    public LiveToday liveToday(java.util.Collection<String> environmentIds, Clock at) {
+        LocalDate today = LocalDate.now(at);
+        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
+        addTodaysLiveEstimate(live, environmentIds == null ? List.of() : List.copyOf(environmentIds), at.instant(), today,
+                at.getZone());
+        BigDecimal soFar = live.values().stream().map(days -> days.getOrDefault(today, BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new LiveToday(today, soFar);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private TeamResolver teamResolver;
+
+    /**
+     * Each team's month to date on the fleet's definition (U24-T03), largest first: every environment's
+     * snapshots from the 1st to yesterday (AWS billing where present, else the estimate) plus today's
+     * live estimate of the active environments, grouped by the environment's team. The teams add up to
+     * {@link #fleetMonth()}'s month to date. Staging's By team said "this month CloudOps $2,641" (the
+     * snapshots to yesterday) under a Month to date of $2,743.
+     */
+    @Transactional(readOnly = true)
+    public List<com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO> teamMonth() {
+        Instant now = clock.instant();
+        LocalDate today = LocalDate.now(clock);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        Map<String, BigDecimal> byEnvironment = new java.util.HashMap<>();
+        if (today.isAfter(monthStart)) {
+            for (CostDailySnapshotRepository.EnvironmentSpend row
+                    : snapshotRepository.findSpendByEnvironmentBetween(Date.valueOf(monthStart), Date.valueOf(today.minusDays(1)))) {
+                byEnvironment.merge(row.getEnvironmentId(), nz(row.getSpend()), BigDecimal::add);
+            }
+        }
+        List<String> activeIds = environmentRepository.findByIsActiveTrue().stream()
+                .map(com.tcgdigital.vmcontrol.model.Environment::getEnvironmentId).toList();
+        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
+        addTodaysLiveEstimate(live, activeIds, now, today);
+        live.forEach((id, days) -> byEnvironment.merge(id, days.getOrDefault(today, BigDecimal.ZERO), BigDecimal::add));
+
+        Map<String, BigDecimal> byTeam = new java.util.HashMap<>();
+        Map<String, com.tcgdigital.vmcontrol.model.Environment> environments = new java.util.HashMap<>();
+        environmentRepository.findAllById(byEnvironment.keySet()).forEach(e -> environments.put(e.getEnvironmentId(), e));
+        byEnvironment.forEach((id, spend) -> {
+            com.tcgdigital.vmcontrol.model.Environment env = environments.get(id);
+            String team = teamResolver == null || env == null ? "Unassigned" : teamResolver.resolveTeam(env);
+            byTeam.merge(team, spend, BigDecimal::add);
+        });
+        return byTeam.entrySet().stream()
+                .map(e -> new com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO(e.getKey(), e.getKey(), money(e.getValue()), null))
+                .sorted(Comparator.comparing(com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO::cost).reversed()
+                        .thenComparing(com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO::dimensionKey))
+                .toList();
     }
 
     private static BigDecimal sumBetween(Map<LocalDate, BigDecimal> days, LocalDate from, LocalDate to) {

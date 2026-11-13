@@ -69,6 +69,8 @@ const CostManagement = (function() {
         carbonMonth: null,
         spendByVmType: [],
         teamTrend: [],
+        /** Each team's month to date from the server (U24-T03); null falls back to the trend. */
+        teamMonth: null,
         trend: [],
         forecast: null,
         month: null,
@@ -198,6 +200,8 @@ const CostManagement = (function() {
         spendByVmType: { url: () => Config.API.costManagement.spendByVmType, apply: d => { state.spendByVmType = d || []; } },
         spendByAccount: { url: () => Config.API.costManagement.spendByAccount, apply: d => { state.spendByAccount = d || []; } },
         teamTrend: { url: () => Config.API.costManagement.spendTrendByTeam(TREND_DAYS), apply: d => { state.teamTrend = d || []; } },
+        // U24-T03: By team this month on the Month to date's definition (snapshots plus today); soft, as month.
+        teamMonth: { url: () => Config.API.costManagement.monthByTeam, soft: true, apply: d => { state.teamMonth = Array.isArray(d) ? d : null; } },
         trend: { url: () => Config.API.costManagement.spendTrend(TREND_DAYS), apply: d => { state.trend = d || []; } },
         commitments: { url: () => Config.API.costManagement.commitmentInsights, feature: 'costReservations',
             apply: d => { state.commitments = d || null; } },
@@ -517,7 +521,7 @@ const CostManagement = (function() {
     const PANELS = {
         kpi: { keys: ['summary', 'month'], label: 'the cost summary', build: () => buildKpiStrip(state.summary) },
         breakdown: {
-            keys: ['spendByEnvironment', 'spendByVmType', 'spendByAccount', 'teamTrend'], label: 'spend by environment',
+            keys: ['spendByEnvironment', 'spendByVmType', 'spendByAccount', 'teamTrend', 'teamMonth'], label: 'spend by environment',
             build: () => buildBreakdown()
         },
         savings: { keys: ['rightsizingTop', 'idle'], label: 'the biggest savings', build: () => buildTopSavings() },
@@ -868,8 +872,15 @@ const CostManagement = (function() {
         return top;
     }
 
-    /** Each team's cost this month, from the per-team daily trend. */
-    function teamsThisMonth(teamTrend, now = new Date()) {
+    /**
+     * Each team's cost this month: the server's month to date per team when given (U24-T03: the 1st to
+     * yesterday plus today, so the teams add up to Month to date; staging said "CloudOps $2,641" under
+     * $2,743), else from the per-team daily trend.
+     */
+    function teamsThisMonth(teamTrend, now = new Date(), teamMonth = null) {
+        if (Array.isArray(teamMonth)) {
+            return teamMonth.map(r => ({ label: r.dimensionLabel || r.dimensionKey || 'No team', cost: Number(r.cost) || 0 }));
+        }
         const prefix = monthPrefix(now);
         const totals = new Map();
         (teamTrend || []).forEach(p => {
@@ -949,7 +960,7 @@ const CostManagement = (function() {
     // ---- spend by environment, team, account or type (U15-T02) ----
 
     function breakdownRows(by) {
-        if (by === 'team') return teamsThisMonth(state.teamTrend);
+        if (by === 'team') return teamsThisMonth(state.teamTrend, new Date(), state.teamMonth);
         const source = by === 'account' ? state.spendByAccount : by === 'type' ? state.spendByVmType : state.spendByEnvironment;
         return (source || []).map(r => ({ label: r.dimensionLabel || r.dimensionKey || 'Unknown', cost: Number(r.cost) || 0 }));
     }

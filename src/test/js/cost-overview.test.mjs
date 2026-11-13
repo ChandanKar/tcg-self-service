@@ -55,6 +55,14 @@ test('bars: the six largest and Other; teams this month', () => {
     assert.deepEqual(teams, [{ label: 'Data', cost: 12 }, { label: 'No team', cost: 3 }]);
 });
 
+test('U24-T03: by team this month takes the server month to date per team (snapshots plus today)', () => {
+    const trend = [{ date: day(1), team: 'CloudOps', estimatedCost: 2641 }];
+    const server = [{ dimensionKey: 'CloudOps', dimensionLabel: 'CloudOps', cost: 2743.12 }, { dimensionKey: 'Unassigned', cost: 4 }];
+    assert.deepEqual(plain(M.teamsThisMonth(trend, NOW, server)), [{ label: 'CloudOps', cost: 2743.12 }, { label: 'Unassigned', cost: 4 }]);
+    // Without the server's figures (a failed request), the trend as before.
+    assert.deepEqual(plain(M.teamsThisMonth(trend, NOW, null)), [{ label: 'CloudOps', cost: 2641 }]);
+});
+
 test('the biggest savings across rightsizing and idle VMs', () => {
     const rows = plain(M.topSavings(
         [{ vmName: 'etl-1', environmentName: 'Data Lake Dev', currentInstanceType: 'r6i.4xlarge', suggestedInstanceType: 'r6i.2xlarge',

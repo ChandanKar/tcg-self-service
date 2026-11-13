@@ -89,4 +89,32 @@ class FleetMonthToDateIntegrationTest extends SecuredWebTestBase {
             assertThat(month.path("billedDays").asInt()).isEqualTo(today.getDayOfMonth() > 2 ? 1 : 0);
         }
     }
+
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    /**
+     * U24-T03: By team "this month" is the Month to date's definition. Staging's By team said
+     * "CloudOps $2,641" (snapshots to yesterday) under a Month to date of $2,743; with one team owning
+     * every environment the two are now the same figure.
+     */
+    @Test
+    void byTeamThisMonthEqualsTheFleetMonthToDateForOneTeam() throws Exception {
+        LocalDate today = LocalDate.now();
+        Environment env = newEnvironment("Team month");
+        newVm(newGroup(env, "app"), "app-1", VmStatus.RUNNING);
+        for (LocalDate day = today.withDayOfMonth(1); day.isBefore(today); day = day.plusDays(1)) {
+            snapshot(env, day, "10.00", day.getDayOfMonth() == 1 ? "8.00" : null);
+        }
+        snapshot(env, today.withDayOfMonth(1).minusDays(1), "99.00", null); // last month never counts
+        jdbcTemplate.update("UPDATE environment SET team_id = NULL, metadata = ?", "{\"ownerTeam\":\"CloudOps\"}");
+
+        JsonNode teams = json("/api/v1/cost-management/month-by-team");
+        JsonNode month = json("/api/v1/cost-management/month");
+
+        assertThat(teams.size()).isEqualTo(1);
+        assertThat(teams.get(0).path("dimensionLabel").asText()).isEqualTo("CloudOps");
+        // The live estimate moves by fractions of a cent between the requests.
+        assertThat(teams.get(0).path("cost").asDouble()).isCloseTo(month.path("monthToDate").asDouble(), within(0.05));
+        assertThat(teams.get(0).path("cost").asDouble()).isGreaterThanOrEqualTo(month.path("completeDays").asDouble());
+    }
 }

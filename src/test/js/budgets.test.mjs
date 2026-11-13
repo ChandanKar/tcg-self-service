@@ -49,3 +49,8 @@ test('alert thresholds: 1 to 4 different whole percentages between 1 and 200', (
     assert.equal(M.thresholdProblem([50], '12.5'), 'A whole percentage between 1 and 200.');
     assert.equal(M.thresholdProblem([50, 75, 90, 100], '120'), 'Up to 4.');
 });
+
+test('U24-T03: the environment budget line counts today too, so it names no day it runs to', () => {
+    context.Utils = { formatCurrency: n => '$' + n.toFixed(2) };
+    assert.equal(M.envSummary({ spendToDate: 35.45, monthlyAmount: 50, asOf: '2026-11-13' }), '$35.45 of the $50.00 budget');
+});

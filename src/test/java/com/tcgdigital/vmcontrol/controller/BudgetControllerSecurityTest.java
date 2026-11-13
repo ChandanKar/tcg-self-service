@@ -61,7 +61,7 @@ class BudgetControllerSecurityTest extends SecuredWebTestBase {
 
     @AfterEach
     void realClock() {
-        ReflectionTestUtils.setField(serviceTarget(), "clock", Clock.systemUTC());
+        ReflectionTestUtils.setField(serviceTarget(), "clock", Clock.systemDefaultZone());
     }
 
     private String body(String scopeType, String scopeId, String amount, String extra) {
@@ -83,7 +83,8 @@ class BudgetControllerSecurityTest extends SecuredWebTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.spendToDate").value(200.0))
                 .andExpect(jsonPath("$.percentUsed").value(40.0))
-                .andExpect(jsonPath("$.forecastMonthEnd").value(600.0))
+                // U24-T03: today counts (nothing yet at midnight), then 19 days left at $20.
+                .andExpect(jsonPath("$.forecastMonthEnd").value(580.0))
                 .andExpect(jsonPath("$.thresholds[0]").value(50))
                 .andExpect(jsonPath("$.month").value("2026-09"));
         mockMvc.perform(put("/api/v1/budgets/" + id).with(asUser()).contentType(MediaType.APPLICATION_JSON)
