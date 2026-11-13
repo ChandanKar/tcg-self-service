@@ -198,13 +198,15 @@ public class EnvironmentController {
             @Parameter(description = "Only environments with a VM in this AWS region (U19-T08)")
             @RequestParam(required = false) String region,
             @Parameter(description = "Order: name (default), running (most VMs running first) or cost (highest month to date first) (U22-T13)")
-            @RequestParam(required = false, defaultValue = "name") String sort) {
+            @RequestParam(required = false, defaultValue = "name") String sort,
+            @Parameter(description = "Only environments owned by this team (U25-T06: the team page); an unknown team gives an empty page")
+            @RequestParam(required = false) String teamId) {
         Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
                 com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
         Boolean running = runningFilter(state);
         if ("running".equals(sort) || "cost".equals(sort)) {
             // U22-T13: ordered across the whole filtered set, then paged.
-            List<Environment> all = pageOfEnvironments(includeInactive, search, running, region, Pageable.unpaged()).getContent();
+            List<Environment> all = pageOfEnvironments(includeInactive, search, running, region, teamId, Pageable.unpaged()).getContent();
             List<EnvironmentDTO> rows = fleetRows(all, includeGroups);
             java.util.Comparator<EnvironmentDTO> by = "running".equals(sort)
                     ? java.util.Comparator.comparingInt(EnvironmentDTO::getRunningVmCount).reversed()
@@ -220,7 +222,7 @@ public class EnvironmentController {
                     .header("X-Running-Vms", String.valueOf(totals[1]))
                     .body(new org.springframework.data.domain.PageImpl<>(rows.subList(from, to), pageable, rows.size()));
         }
-        Page<Environment> environments = pageOfEnvironments(includeInactive, search, running, region, pageable);
+        Page<Environment> environments = pageOfEnvironments(includeInactive, search, running, region, teamId, pageable);
 
         List<String> environmentIds = environments.getContent().stream()
                 .map(Environment::getEnvironmentId)
@@ -239,7 +241,7 @@ public class EnvironmentController {
         // The header line counts the whole filtered set, not this page (U06-T04).
         List<Environment> all = environments.getTotalPages() <= 1
                 ? environments.getContent()
-                : pageOfEnvironments(includeInactive, search, running, region, Pageable.unpaged()).getContent();
+                : pageOfEnvironments(includeInactive, search, running, region, teamId, Pageable.unpaged()).getContent();
         long[] totals = fleetTotals(all);
         return ResponseEntity.ok()
                 .header("X-Total-Vms", String.valueOf(totals[0]))
@@ -248,15 +250,15 @@ public class EnvironmentController {
     }
 
     private Page<Environment> pageOfEnvironments(boolean includeInactive, String search, Boolean running,
-                                                 String region, Pageable pageable) {
+                                                 String region, String teamId, Pageable pageable) {
         if (region != null && !region.isBlank() && !com.tcgdigital.vmcontrol.service.aws.AwsRegions.isRegionCode(region)) {
             throw new com.tcgdigital.vmcontrol.exception.ValidationException("region must be an AWS region code, such as eu-west-1");
         }
         return securityService.seesAllEnvironments()
                 ? (includeInactive
-                        ? environmentService.getAllEnvironments(search, running, region, pageable)
-                        : environmentService.getAllActiveEnvironments(search, running, region, pageable))
-                : environmentService.getEnvironmentsForCurrentUser(search, running, region, pageable);
+                        ? environmentService.getAllEnvironments(search, running, region, teamId, pageable)
+                        : environmentService.getAllActiveEnvironments(search, running, region, teamId, pageable))
+                : environmentService.getEnvironmentsForCurrentUser(search, running, region, teamId, pageable);
     }
 
     @GetMapping("/regions")
@@ -344,8 +346,9 @@ public class EnvironmentController {
     public ResponseEntity<String> exportEnvironments(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String state,
-            @RequestParam(required = false) String region) {
-        List<Environment> all = pageOfEnvironments(false, search, runningFilter(state), region, Pageable.unpaged()).getContent();
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String teamId) {
+        List<Environment> all = pageOfEnvironments(false, search, runningFilter(state), region, teamId, Pageable.unpaged()).getContent();
         List<EnvironmentDTO> rows = fleetRows(all, false);
         rows.sort(java.util.Comparator.comparing(d -> String.valueOf(d.getDisplayName() != null ? d.getDisplayName() : d.getName()),
                 String.CASE_INSENSITIVE_ORDER));

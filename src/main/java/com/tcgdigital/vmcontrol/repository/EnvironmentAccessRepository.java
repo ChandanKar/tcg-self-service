@@ -135,7 +135,7 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           VISIBLE_RUNNING_FILTER + EnvironmentRepository.REGION_FILTER +
+           VISIBLE_RUNNING_FILTER + EnvironmentRepository.REGION_FILTER + EnvironmentRepository.TEAM_FILTER +
            "ORDER BY e.name",
            countQuery =
            "SELECT COUNT(DISTINCT e.environmentId) FROM Environment e JOIN EnvironmentAccess ea ON ea.environment = e " +
@@ -146,14 +146,20 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           VISIBLE_RUNNING_FILTER + EnvironmentRepository.REGION_FILTER)
+           VISIBLE_RUNNING_FILTER + EnvironmentRepository.REGION_FILTER + EnvironmentRepository.TEAM_FILTER)
     Page<Environment> findDistinctActiveEnvironmentsForUser(
             @Param("userId") String userId,
             @Param("search") String search,
             @Param("now") Timestamp now,
             @Param("running") Boolean running,
             @Param("region") String region,
+            @Param("teamId") String teamId,
             Pageable pageable);
+
+    default Page<Environment> findDistinctActiveEnvironmentsForUser(String userId, String search, Timestamp now,
+                                                                    Boolean running, String region, Pageable pageable) {
+        return findDistinctActiveEnvironmentsForUser(userId, search, now, running, region, null, pageable);
+    }
 
     default Page<Environment> findDistinctActiveEnvironmentsForUser(String userId, String search, Timestamp now,
                                                                     Boolean running, Pageable pageable) {

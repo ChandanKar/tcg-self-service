@@ -30,6 +30,7 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
 
     @Autowired private LockService lockService;
     @Autowired private com.tcgdigital.vmcontrol.repository.AutomationRuleRepository automationRules;
+    @Autowired private com.tcgdigital.vmcontrol.repository.TeamRepository teamRepository;
 
     private Environment env;
     private String tag;
@@ -128,6 +129,84 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").value(hasItem("me-central-1")))
                 .andExpect(jsonPath("$").value(hasItem("ap-south-1")));
+    }
+
+    // ---------------------------------------------------------------- U25-T06: teamId
+
+    private Environment teamEnvironment(com.tcgdigital.vmcontrol.model.Team team, String letter) {
+        Environment e = newEnvironment("ledger-" + letter.toLowerCase());
+        e.setDisplayName("Ledger " + letter + " " + tag);
+        e.setTeam(team);
+        return environmentRepository.saveAndFlush(e);
+    }
+
+    private com.tcgdigital.vmcontrol.model.Team newTeam() {
+        com.tcgdigital.vmcontrol.model.Team team = new com.tcgdigital.vmcontrol.model.Team();
+        team.setTeamId(UUID.randomUUID().toString());
+        team.setName("ledger-" + tag);
+        team.setDisplayName("Ledger " + tag);
+        team.setIsActive(true);
+        return teamRepository.saveAndFlush(team);
+    }
+
+    @Test
+    void teamIdKeepsTheTeamsEnvironmentsWithSearchAndPaging() throws Exception {
+        com.tcgdigital.vmcontrol.model.Team team = newTeam();
+        Environment a = teamEnvironment(team, "A");
+        Environment b = teamEnvironment(team, "B");
+        Environment c = teamEnvironment(team, "C");
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("teamId", team.getTeamId())
+                        .param("page", "0").param("size", "2").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(a.getEnvironmentId(), b.getEnvironmentId())));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("teamId", team.getTeamId())
+                        .param("page", "1").param("size", "2").with(asAdmin()))
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(c.getEnvironmentId())));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", "ledger b " + tag)
+                        .param("teamId", team.getTeamId()).with(asAdmin()))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].environmentId").value(b.getEnvironmentId()));
+        // Without teamId the list is as before: the team's three plus the seeded one, which has no team.
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asAdmin()))
+                .andExpect(jsonPath("$.page.totalElements").value(4))
+                .andExpect(jsonPath("$.content[*].environmentId").value(hasItem(env.getEnvironmentId())));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("sort", "running")
+                        .param("teamId", team.getTeamId()).with(asAdmin()))
+                .andExpect(jsonPath("$.page.totalElements").value(3));
+    }
+
+    @Test
+    void anUnknownTeamIdGivesAnEmptyPage() throws Exception {
+        mockMvc.perform(get("/api/v1/environments/page").param("teamId", "no-such-team").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", empty()))
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+        mockMvc.perform(get("/api/v1/environments/page").param("teamId", "no-such-team").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", empty()));
+    }
+
+    @Test
+    void aUserSeesOnlyTheirEnvironmentsOfTheTeam() throws Exception {
+        com.tcgdigital.vmcontrol.model.Team team = newTeam();
+        Environment mine = teamEnvironment(team, "A");
+        teamEnvironment(team, "B");
+        grantEnv(operator, mine.getEnvironmentId(), AccessLevel.USER);
+
+        mockMvc.perform(get("/api/v1/environments/page").param("teamId", team.getTeamId()).with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].environmentId").value(mine.getEnvironmentId()));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asUser()))
+                .andExpect(jsonPath("$.page.totalElements").value(2));
+        mockMvc.perform(get("/api/v1/environments/export").param("teamId", team.getTeamId()).with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("Ledger A " + tag),
+                                org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Ledger B " + tag)))));
     }
 
     // ---------------------------------------------------------------- U05-T03: groupStates

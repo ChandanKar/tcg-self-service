@@ -101,7 +101,8 @@ const Config = (function() {
                 + (opts.includeGroups ? '&includeGroups=true' : '')
                 + (opts.state ? '&state=' + encodeURIComponent(opts.state) : '')
                 + (opts.region ? '&region=' + encodeURIComponent(opts.region) : '')
-                + (opts.sort && opts.sort !== 'name' ? '&sort=' + encodeURIComponent(opts.sort) : ''),
+                + (opts.sort && opts.sort !== 'name' ? '&sort=' + encodeURIComponent(opts.sort) : '')
+                + (opts.teamId ? '&teamId=' + encodeURIComponent(opts.teamId) : ''), // U25-T06: the team page
             // U22-T13: the list as CSV, with the list's filters
             exportCsv: (opts = {}) => `${API_BASE_URL}/environments/export?`
                 + new URLSearchParams(Object.entries({ search: opts.search || '', state: opts.state || '', region: opts.region || '' })
