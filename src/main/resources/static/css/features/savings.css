@@ -194,11 +194,6 @@
     stroke: var(--line);
 }
 
-.savings-median {
-    stroke: var(--line);
-    stroke-dasharray: 4 4;
-}
-
 .savings-line {
     fill: none;
     stroke: var(--success-color);
@@ -209,13 +204,6 @@
 
 .savings-chart-box {
     position: relative;
-}
-
-.savings-median-label {
-    position: absolute;
-    left: 4px;
-    font-size: 11px;
-    color: var(--text-secondary);
 }
 
 .savings-env-table {

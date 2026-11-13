@@ -30,6 +30,11 @@ public interface WasteFindingRepository extends JpaRepository<WasteFinding, Stri
     @Query("SELECT f.findingType, COUNT(f), SUM(f.estMonthlyCost) FROM WasteFinding f WHERE f.status = :status GROUP BY f.findingType")
     List<Object[]> totalsByType(@Param("status") WasteFindingStatus status);
 
+    /** [environment id or null, monthly total] of the OPEN findings (U23-T06: Savings' "Still on the table"). */
+    @Query("SELECT f.environmentId, SUM(f.estMonthlyCost) FROM WasteFinding f "
+            + "WHERE f.status = com.tcgdigital.vmcontrol.model.WasteFindingStatus.OPEN GROUP BY f.environmentId")
+    List<Object[]> openMonthlyByEnvironment();
+
     /** OPEN findings of a type in a region that the run starting at {@code since} did not see. */
     @Query("SELECT f FROM WasteFinding f WHERE f.findingType = :type AND f.region = :region "
             + "AND f.status = :status AND f.lastSeenAt < :since")

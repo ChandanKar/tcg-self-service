@@ -78,13 +78,16 @@ public class SavingsReportService {
         BigDecimal potential;
         BigDecimal optimisable;
         BigDecimal efficiency;
-        BigDecimal offHoursShare = null;
+        SavingsSummaryDTO.PotentialParts parts = null;
         if (!month.isBefore(YearMonth.from(dayBoundary.today()))) {
             PotentialSavingsService.Result current = potentialSavingsService.compute(environmentId);
             potential = current.potentialSavings();
             optimisable = current.optimisableSpend();
             efficiency = current.efficiencyPercent();
-            offHoursShare = current.offHoursShare();
+            parts = new SavingsSummaryDTO.PotentialParts(
+                    current.byCause().get(PotentialSavingsService.PotentialCause.IDLE),
+                    current.byCause().get(PotentialSavingsService.PotentialCause.RIGHTSIZING),
+                    current.byCause().get(PotentialSavingsService.PotentialCause.WASTE));
         } else {
             EfficiencySnapshot last = lastSnapshot(month, environmentId);
             potential = last == null ? null : last.getPotentialSavings();
@@ -94,7 +97,7 @@ public class SavingsReportService {
         int fullyCovered = (int) entries.stream().filter(e -> e.getCommitmentCoveragePercent() != null
                 && e.getCommitmentCoveragePercent().compareTo(BigDecimal.valueOf(100)) >= 0).count();
         return new SavingsSummaryDTO(month.toString(), environmentId, net, gross, storage, ipv4, adjustment,
-                byCause(entries), potential, optimisable, efficiency, offHoursShare, actualsCheck(month, environmentId),
+                byCause(entries), potential, optimisable, efficiency, parts, actualsCheck(month, environmentId),
                 fullyCovered);
     }
 

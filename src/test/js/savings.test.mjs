@@ -29,10 +29,16 @@ test('Saved by: the causes in order, bars against the largest, Automation only w
     assert.equal(bars[1].width, 27.7);
 });
 
-test('the efficiency line runs left to right with the median at 83%', () => {
+test('the efficiency line runs left to right, without the AWS median (U23-T06)', () => {
     const line = M.efficiencyLine([{ efficiencyPercent: 62 }, { efficiencyPercent: null }, { efficiencyPercent: 81 }]);
     assert.equal(line.points, '0,59.4 440,34.7'); // y = 140 - percent / 100 * 130
-    assert.equal(line.median, 32.1);
+    assert.equal(line.median, undefined);
     assert.deepEqual([line.first, line.last], [62, 81]);
     assert.equal(M.efficiencyLine([]).points, '');
+});
+
+test('Still on the table names its parts: idle VMs, rightsizing and, while checked, waste (U23-T06)', () => {
+    assert.equal(M.potentialParts({ idle: 612.4, rightsizing: 390.85, waste: 48 }), 'Idle VMs $612 · Rightsizing $391 · Waste $48');
+    assert.equal(M.potentialParts({ idle: 612.4, rightsizing: 0, waste: null }), 'Idle VMs $612 · Rightsizing $0');
+    assert.equal(M.potentialParts(null), '');
 });

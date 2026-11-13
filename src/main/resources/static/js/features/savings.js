@@ -1,7 +1,7 @@
 /**
  * Savings (E17-T07, U15-T06 Savings.dc.html): what stopping and resizing saved in a month after the
- * storage and IPs that keep running, what is still on the table, cost efficiency against the AWS
- * median and how much of it rests on AWS billing; savings by cause as bars, the 90-day efficiency
+ * storage and IPs that keep running, what is still on the table and what it is made of, cost
+ * efficiency and how much of it rests on AWS billing; savings by cause as bars, the 90-day efficiency
  * line and savings by environment with its team. Admin only. Each panel loads on its own and shows
  * its own error with Retry.
  */
@@ -10,7 +10,6 @@ const Savings = (function() {
 
     const TREND_DAYS = 90;
     const PAGE_SIZE = 10;
-    const AWS_MEDIAN = 83;
     /** The causes in the board's order, with the names people use. */
     const CAUSES = [['SCHEDULE', 'Schedules'], ['IDLE_STOP', 'Idle auto-stop'], ['LEASE', 'Leases ending'],
         ['MANUAL_STOP', 'Stopped by hand'], ['RIGHTSIZING', 'Rightsizing'], ['AUTOMATION', 'Automation and budgets']];
@@ -76,14 +75,24 @@ const Savings = (function() {
         return rows.map(r => ({ ...r, width: Math.round(r.value / most * 1000) / 10 }));
     }
 
-    /** The efficiency line in a 440 × 150 box (0–100%), with the AWS median's height. */
+    /**
+     * What "Still on the table" is made of (U23-T06): "Idle VMs $X · Rightsizing $Y · Waste $Z", the
+     * waste only while its checks are on; empty for a past month (only its total was kept).
+     */
+    function potentialParts(parts) {
+        if (!parts) return '';
+        const out = [`Idle VMs ${money0(parts.idle)}`, `Rightsizing ${money0(parts.rightsizing)}`];
+        if (parts.waste !== null && parts.waste !== undefined) out.push(`Waste ${money0(parts.waste)}`);
+        return out.join(' · ');
+    }
+
+    /** The efficiency line in a 440 × 150 box (0–100%). */
     function efficiencyLine(trend, width = 440, height = 150) {
         const points = (trend || []).filter(p => p.efficiencyPercent !== null && p.efficiencyPercent !== undefined);
         const y = v => Math.round((height - 10 - (Number(v) / 100) * (height - 20)) * 10) / 10;
         const step = points.length > 1 ? width / (points.length - 1) : 0;
         return {
             points: points.map((p, i) => `${Math.round(i * step * 10) / 10},${y(p.efficiencyPercent)}`).join(' '),
-            median: y(AWS_MEDIAN),
             first: points.length ? Math.round(Number(points[0].efficiencyPercent)) : null,
             last: points.length ? Math.round(Number(points[points.length - 1].efficiencyPercent)) : null
         };
@@ -201,16 +210,16 @@ const Savings = (function() {
         const check = s.actualsCheck || {};
         const quality = check.variancePercent === null || check.variancePercent === undefined ? ''
             : `Estimates were ${Math.abs(check.variancePercent)}% ${check.variancePercent > 0 ? 'above' : 'below'} AWS billing over ${check.daysWithActuals} day(s)`;
-        const share = s.offHoursShare ? ` VMs without a schedule are counted as off ${Math.round(s.offHoursShare * 100)}% of the time.` : '';
+        const parts = potentialParts(s.potentialParts);
         const tile = (key, label, value, note, title, cls) => Utils.html`<div class="savings-tile" data-kpi="${key}" title="${title || ''}">
                 <span class="cost-kpi-label">${label}</span><span class="savings-tile-value ${cls || ''}">${value}</span>
                 <span class="cost-kpi-note">${note}</span></div>`;
         return `<section class="savings-tiles" aria-label="${Utils.escapeHtml(monthName(state.month))}">
                 ${tile('net', 'Saved, net', money0(s.realisedNet), `${money0(s.realisedGross)} before running storage and IPs`, '', 'cost-mono savings-green')}
                 ${tile('table', 'Still on the table', s.potentialSavings == null ? '—' : money0(s.potentialSavings),
-                    'a month, each VM counted once', 'Idle, rightsizing or off-hours, whichever is largest per VM.' + share, 'cost-mono')}
+                    parts || 'a month', 'A month. A VM both idle and too big counts once, as idle.', 'cost-mono')}
                 ${tile('efficiency', 'Cost efficiency', s.efficiencyPercent == null ? '—' : `${Math.round(Number(s.efficiencyPercent))}%`,
-                    `AWS customers' median is about ${AWS_MEDIAN}%`, '1 − potential savings / optimisable spend', 'cost-mono')}
+                    'of spend is not on the table', '1 − still on the table / spend', 'cost-mono')}
                 ${tile('basis', 'Based on', b.label, b.note, quality, 'savings-tile-words')}
             </section>`;
     }
@@ -237,9 +246,8 @@ const Savings = (function() {
             ? `<div class="savings-chart-box"><svg id="savings-trend-svg" viewBox="0 0 440 150" role="img" preserveAspectRatio="none"
                     aria-label="Cost efficiency from ${line.first}% to ${line.last}% over ${TREND_DAYS} days">
                     <line x1="0" y1="140" x2="440" y2="140" class="savings-axis"></line>
-                    <line x1="0" y1="${line.median}" x2="440" y2="${line.median}" class="savings-median"></line>
                     <polyline points="${line.points}" class="savings-line"></polyline>
-                </svg><span class="savings-median-label" style="top: calc(${(line.median / 150 * 100).toFixed(1)}% - 18px)" aria-hidden="true">AWS median ${AWS_MEDIAN}%</span></div>`
+                </svg></div>`
             : '<p class="cost-note">No efficiency figures yet; they are taken every night.</p>';
         return `<section class="cost-card savings-efficiency" aria-labelledby="savings-eff-title">
                 <h2 id="savings-eff-title">Cost efficiency, ${TREND_DAYS} days</h2>${body}</section>`;
@@ -330,7 +338,7 @@ const Savings = (function() {
         retry: key => { delete state.errors[key]; delete state.data[key]; render(); fetchAll([key]); },
         sortBy,
         toPage,
-        model: { basis, causeBars, efficiencyLine }
+        model: { basis, causeBars, efficiencyLine, potentialParts }
     };
 })();
 
