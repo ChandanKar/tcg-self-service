@@ -242,8 +242,10 @@
 }
 
 /* Start and stop confirmation (U08-T02, StartConfirm.dc.html) */
+/* U23-T11: the lights have their own column; on a phone they were drawn over the start of the VM names. */
 .op-confirm-targets {
-    display: flex;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
     align-items: center;
     gap: 12px;
     margin-bottom: 18px;
@@ -255,7 +257,7 @@
     min-width: 0;
 }
 
-.op-confirm-targets > span {
+.op-confirm-targets > span:last-child {
     min-width: 0;
     overflow-wrap: anywhere;
 }
@@ -1763,7 +1765,8 @@
 
 .ins-bar-row {
     display: grid;
-    grid-template-columns: 120px minmax(0, 1fr) 44px;
+    /* U23-T11: room for a name cut in the middle ("mcube_dev…work1_100.112.1.162"). */
+    grid-template-columns: minmax(0, 200px) minmax(48px, 1fr) 44px;
     gap: 10px;
     align-items: center;
     font-size: var(--fs-caption);
@@ -1882,7 +1885,9 @@
     display: none;
 }
 
-.phone-env-details > div + div {
+/* A line between shown rows only (U23-T11): with no lease the hidden Lease row still gave Lock a line on
+   top, so the card began with an empty row. */
+.phone-env-details > div:not(:empty) ~ div:not(:empty) {
     border-top: 1px solid var(--line-soft);
 }
 
@@ -1986,8 +1991,29 @@
 .phone-group-name {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
     font-size: 15px;
     font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* U23-T11: the group's own start or stop beside its row, a 44 px target. */
+.phone-group-head {
+    display: flex;
+    align-items: center;
+}
+
+.phone-group-head .phone-group-row {
+    flex: 1;
+    min-width: 0;
+}
+
+.phone-group-action {
+    flex-shrink: 0;
+    min-height: 44px;
+    margin-right: 12px;
+    white-space: nowrap;
 }
 
 .phone-group-chevron {

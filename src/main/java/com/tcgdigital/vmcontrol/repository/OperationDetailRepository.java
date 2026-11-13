@@ -21,9 +21,10 @@ public interface OperationDetailRepository extends JpaRepository<OperationDetail
 
     /**
      * Completed starts of these VMs since a moment, newest first: [vmId, completedAt, initiatedByUserId,
-     * triggerSource, triggerName] (U22-T10: who started a running VM).
+     * triggerSource, triggerName, the operation's start] (U22-T10: who started a running VM; U23-T11: when,
+     * as History shows it).
      */
-    @Query("SELECT d.targetId, d.completedAt, e.initiatedByUserId, e.triggerSource, e.triggerName FROM OperationDetail d "
+    @Query("SELECT d.targetId, d.completedAt, e.initiatedByUserId, e.triggerSource, e.triggerName, e.startedAt FROM OperationDetail d "
             + "JOIN d.execution e WHERE d.targetId IN :vmIds AND d.action = 'start' AND d.status = 'completed' "
             + "AND d.completedAt >= :since ORDER BY d.completedAt DESC")
     List<Object[]> findCompletedStartsSince(@Param("vmIds") List<String> vmIds, @Param("since") java.sql.Timestamp since);

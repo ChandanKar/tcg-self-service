@@ -156,7 +156,8 @@ class VmListDetailsServiceTest extends AbstractIntegrationTest {
 
         assertThat(details.get(byPerson.getVmId()).startedBy()).isEqualTo("Sayan Hazra");
         assertThat(details.get(byPerson.getVmId()).startedByUserId()).isEqualTo(sayan.getUserId());
-        assertThat(details.get(byPerson.getVmId()).startedAt().toInstant()).isEqualTo(recent);
+        // U23-T11: the operation's start, as History shows it (07:01), not when the VM was up (07:04).
+        assertThat(details.get(byPerson.getVmId()).startedAt().toInstant()).isEqualTo(recent.minusSeconds(90));
         assertThat(details.get(bySchedule.getVmId()).startedBy()).isEqualTo("the schedule Office hours");
         assertThat(details.get(bySchedule.getVmId()).startedByUserId()).isNull();
         assertThat(details.get(inAws.getVmId()).startedBy()).isEqualTo("outside the platform");

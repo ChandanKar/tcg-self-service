@@ -165,8 +165,11 @@ public class VmListDetailsService {
             }
             boolean schedule = "SCHEDULE".equals(String.valueOf(row[3])) && row[4] != null;
             String userId = (String) row[2];
+            // U23-T11: the operation's start, the time History shows ("07:01 Start"); the warning said 07:04,
+            // when the VM was seen running.
+            Timestamp at = row.length > 5 && row[5] != null ? (Timestamp) row[5] : (Timestamp) row[1];
             out.put(vmId, new Started(schedule ? "the schedule " + row[4] : names.getOrDefault(userId, "someone"),
-                    schedule ? null : userId, (Timestamp) row[1]));
+                    schedule ? null : userId, at));
         });
         return out;
     }

@@ -131,14 +131,17 @@ const OperationConfirm = (function() {
      * hour). Staging's dialog said "$1.78 for 8 h" while ise would run about 22 hours, to its Friday stop.
      * Returns {hours, text}; hours is null when nothing stops it. opts.partial: the environment has
      * schedule rules, none of which stops these VMs (U23-T04), so the words do not blame the environment.
+     * opts.count: how many VMs start; one reads "It runs until…" (U23-T11).
      */
     function runWithoutLease(nextStopAt, now = new Date(), opts = {}) {
         const until = runUntil(nextStopAt, now);
+        const one = opts.count === 1;
+        const [They, run, them] = one ? ['It', 'runs', 'it'] : ['They', 'run', 'them'];
         if (until) {
             return { hours: until.hours,
-                text: `They run until the next scheduled stop, ${until.at} (in ${until.inText}), unless someone stops them sooner.` };
+                text: `${They} ${run} until the next scheduled stop, ${until.at} (in ${until.inText}), unless someone stops ${them} sooner.` };
         }
-        return { hours: null, text: `They run until someone stops them: no schedule stops ${opts.partial ? 'them' : 'this environment'}.` };
+        return { hours: null, text: `${They} ${run} until someone stops ${them}: no schedule stops ${opts.partial ? them : 'this environment'}.` };
     }
 
     /** A stop ahead as {hours, at: "Fri 12:30" / "today 18:45", inText: "17 h" / "2 h 15 min"}; null when none. */
@@ -356,7 +359,7 @@ const OperationConfirm = (function() {
         const starting = opType !== 'STOP';
         const chipsHtml = starting && chips.length ? `
             <div class="op-confirm-duration">
-                ${ChoiceChips.markup({ id: 'op-confirm-chips', legend: 'Keep them running until', selected,
+                ${ChoiceChips.markup({ id: 'op-confirm-chips', legend: targets.length === 1 ? 'Keep it running until' : 'Keep them running until', selected,
                     options: chips.map(c => ({ value: c.minutes, label: c.label })) })}
                 <p class="op-confirm-hint" id="op-confirm-hint" aria-live="polite"></p>
             </div>` : '';
@@ -412,7 +415,7 @@ const OperationConfirm = (function() {
         // U23-T04: VMs that stop at different times are each priced up to their own stop.
         const mixed = !chip && state.mixed ? mixedRun(state.mixed) : null;
         const run = chip ? null : mixed && mixed.hours !== null ? mixed
-            : runWithoutLease(state.nextStop, new Date(), { partial: state.partial || !!mixed });
+            : runWithoutLease(state.nextStop, new Date(), { partial: state.partial || !!mixed, count: state.targets.length });
         const hours = state.selected ? Math.ceil(state.selected / 60) : run && run.hours;
         $('#op-confirm-hint').text(chip ? hintFor(chip, state.nextStop) : '');
         $('#op-confirm-run').text(run ? run.text : '');
@@ -437,7 +440,7 @@ const OperationConfirm = (function() {
             const openEnded = !chip && run && run.hours === null;
             const note = costNote(preview, state.targets.length, !chip && !openEnded);
             $('#op-confirm-cost').text(!note ? '—' : openEnded ? `${money(preview.hourlyTotal)} an hour` : money(preview.estimatedTotal));
-            $('#op-confirm-rate').text(!note ? 'No price known' : openEnded ? 'until someone stops them' : note);
+            $('#op-confirm-rate').text(!note ? 'No price known' : openEnded ? `until someone stops ${state.targets.length === 1 ? 'it' : 'them'}` : note);
             updateButton();
             if (note && typeof CostPreview !== 'undefined' && CostPreview.renderQuota) {
                 CostPreview.renderQuota($('#quota-preview-line'), state.env.teamId || null, preview, $('#op-confirm-btn'))

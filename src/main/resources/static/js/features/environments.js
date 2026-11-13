@@ -954,6 +954,20 @@ const Environments = (function() {
                     data-vm-id="${vm.vmId}" aria-label="Details of ${name}">Details</button></span></li>`;
     }
 
+    /**
+     * The group's start or stop on its phone row (U23-T11: phones had only the per-VM buttons). One button:
+     * Start group while any VM is stopped, else Stop group; none while a VM is moving or without operate rights.
+     */
+    function phoneGroupAction(g, i, canOperate) {
+        const actions = EnvVmTable.model.groupActions(g.vms || [], canOperate);
+        const act = actions.includes('busy') ? null : actions.includes('start') ? 'start' : actions.includes('stop') ? 'stop' : null;
+        if (!act) return '';
+        const name = groupNameOf(g, i);
+        const label = act === 'start' ? 'Start group' : 'Stop group';
+        return Utils.html`<button type="button" class="btn btn-sm ${act === 'start' ? 'btn-outline-success' : 'btn-outline-danger'} phone-group-action"
+            data-action="group-action" data-action-type="${act}" data-group-id="${groupIdOf(g)}" aria-label="${label} ${name}">${label}</button>`;
+    }
+
     function phoneGroupHtml(env, g, i, canOperate) {
         const id = groupIdOf(g);
         const ps = phoneStateFor(env.environmentId);
@@ -966,11 +980,11 @@ const Environments = (function() {
         const more = shown < vms.length ? Utils.html`<button type="button" class="btn btn-link phone-group-more" data-action="env-phone-more"
                 data-group-id="${id}">Show ${String(Math.min(PHONE_GROUP_PAGE, vms.length - shown))} more</button>` : '';
         return Utils.html`<div class="phone-group">
-                <button type="button" class="phone-group-row" data-action="env-phone-group" data-group-id="${id}"
+                <div class="phone-group-head"><button type="button" class="phone-group-row" data-action="env-phone-group" data-group-id="${id}"
                     aria-expanded="${open ? 'true' : 'false'}" aria-controls="${listId}">
                     <span class="phone-group-name">${groupNameOf(g, i)}</span>${Utils.raw(strip)}
                     <svg class="phone-group-chevron" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>${Utils.raw(phoneGroupAction(g, i, canOperate))}</div>
                 <div class="phone-group-vms" id="${listId}"${Utils.raw(open ? '' : ' hidden')}><ul>${Utils.raw(rows)}</ul>${Utils.raw(more)}</div>
             </div>`;
     }

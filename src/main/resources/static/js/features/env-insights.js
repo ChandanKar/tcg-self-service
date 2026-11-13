@@ -84,9 +84,20 @@ const EnvInsights = (function() {
             cpu: pct(r.cpuUtilization), rate: rate(rates[r.vmId]) }));
     }
 
+    /**
+     * A long name cut in the middle, keeping its start and its distinguishing end (U23-T11): staging's three
+     * busiest VMs all read "mcube_dev_poc_…"; now "mcube_dev…work1_100.112.1.162".
+     */
+    function middleCut(name, max = 29) {
+        const text = String(name || '');
+        if (text.length <= max) return text;
+        const head = 9;
+        return `${text.slice(0, head)}…${text.slice(text.length - (max - head - 1))}`;
+    }
+
     /** Busiest by average CPU over the window, bars relative to the busiest. */
     function busiest(ins) {
-        const rows = (ins.busiestVms || []).slice(0, 5).map(r => ({ vmId: r.vmId, name: r.name,
+        const rows = (ins.busiestVms || []).slice(0, 5).map(r => ({ vmId: r.vmId, name: r.name, short: middleCut(r.name),
             value: num(r.avgCpuWindow) ?? num(r.cpuUtilization) }));
         const max = Math.max(1, ...rows.map(r => r.value || 0));
         return rows.map(r => ({ ...r, cpu: pct(r.value), width: Math.round((r.value || 0) / max * 100) }));
@@ -190,7 +201,7 @@ const EnvInsights = (function() {
                     <button type="button" class="btn btn-link btn-sm p-0" data-ins-details="${v.vmId}">Details</button></div>`).join('')
                     : '<p class="vm-panel-empty">No VM is idle now.</p>'}</section>
             <section class="ins-section" aria-labelledby="ins-busy-title"><h3 id="ins-busy-title">Busiest, average CPU</h3>
-                ${busy.length ? busy.map(b => Utils.html`<div class="ins-bar-row"><span class="ins-bar-name">${b.name}</span>
+                ${busy.length ? busy.map(b => Utils.html`<div class="ins-bar-row"><span class="ins-bar-name" title="${b.name}">${b.short}</span>
                     <span class="ins-bar" aria-hidden="true"><span style="width:${String(b.width)}%"></span></span><span class="mono">${b.cpu}</span></div>`).join('')
                     : '<p class="vm-panel-empty">No CPU measured in this window.</p>'}</section>
             <section class="ins-section" aria-labelledby="ins-groups-title"><h3 id="ins-groups-title">By group</h3>
@@ -251,7 +262,7 @@ const EnvInsights = (function() {
             });
     }
 
-    return { open, model: { subtitle, actionLines, idleRows, busiest, groupRows, storageRows, duration } };
+    return { open, model: { subtitle, actionLines, idleRows, busiest, middleCut, groupRows, storageRows, duration } };
 })();
 
 if (typeof window !== 'undefined') window.EnvInsights = EnvInsights;

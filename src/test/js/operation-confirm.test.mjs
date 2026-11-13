@@ -189,3 +189,13 @@ test('a mixed start prices each VM to its stop and the rest by the hour', () => 
     assert.equal(M.mixedCost({ vms: [{ vmId: 'g2-1', hourlyRate: 0.2 }, { vmId: 'web-01', hourlyRate: 0.1 }] }, two, [g2, web]).note,
         'to their scheduled stops');
 });
+
+test('one VM reads "It runs until…" (U23-T11)', () => {
+    const M = load();
+    const now = new Date(2026, 10, 12, 14, 0);
+    assert.equal(M.runWithoutLease(new Date(2026, 10, 13, 12, 30).toISOString(), now, { count: 1 }).text,
+        'It runs until the next scheduled stop, Fri 12:30 (in 23 h), unless someone stops it sooner.');
+    assert.equal(M.runWithoutLease(null, now, { count: 1 }).text, 'It runs until someone stops it: no schedule stops this environment.');
+    assert.equal(M.runWithoutLease(null, now, { count: 1, partial: true }).text, 'It runs until someone stops it: no schedule stops it.');
+    assert.match(M.runWithoutLease(null, now, { count: 2 }).text, /^They run until someone stops them/);
+});
