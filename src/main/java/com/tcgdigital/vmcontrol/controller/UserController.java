@@ -413,7 +413,8 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "Set user password",
-            description = "Set a new password for username/password sign-in. Requires admin role."
+            description = "Set a new password for username/password sign-in. The person must choose their own at the "
+                    + "next sign-in and their web sessions end (U25-T04). Requires admin role."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Password set"),
@@ -427,6 +428,27 @@ public class UserController {
 
         authenticationService.setUserPassword(userId, request.getPassword(), userService.getCurrentUserId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{userId}/password/reset")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Reset a user's password",
+            description = "U25-T04: generates a password, shown once in the answer with the username to sign in with. "
+                    + "The person must choose their own at the next sign-in and every web session of theirs ends; "
+                    + "API tokens are not touched. Requires admin role."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Password reset: {\"username\": ..., \"password\": ...}"),
+            @ApiResponse(responseCode = "400", description = "A service account, or a person with no email to sign in with"),
+            @ApiResponse(responseCode = "403", description = "Access denied - requires admin role"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    public ResponseEntity<AuthenticationService.PasswordReset> resetPassword(
+            @Parameter(description = "User ID") @PathVariable String userId) {
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(authenticationService.resetPassword(userId, userService.getCurrentUserId()));
     }
 
     @GetMapping("/admins")

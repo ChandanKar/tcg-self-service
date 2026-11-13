@@ -59,6 +59,7 @@ class ApiScopeRegistryTest {
         assertThat(scope("POST", "/api/auth/login")).isEmpty();
         assertThat(scope("POST", "/api/v1/chat-actions/abc")).isEmpty();
         assertThat(scope("PUT", "/api/v1/users/u-1/password")).isEmpty();
+        assertThat(scope("POST", "/api/v1/users/u-1/password/reset")).isEmpty();
         assertThat(scope("GET", "/api/v1/notifications")).isEmpty();
         assertThat(scope("DELETE", "/api/v1/audit/logs")).isEmpty();
         assertThat(scope("GET", "/api/v1/something-new")).isEmpty();

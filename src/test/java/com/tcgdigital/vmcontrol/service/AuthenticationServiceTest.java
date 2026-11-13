@@ -99,8 +99,44 @@ class AuthenticationServiceTest extends AbstractIntegrationTest {
 
         User saved = userRepository.findById(target.getUserId()).orElseThrow();
         assertThat(saved.getUsername()).isEqualTo("legacy.user");
-        assertThat(saved.isPasswordChangeRequired()).isFalse();
+        // U25-T04: a password an administrator set is always replaced at the next sign-in.
+        assertThat(saved.isPasswordChangeRequired()).isTrue();
         assertThat(authenticationService.authenticateUser("legacy.user", GOOD_PASSWORD).getUserId()).isEqualTo(target.getUserId());
+    }
+
+    @Test
+    void resetPasswordGeneratesOneThatSignsInMustBeChangedAndIsAuditedWithoutIt() {
+        User target = newUser("Reset.Me@Example.com", false, false);
+        User actor = newUser("actor@example.com", true, false);
+
+        AuthenticationService.PasswordReset reset = authenticationService.resetPassword(target.getUserId(), actor.getUserId());
+
+        assertThat(reset.username()).isEqualTo("reset.me@example.com");
+        assertThat(reset.password()).matches("[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789\\-_.!]{16}");
+        assertThat(reset.toString()).doesNotContain(reset.password());
+        User saved = userRepository.findById(target.getUserId()).orElseThrow();
+        assertThat(passwordEncoder.matches(reset.password(), saved.getPassword())).isTrue();
+        assertThat(saved.isPasswordChangeRequired()).isTrue();
+        assertThat(saved.getPasswordUpdatedAt()).isNotNull();
+        assertThat(authenticationService.authenticateUser("reset.me@example.com", reset.password()).getUserId())
+                .isEqualTo(target.getUserId());
+        awaitAsync(() -> assertThat(auditLogRepository.findTop100ByOrderByCreatedAtDesc())
+                .anyMatch(l -> l.getAction() == AuditAction.USER_UPDATED
+                        && target.getUserId().equals(l.getTargetId())
+                        && l.getDetails().startsWith("Password reset by user")
+                        && !l.getDetails().contains(reset.password())));
+    }
+
+    @Test
+    void resetPasswordRefusesServiceAccountsAndUnknownPeople() {
+        User service = newUser("svc@example.com", false, false);
+        service.setServiceAccount(true);
+        userRepository.save(service);
+
+        assertThatThrownBy(() -> authenticationService.resetPassword(service.getUserId(), null))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("service account");
+        assertThatThrownBy(() -> authenticationService.resetPassword("no-such-user", null))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
