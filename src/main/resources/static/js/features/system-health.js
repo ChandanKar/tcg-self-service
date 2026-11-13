@@ -46,6 +46,21 @@ const SystemHealth = (function () {
         return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
     }
 
+    /**
+     * How often a job runs, its time in the viewer's zone as the last run is (U23-T13: 'Daily 02:30' was the
+     * server's time beside a local 'Today 03:30'): the time, weekday or day of month come from nextRunAt.
+     */
+    function cadenceText(job) {
+        const c = String((job && job.cadence) || '');
+        const next = job && job.nextRunAt ? new Date(job.nextRunAt) : null;
+        if (!next || !Number.isFinite(next.getTime())) return c;
+        const time = `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
+        if (/^Daily \d\d:\d\d$/.test(c)) return `Daily ${time}`;
+        if (/^Weekly, \w{3} \d\d:\d\d$/.test(c)) return `Weekly, ${next.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}`;
+        if (/^Monthly, day \d+ \d\d:\d\d$/.test(c)) return `Monthly, day ${next.getDate()} ${time}`;
+        return c;
+    }
+
     /** The status pill: {text, kind} with kind ok, late or off. */
     function status(job) {
         if (job.status === 'OFF') return { text: 'Switched off', kind: 'off' };
@@ -237,7 +252,7 @@ const SystemHealth = (function () {
             <section class="sh-panel" id="sh-panel-now" role="tabpanel" aria-labelledby="sh-tab-now"${s.tab === 'now' ? '' : ' hidden'}>
                 <div class="sh-tiles" id="sh-tiles"><p class="sh-note">Loading&hellip;</p></div>
                 <section class="sh-card sh-jobs" aria-labelledby="sh-jobs-title">
-                    <div class="sh-card-head"><h2 id="sh-jobs-title">Scheduled jobs</h2>
+                    <div class="sh-card-head"><h2 id="sh-jobs-title">Scheduled jobs</h2><span class="sh-note sh-jobs-zone">Times in your time zone</span>
                         <div class="sh-toggle" role="group" aria-label="Show" id="sh-jobs-view"></div></div>
                     <div id="sh-jobs-body"></div>
                 </section>
@@ -307,6 +322,23 @@ const SystemHealth = (function () {
         return parts.length ? parts.join(' · ') : 'Nothing found';
     }
 
+    /**
+     * Why a region was not read, in words (U23-T13: the page showed 'Unable to execute HTTP request: Connect to
+     * ec2.me-south-1.amazonaws.com:443 ... failed: Connect timed out'). A refusal keeps AWS's reason.
+     */
+    function scanErrorText(r) {
+        const raw = String((r && r.error) || '');
+        if (!r || r.refused) return raw;
+        return /unable to execute http request|connect|timed out|unknownhost|unreachable/i.test(raw) ? `Couldn't reach ${r.region}.` : raw;
+    }
+
+    /** The line when no service left a note: it claims every region answered only when every scan was read. */
+    function notesSummary(rows) {
+        const unread = (rows || []).filter(r => r.error).length;
+        return unread ? `${plural(unread, "region wasn't", "regions weren't")} read (see above); every other service answered.`
+            : 'Every service answered in every region it was asked in.';
+    }
+
     /** A note's kind in words. */
     function noteKind(kind) {
         return { NOT_IN_REGION: 'Not offered there', NOT_OPTED_IN: 'Not turned on', ACCESS_DENIED: 'Access refused',
@@ -344,7 +376,7 @@ const SystemHealth = (function () {
 
     function scanRowHtml(r, now) {
         const status = r.error
-            ? Utils.html`<span class="sh-pill sh-pill-${r.refused ? 'off' : 'late'}">${r.refused ? 'Refused access' : 'Not read'}</span> <span class="sh-region-why">${r.error}</span>`
+            ? Utils.html`<span class="sh-pill sh-pill-${r.refused ? 'off' : 'late'}">${r.refused ? 'Refused access' : 'Not read'}</span> <span class="sh-region-why">${scanErrorText(r)}</span>`
             : '<span class="sh-pill sh-pill-ok">Read</span>';
         return Utils.html`<tr><td class="sh-mono">${r.region}</td><td>${r.accountName || ''}</td><td>${foundText(r.found)}</td>
             <td class="sh-mono">${lastRun(r.scannedAt, now)}</td><td>` + status + '</td></tr>';
@@ -372,7 +404,7 @@ const SystemHealth = (function () {
             : UiStates.empty({ title: 'No scan has run yet', text: 'Discovery, EKS sync and Found in AWS scan every enabled region when they run.' });
         const notes = d.notes || [];
         const notesHtml = notes.length ? `<ul class="sh-region-notes">${notes.map(noteHtml).join('')}</ul>`
-            : '<p class="sh-note">Every service answered in every region it was asked in.</p>';
+            : Utils.html`<p class="sh-note">${notesSummary(rows)}</p>`;
         $('#sh-panel-regions').html(`
             <section class="sh-card" aria-labelledby="sh-region-accounts-title">
                 <div class="sh-card-head"><h2 id="sh-region-accounts-title">Accounts</h2></div>
@@ -459,7 +491,7 @@ const SystemHealth = (function () {
         const now = new Date();
         const rows = Pagination.slice(list, s.page, PAGE_SIZE).map(j => {
             const st = status(j);
-            return Utils.html`<tr data-job="${j.jobName}"><td class="sh-job-name">${j.name}</td><td>${j.cadence}</td>
+            return Utils.html`<tr data-job="${j.jobName}"><td class="sh-job-name">${j.name}</td><td>${cadenceText(j)}</td>
                 <td class="sh-mono">${lastRun(j.lastRunAt, now)}</td><td><span class="sh-pill sh-pill-${st.kind}">${st.text}</span></td></tr>`;
         }).join('');
         $('#sh-jobs-body').html(`<div class="sh-table-scroll"><table class="sh-jobs-table" id="sh-jobs-table">
@@ -631,13 +663,13 @@ const SystemHealth = (function () {
             <div class="card sh-summary-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-chart-bar text-primary"></i>
-                    <strong>Audit Summary — Last 24 Hours</strong>
+                    <strong>Audit summary, last 24 hours</strong>
                 </div>
                 <div class="card-body">
                     <div class="row text-center g-0">
                         <div class="col border-end">
                             <div class="sh-stat-value">${auditTotal.toLocaleString()}</div>
-                            <div class="sh-stat-label">Total Actions</div>
+                            <div class="sh-stat-label">Actions</div>
                         </div>
                         <div class="col border-end">
                             <div class="sh-stat-value text-success">${auditSuccess.toLocaleString()}</div>
@@ -649,11 +681,11 @@ const SystemHealth = (function () {
                         </div>
                         <div class="col border-end">
                             <div class="sh-stat-value">${successText}</div>
-                            <div class="sh-stat-label">Success Rate</div>
+                            <div class="sh-stat-label">Success rate</div>
                         </div>
                         <div class="col">
                             <div class="sh-stat-value text-truncate" title="${Utils.escapeHtml(topEnv)}">${Utils.escapeHtml(topEnv)}</div>
-                            <div class="sh-stat-label">Most Active Env</div>
+                            <div class="sh-stat-label">Busiest environment</div>
                         </div>
                     </div>
                 </div>
@@ -673,11 +705,11 @@ const SystemHealth = (function () {
             </div>` : ''}
 
             ${canAdmin ? `
-            <!-- Lock Compliance Report -->
+            <!-- Lock report -->
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-lock text-warning"></i>
-                    <strong>Lock Compliance Report — Last 24 Hours</strong>
+                    <strong>Locks, last 24 hours</strong>
                     <span class="badge bg-secondary ms-auto">${lockReport.length} events</span>
                 </div>
                 <div class="card-body">
@@ -689,7 +721,7 @@ const SystemHealth = (function () {
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-play-circle text-success"></i>
-                    <strong>VM Operations Report — Last 24 Hours</strong>
+                    <strong>VM operations, last 24 hours</strong>
                     <span class="badge bg-secondary ms-auto">${vmOpsReport.length} events</span>
                 </div>
                 <div class="card-body">
@@ -701,7 +733,7 @@ const SystemHealth = (function () {
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
                     <i class="fas fa-envelope text-info"></i>
-                    <strong>Email Notifications Sent</strong>
+                    <strong>Emails sent</strong>
                     <span class="badge bg-secondary ms-auto">${emailLog.length} recent</span>
                 </div>
                 <div class="card-body">
@@ -714,21 +746,29 @@ const SystemHealth = (function () {
 
     // ─── table builders ───────────────────────────────────────────────────────
 
+    /** One lock or operation audit row in words: who, what and Done / Failed (U23-T13). */
+    function complianceRow(log) {
+        const said = typeof AuditText !== 'undefined' ? AuditText.what(log) : null;
+        return {
+            who: (typeof AuditText !== 'undefined' ? AuditText.who(log) : null) || log.userDisplayName || log.userEmail || 'The platform',
+            what: (said && said.text) || log.actionDisplay || actionLabel(log.action),
+            result: said && said.result ? said.result : (log.success === false ? 'Failed' : 'Done')
+        };
+    }
+
     function buildComplianceTable(logs, columns) {
         if (!logs || logs.length === 0) {
             return UiStates.empty({ title: 'No events in the last 24 hours' });
         }
         const hasResult = columns.includes('Result');
         const rows = logs.map(log => {
-            const resultCell = hasResult
-                ? `<td class="text-center">${log.success !== false
-                    ? '<i class="fas fa-check-circle text-success"></i>'
-                    : '<i class="fas fa-times-circle text-danger"></i>'}</td>`
-                : '';
+            // U23-T13: the action in words ("Stopped 3 VMs", not "Vm stop completed") and the result as a word.
+            const said = complianceRow(log);
+            const resultCell = hasResult ? `<td>${Utils.escapeHtml(said.result)}</td>` : '';
             return `
                 <tr>
-                    <td>${Utils.escapeHtml(log.userDisplayName || log.userEmail || 'System')}</td>
-                    <td><span class="badge bg-secondary">${Utils.escapeHtml(log.actionDisplay || actionLabel(log.action))}</span></td>
+                    <td>${Utils.escapeHtml(said.who)}</td>
+                    <td>${Utils.escapeHtml(said.what)}</td>
                     <td>${Utils.escapeHtml(log.environmentName || log.environmentId || '—')}</td>
                     <td>${Utils.escapeHtml(log.targetName || '—')}</td>
                     ${resultCell}
@@ -778,7 +818,7 @@ const SystemHealth = (function () {
     // ─── shared ──────────────────────────────────────────────────────────────
 
     return { load, triggerSync, triggerEksSync, setChangesOutsideOnly, changesPage,
-        model: { span, lastRun, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows } };
+        model: { span, lastRun, cadenceText, complianceRow, scanErrorText, notesSummary, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows } };
 })();
 
 if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;

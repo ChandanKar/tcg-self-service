@@ -228,7 +228,7 @@ const Chargeback = (function() {
     function footText(s) {
         if (s.status === 'FINAL') return "Final. The numbers don't change.";
         if (state.month >= monthValue(0)) return 'So far this month; the numbers change until the month ends.';
-        if (!capable('chargeback')) return 'Draft. Chargeback is switched off, so statements are not finalised or sent to finance. An administrator can switch it on in the server settings.'; 
+        if (!capable('chargeback')) return 'Draft. Chargeback is switched off, so statements are not finalised or sent to finance. An administrator can switch it on in the server configuration (needs a restart).'; 
         const next = monthValue(0) === state.month ? monthValue(-1) : nextMonth(state.month);
         return `Draft. It is finalised early in ${monthName(next)} and emailed to finance; after that the numbers don't change.`;
     }

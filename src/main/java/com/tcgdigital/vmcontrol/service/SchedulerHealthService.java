@@ -76,12 +76,18 @@ public class SchedulerHealthService {
             Long lateBy = SchedulerJobDTO.LATE.equals(status) && lastRunAt != null
                     ? Math.max(0, (now.getTime() - lastRunAt.getTime()) / 1000 - interval) : null;
             out.add(new SchedulerJobDTO(job.jobName(), name(job.label()), cadence(job.expectedInterval(), job.cron()),
-                    status, lastRunAt, lateBy, "RUNNING".equals(raw), position++));
+                    status, lastRunAt, lateBy, "RUNNING".equals(raw), position++,
+                    nextRunAt(job, now)));
         }
         out.sort(Comparator.comparingInt(SchedulerHealthService::rank)
                 .thenComparing((SchedulerJobDTO j) -> j.lateBySeconds() == null ? Long.MAX_VALUE : j.lateBySeconds(), Comparator.reverseOrder())
                 .thenComparingInt(SchedulerJobDTO::position));
         return out;
+    }
+
+    private static Timestamp nextRunAt(SchedulerJobCatalog.Job job, Timestamp now) {
+        java.time.Instant next = SchedulerJobCatalog.nextRun(job.jobName(), job.cron(), now.toInstant());
+        return next == null ? null : Timestamp.from(next);
     }
 
     private static int rank(SchedulerJobDTO job) {

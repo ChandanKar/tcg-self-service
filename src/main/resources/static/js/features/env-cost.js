@@ -95,8 +95,10 @@ const EnvCost = (function() {
         if (env) render(env);
     }
 
-    function changeBadge(change) {
+    /** U23-T13: no change against less than $1 last month ("$18.39 ▲ 5903.7%" said nothing useful). */
+    function changeBadge(change, previous) {
         if (change === null || change === undefined) return '';
+        if (previous !== null && previous !== undefined && Number(previous) < 1) return '';
         const up = Number(change) > 0;
         return Utils.html`<span class="env-cost-change ${up ? 'up' : 'down'}"
             title="Against the same days last month">${up ? '▲' : '▼'} ${Math.abs(Number(change))}%</span>`;
@@ -164,7 +166,7 @@ const EnvCost = (function() {
         return Utils.html`
             <div class="env-cost-block">
                 <div class="env-fact-head"><span>Cost this month${groups ? ' — your groups only' : ''}</span></div>
-                <div class="env-cost-mtd mono" id="env-cost-mtd">${money(cost.monthToDateEstimated)} ${Utils.raw(changeBadge(cost.changePercent))}</div>
+                <div class="env-cost-mtd mono" id="env-cost-mtd">${money(cost.monthToDateEstimated)} ${Utils.raw(changeBadge(cost.changePercent, cost.previousMonthSameDays))}</div>
                 ${groups ? '' : Utils.raw(dailyBars(cost.daily))}
                 ${groups || !(cost.daily || []).length ? '' : Utils.raw('<div class="env-fact-note">Last 14 days</div>')}
                 ${Utils.raw(notes.map(n => `<div class="env-fact-note">${n}</div>`).join(''))}

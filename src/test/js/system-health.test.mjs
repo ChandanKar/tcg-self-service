@@ -101,3 +101,28 @@ test('U22-T12: changed outside the platform shows the VMs, as Home does, with th
     assert.deepEqual(t(0, 0), { value: '0', sub: 'VMs' });
     assert.deepEqual(t(null, null), { value: '—', sub: 'Not available' });
 });
+
+test('U23-T13: a job\'s time of day is shown in the viewer\'s zone, from its next run', () => {
+    const next = new Date(2026, 10, 14, 8, 0); // local
+    assert.equal(M.cadenceText({ cadence: 'Daily 02:30', nextRunAt: next.toISOString() }), 'Daily 08:00');
+    assert.equal(M.cadenceText({ cadence: 'Weekly, Mon 09:00', nextRunAt: new Date(2026, 10, 16, 14, 30).toISOString() }), 'Weekly, Mon 14:30');
+    assert.equal(M.cadenceText({ cadence: 'Monthly, day 5 06:00', nextRunAt: new Date(2026, 11, 5, 11, 30).toISOString() }), 'Monthly, day 5 11:30');
+    assert.equal(M.cadenceText({ cadence: 'Every 5 min', nextRunAt: next.toISOString() }), 'Every 5 min');
+    assert.equal(M.cadenceText({ cadence: 'Daily 03:00' }), 'Daily 03:00');
+});
+
+test('U23-T13: a region that could not be reached says so plainly; the summary does not claim every region answered', () => {
+    const raw = 'Unable to execute HTTP request: Connect to ec2.me-south-1.amazonaws.com:443 failed: Connect timed out';
+    assert.equal(M.scanErrorText({ region: 'me-south-1', error: raw }), "Couldn't reach me-south-1.");
+    assert.equal(M.scanErrorText({ region: 'eu-west-1', error: 'not authorized', refused: true }), 'not authorized');
+    assert.equal(M.notesSummary([{ error: raw }, {}]), "1 region wasn't read (see above); every other service answered.");
+    assert.equal(M.notesSummary([{}, {}]), 'Every service answered in every region it was asked in.');
+});
+
+test('U23-T13: lock and operation report rows in words, with a result', () => {
+    const row = plain(M.complianceRow({ action: 'VM_STOP_COMPLETED', actionDisplay: 'Vm stop completed', targetName: 'web-01',
+        userDisplayName: 'Asha Rao', success: true }));
+    assert.equal(row.who, 'Asha Rao');
+    assert.equal(row.result, 'Done');
+    assert.equal(plain(M.complianceRow({ action: 'VM_STOP_FAILED', success: false })).result, 'Failed');
+});

@@ -161,7 +161,7 @@ const WebhooksPanel = (function() {
 
     function mountAll(container) {
         if (!enabled()) {
-            $(container).html('<p class="wh-note" id="wh-off">Webhooks are switched off. They are switched on in the server settings (WEBHOOKS_ENABLED), with CHAT_SECRET_KEY set to keep their secrets.</p>');
+            $(container).html('<p class="wh-note" id="wh-off">Webhooks are switched off. An administrator can switch them on in the server configuration (WEBHOOKS_ENABLED, with CHAT_SECRET_KEY set to keep their secrets; needs a restart).</p>');
             return;
         }
         loadAll(container, null);

@@ -408,19 +408,28 @@ const CostManagement = (function() {
     let unregistered = null;
     let unregisteredAt = 0;
 
-    /** The EC2 instances found in AWS that no environment holds (EKS clusters are not instances). */
+    /** The EC2 instances and EKS clusters found in AWS that no environment holds (U23-T13: the clusters too). */
     function unregisteredCount(found) {
-        const items = (found && Array.isArray(found.items) ? found.items : []).filter(i => i && i.kind === 'EC2');
-        return { instances: items.length, running: items.filter(i => String(i.state || '').toLowerCase() === 'running').length };
+        const all = found && Array.isArray(found.items) ? found.items : [];
+        const items = all.filter(i => i && i.kind === 'EC2');
+        return { instances: items.length, running: items.filter(i => String(i.state || '').toLowerCase() === 'running').length,
+            clusters: all.filter(i => i && i.kind === 'EKS').length };
     }
 
-    /** " 129 instances in AWS (41 running) are not in the registry, so their cost is not counted here. Review them" */
+    /**
+     * " 129 instances in AWS (41 running) and 10 EKS clusters are not in the registry, so their cost is not
+     * counted here. Review them"
+     */
     function unregisteredHtml(u) {
-        if (!u || !u.instances) return '';
-        const n = u.instances;
-        const running = u.running ? ` (${u.running} running)` : '';
-        return ` ${n} instance${n === 1 ? '' : 's'} in AWS${running} ${n === 1 ? 'is' : 'are'} not in the registry, so `
-            + `${n === 1 ? 'its' : 'their'} cost is not counted here. `
+        const n = u ? Number(u.instances) || 0 : 0;
+        const c = u ? Number(u.clusters) || 0 : 0;
+        if (!n && !c) return '';
+        const running = n && u.running ? ` (${u.running} running)` : '';
+        const clusters = `${c} EKS cluster${c === 1 ? '' : 's'}`;
+        const what = n ? `${n} instance${n === 1 ? '' : 's'} in AWS${running}${c ? ` and ${clusters}` : ''}` : `${clusters} in AWS`;
+        const one = n + c === 1;
+        return ` ${what} ${one ? 'is' : 'are'} not in the registry, so `
+            + `${one ? 'its' : 'their'} cost is not counted here. `
             + `<button type="button" class="cost-unregistered-link" data-action="cost-found-in-aws" title="Opens Found in AWS">Review them</button>`;
     }
 
@@ -700,7 +709,7 @@ const CostManagement = (function() {
                 <div class="cost-card rs-table-card">
                     ${Utils.raw(CostAnomalies.fleetTableHtml(list, capable('costAnomalies')
                         ? 'No unusual spend reported by AWS Cost Anomaly Detection.'
-                        : 'Unusual spend checks are switched off, so nothing is checked or reported here. An administrator can switch it on in the server settings.'))}
+                        : 'Unusual spend checks are switched off, so nothing is checked or reported here. An administrator can switch it on in the server configuration (needs a restart).'))}
                     <div class="anomaly-foot"><span>${list.length} of ${state.anomalies.length} in the last ${String(state.anomalyDays)} days
                         · ${linked} monitor${linked === 1 ? '' : 's'} linked to environments</span>
                         <a href="#/cost-setup">AWS monitors and alert settings</a></div>
@@ -1611,7 +1620,7 @@ const CostManagement = (function() {
                         </ol>
                         <p class="cost-note">Suggestions use the last 30 days of CPU and memory. Savings count only once a resize has finished.</p>
                         ${safe ? '' : `<p class="rs-off" id="rs-safe-off">Safe resize is switched off, so no VM can be resized from here.
-                            An administrator can turn it on in <a href="#/settings">Settings</a>.</p>`}
+                            An administrator can switch it on in <a href="#/settings">Settings</a>.</p>`}
                     </aside>
                 </div>
             </section>`;

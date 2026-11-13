@@ -838,9 +838,10 @@ public class NotificationService {
                                                        int totalTargets, int failedTargets) {
         String actorName = resolveUserDisplayName(actorUserId);
         String verb = operationVerb(operationType);
+        // U23-T13: VMs, not "targets" (the bell read "(2 targets)").
         String result = failedTargets > 0
-                ? "finished with " + failedTargets + " failure(s) out of " + totalTargets + " target(s)"
-                : "finished for " + (totalTargets == 1 ? "1 target" : totalTargets + " targets");
+                ? "finished: " + failedTargets + " of " + vmCount(totalTargets) + " failed or were skipped"
+                : "finished for " + vmCount(totalTargets);
         broadcastToEnvironment(environmentId, actorUserId,
                 NotificationType.OPERATION_COMPLETED,
                 "Your " + verb + " completed: " + environmentName,

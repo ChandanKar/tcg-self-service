@@ -111,6 +111,8 @@ public class NotificationPreferenceService {
         List<NotificationPreferenceDTO> result = new ArrayList<>();
         for (NotificationType type : NotificationType.values()) {
             if (NOT_SENT.contains(type)) continue;
+            // U23-T13: no lease rows while leases are switched off.
+            if (type.name().startsWith("LEASE_") && settings != null && !settings.getBoolean("lease.enabled", false)) continue;
             UserNotificationPreference p = stored.get(type);
             boolean locked = MANDATORY_IN_APP.contains(type);
             result.add(new NotificationPreferenceDTO(type.name(), label(type), category(type),

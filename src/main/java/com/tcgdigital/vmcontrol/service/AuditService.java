@@ -774,13 +774,19 @@ public class AuditService {
     }
 
     public void logUserDeactivated(String performedByUserId, String targetUserId) {
-        logAction(auditUserId(performedByUserId), AuditAction.USER_DEACTIVATED, "user", targetUserId, targetUserId,
+        logAction(auditUserId(performedByUserId), AuditAction.USER_DEACTIVATED, "user", targetUserId, userLabel(targetUserId),
                 "User deactivated by: " + resolveUsername(performedByUserId));
     }
 
     public void logUserReactivated(String performedByUserId, String targetUserId) {
-        logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, targetUserId,
+        logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, userLabel(targetUserId),
                 "User reactivated by: " + resolveUsername(performedByUserId));
+    }
+
+    /** The person's name or email for an audit row's target (U23-T13: My activity showed 'Deactivated user "1b626463-..."'). */
+    private String userLabel(String userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(u -> firstNonBlank(u.getDisplayName(), u.getEmail())).orElse(userId);
     }
 
     // ============= Access Request Operations =============

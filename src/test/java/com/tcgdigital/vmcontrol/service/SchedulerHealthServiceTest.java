@@ -126,4 +126,15 @@ class SchedulerHealthServiceTest {
         assertThat(jobs.stream().filter(j -> j.jobName().equals("vm_inventory_sync")).findFirst().orElseThrow().status()).isEqualTo("ON_TIME");
         assertThat(jobs.stream().filter(j -> j.jobName().equals("cost_snapshot")).findFirst().orElseThrow().cadence()).isEqualTo("Daily 03:00");
     }
+
+    @Test
+    void aJobWithATimeOfDaySaysWhenItNextRunsInItsSchedulersZone() {
+        // U23-T13: the page shows the cadence's time in the viewer's zone, from the next run.
+        Instant now = Instant.parse("2026-11-13T04:00:00Z"); // a Friday
+        assertThat(SchedulerJobCatalog.nextRun("savings_ledger", "0 30 3 * * *", now)).isEqualTo(Instant.parse("2026-11-14T03:30:00Z"));
+        assertThat(SchedulerJobCatalog.nextRun("weekly_notification_reports", "0 0 9 * * MON", now))
+                .isEqualTo(Instant.parse("2026-11-16T03:30:00Z")); // 09:00 in Kolkata
+        assertThat(SchedulerJobCatalog.nextRun("vm_state_sync", null, now)).isNull();
+        assertThat(SchedulerJobCatalog.nextRun("x", "not a cron", now)).isNull();
+    }
 }

@@ -210,6 +210,7 @@ const HelpContent = (function() {
             title: 'Leases and extensions',
             roles: null,
             optional: true,
+            feature: 'leases', // U23-T13: hidden while leases are switched off
             keywords: ['lease', 'extend', 'extension', 'running until', 'auto stop', 'expire'],
             sections: [
                 {

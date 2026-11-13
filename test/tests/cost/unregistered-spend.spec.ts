@@ -27,15 +27,16 @@ test.describe('Spend outside the registry', () => {
     await page.evaluate(() => { location.hash = '#/cost-management'; });
 
     const line = page.locator('#cost-unregistered');
-    await expect(line).toHaveText('3 instances in AWS (2 running) are not in the registry, so their cost is not counted here. Review them',
+    // U23-T13: the EKS clusters Found in AWS lists are counted too.
+    await expect(line).toHaveText('3 instances in AWS (2 running) and 1 EKS cluster are not in the registry, so their cost is not counted here. Review them',
       { timeout: 15_000 });
     await line.getByRole('button', { name: 'Review them' }).click();
     await expect(page.locator('#fia')).toBeVisible();
   });
 
-  test('nothing is said when every instance is registered', async ({ page }) => {
+  test('nothing is said when every instance and cluster is registered', async ({ page }) => {
     await page.route(/\/api\/v1\/discovery\/found/, route => route.fulfill({ json: {
-      items: [item('eks-x', '', 'EKS')], sweptAt: new Date().toISOString(), unreachableRegions: [], ignoredCount: 0 } }));
+      items: [], sweptAt: new Date().toISOString(), unreachableRegions: [], ignoredCount: 0 } }));
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(() => { location.hash = '#/cost-management'; });

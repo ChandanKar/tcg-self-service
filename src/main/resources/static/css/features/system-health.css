@@ -153,6 +153,11 @@
     font-weight: 600;
 }
 
+/* "Times in your time zone" sits beside the title (U23-T13). */
+.sh-jobs-zone {
+    margin-right: auto;
+}
+
 .sh-toggle {
     display: inline-flex;
     border: 1px solid var(--line);

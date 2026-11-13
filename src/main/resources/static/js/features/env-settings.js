@@ -381,7 +381,7 @@ const EnvSettings = (function() {
         const webhooks = hasFeature('webhooks')
             ? '<div id="env-webhook-panel" class="es-embedded"></div>'
             : `<div class="es-subhead">Webhooks</div>
-               <p class="es-text" id="es-webhooks-off">Webhooks are switched off for the platform. An administrator can switch them on in Settings › Integrations.</p>`;
+               <p class="es-text" id="es-webhooks-off">Webhooks are switched off for the platform. An administrator can switch them on in the server configuration (needs a restart).</p>`;
         return `<div class="es-section-head"><h2>Notifications</h2>
                 <button type="button" class="vr-link" id="es-notify">Email everyone with access…</button></div>
             ${chat}${webhooks}`;

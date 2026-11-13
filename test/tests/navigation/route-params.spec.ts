@@ -327,7 +327,7 @@ test.describe('Environment settings', () => {
     await page.evaluate(() => { (window as any).Capabilities.has = (f: string) => f !== 'webhooks' && f !== 'chat'; });
     await page.locator('[data-es-section="notifications"]').click();
     await expect(page.locator('#es-webhooks-off')).toHaveText(
-      'Webhooks are switched off for the platform. An administrator can switch them on in Settings › Integrations.');
+      'Webhooks are switched off for the platform. An administrator can switch them on in the server configuration (needs a restart).');
     await expect(page.locator('#env-webhook-panel')).toHaveCount(0);
   });
 

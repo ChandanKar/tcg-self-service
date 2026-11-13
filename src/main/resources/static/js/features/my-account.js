@@ -215,7 +215,7 @@ const MyAccount = (function() {
                     </td>
                     <td class="ma-pref-cell" ${p.emailAvailable ? '' : Utils.raw('title="Email is off for this event for everyone"')}>
                         <input class="form-check-input" type="checkbox" id="ma-pref-${p.type}-email" data-ma-pref="email"
-                               data-type="${p.type}" aria-label="${p.label}, email" ${prefValue(p, 'email') ? 'checked' : ''}
+                               data-type="${p.type}" aria-label="${p.label}, email" ${p.emailAvailable && prefValue(p, 'email') ? 'checked' : ''}
                                ${p.emailAvailable ? '' : 'disabled'}>
                         ${Utils.raw(p.emailAvailable ? '' : '<span class="ma-pref-note">Not emailed</span>')}
                     </td>

@@ -159,7 +159,7 @@ const Waste = (function() {
             $('#waste-intro').text(`Things in AWS that cost money and do nothing. ${scheduleText(s)}`);
             // U22-T07: switched off reads as off, not as "$0 a month across 0 open findings".
             const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" role="status">Waste checks are switched off, so
-                unused disks, addresses and snapshots are not looked for. An administrator can switch it on in the server settings.</p>`;
+                unused disks, addresses and snapshots are not looked for. An administrator can switch it on in the server configuration (needs a restart).</p>`;
             const total = s.sweepEnabled || s.openCount > 0
                 ? `<span class="cost-mono waste-total-value">${Utils.escapeHtml(money0(s.monthlyTotal))}</span>
                 a month across <span class="cost-mono">${s.openCount}</span> open finding${s.openCount === 1 ? '' : 's'}`

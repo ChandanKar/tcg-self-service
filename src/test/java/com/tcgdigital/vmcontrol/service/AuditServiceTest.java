@@ -76,6 +76,22 @@ class AuditServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aDeactivatedUserIsNamedNotGivenByTheirId() {
+        // U23-T13: My activity read 'Deactivated user "1b626463-..."'.
+        User saved = userRepository.save(User.fromAzureAd("audit-deact-oid", "deact.person@example.com", "Deact Person"));
+
+        auditService.logUserDeactivated(null, saved.getUserId());
+
+        awaitAsync(() -> {
+            AuditLog logEntry = auditLogRepository.findTop100ByOrderByCreatedAtDesc().stream()
+                    .filter(l -> l.getAction() == AuditAction.USER_DEACTIVATED)
+                    .findFirst().orElseThrow();
+            assertEquals("Deact Person", logEntry.getTargetName());
+            assertEquals(saved.getUserId(), logEntry.getTargetId());
+        });
+    }
+
+    @Test
     void testLogAction_CreatesAuditLog() {
         // Given
         String targetId = "env-001";

@@ -85,8 +85,9 @@ test.describe('Help', () => {
 
   test('feature topics say when the feature may be switched off; core topics do not', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
-    await go(page, 'user', '#/help/leases');
-    await expect(page.locator('#help-topic-title')).toHaveText('Leases and extensions', { timeout: 15_000 });
+    // U23-T13: Leases and extensions is left out while leases are switched off, so another optional topic.
+    await go(page, 'user', '#/help/idle-stop');
+    await expect(page.locator('#help-topic-title')).toHaveText('Idle auto-stop and snooze', { timeout: 15_000 });
     await expect(page.locator('.help-optional')).toContainText('may be switched off');
     await page.evaluate(() => { location.hash = '#/help/locks'; });
     await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks');

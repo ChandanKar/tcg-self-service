@@ -38,3 +38,12 @@ test('the start/stop and environments topics carry the legend', () => {
     assert.deepEqual(JSON.parse(JSON.stringify(HelpContent.all().filter(t => t.legend).map(t => t.id).sort())), ['environments', 'locks']);
     assert.match(Help.LEGEND, /^Green is running, gold is starting or stopping, hollow is stopped, striped means/);
 });
+
+test('U23-T13: a topic about a switched-off feature is left out', () => {
+    const leases = HelpContent.find('leases');
+    context.Capabilities = { has: f => f !== 'leases' };
+    assert.equal(Help.visible(leases), false);
+    context.Capabilities = { has: () => true };
+    assert.equal(Help.visible(leases), true);
+    delete context.Capabilities;
+});

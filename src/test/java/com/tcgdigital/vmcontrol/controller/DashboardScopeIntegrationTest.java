@@ -65,6 +65,10 @@ class DashboardScopeIntegrationTest extends SecuredWebTestBase {
         jdbcTemplate.update("UPDATE vm_state_history SET created_at = ? WHERE history_id = ?",
                 java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(25 * 3600)), old);
         stateSyncService.recordStateChange(web2, VmStatus.STOPPED, VmStatus.RUNNING, "operation", null, null, "x");
+        // created_at is stored to the second (rounded), so a row just written can read as a moment from now.
+        jdbcTemplate.update("UPDATE vm_state_history SET created_at = ? WHERE created_at > ?",
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(60)),
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(3600)));
         grantGroup(operator, web.getGroupId(), AccessLevel.USER);
 
         mockMvc.perform(get("/api/v1/dashboard/summary").with(asAdmin()))
