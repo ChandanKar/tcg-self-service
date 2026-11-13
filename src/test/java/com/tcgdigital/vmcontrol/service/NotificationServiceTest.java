@@ -598,4 +598,49 @@ class NotificationServiceTest {
 
         assertEquals("2 VMs changed outside the platform: web-01 (stopped, now running); db-01 (running, now stopped).", open.getMessage());
     }
+
+    @Test
+    void severalChangesOfOneSyncRunMakeOneNoticePerPersonAndOneChatMessage() {
+        // U24-T01 (staging): five VMs started in the console within one sync run gave five notices.
+        com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat =
+                mock(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.class);
+        service.setChatDispatch(chat);
+        when(notificationRepository.findFirstByUserIdAndTypeAndEntityIdAndIsReadFalseAndCreatedAtAfterOrderByCreatedAtDesc(
+                anyString(), any(), anyString(), any())).thenReturn(Optional.empty());
+        List<NotificationService.DriftChange> changes = new java.util.ArrayList<>();
+        for (int i = 1; i <= 7; i++) {
+            changes.add(new NotificationService.DriftChange("es-0" + i, "STOPPED", "RUNNING", "vm-" + i));
+        }
+
+        service.notifyStateDriftDetected("env-A", "Env A", changes);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<com.tcgdigital.vmcontrol.model.Notification>> saved = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(saved.capture());
+        List<com.tcgdigital.vmcontrol.model.Notification> sent = saved.getValue();
+        assertEquals(sent.size(), sent.stream().map(com.tcgdigital.vmcontrol.model.Notification::getUserId).distinct().count(),
+                "one notice per person");
+        assertTrue(sent.stream().anyMatch(n -> n.getUserId().equals("user-regular")));
+        assertEquals("7 VMs changed outside the platform: es-03 (stopped, now running); es-04 (stopped, now running); "
+                + "es-05 (stopped, now running); es-06 (stopped, now running); es-07 (stopped, now running); and 2 more.",
+                sent.get(0).getMessage());
+        verify(chat, times(1)).notify(eq("env-A"), eq(com.tcgdigital.vmcontrol.model.NotificationType.STATE_DRIFT_DETECTED),
+                any(), eq("Changed outside the platform: Env A"), anyString(), any());
+    }
+
+    @Test
+    void aLaterRunKeepsCountingTheVmsAnEarlierNoticeOnlyCounted() {
+        com.tcgdigital.vmcontrol.model.Notification open = new com.tcgdigital.vmcontrol.model.Notification();
+        open.setUserId("user-admin");
+        open.setTitle("Changed outside the platform: Env A");
+        open.setMessage("7 VMs changed outside the platform: a (stopped, now running); b (stopped, now running); "
+                + "c (stopped, now running); d (stopped, now running); e (stopped, now running); and 2 more.");
+        when(notificationRepository.findFirstByUserIdAndTypeAndEntityIdAndIsReadFalseAndCreatedAtAfterOrderByCreatedAtDesc(
+                anyString(), any(), anyString(), any())).thenReturn(Optional.of(open));
+
+        service.notifyStateDriftDetected("env-A", "Env A", "f", "RUNNING", "STOPPED", "vm-f");
+
+        assertEquals("8 VMs changed outside the platform: b (stopped, now running); c (stopped, now running); "
+                + "d (stopped, now running); e (stopped, now running); f (running, now stopped); and 3 more.", open.getMessage());
+    }
 }

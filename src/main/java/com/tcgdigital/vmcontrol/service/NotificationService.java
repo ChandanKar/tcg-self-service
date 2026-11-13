@@ -897,7 +897,25 @@ public class NotificationService {
     public void notifyStateDriftDetected(String environmentId, String environmentName,
                                          String vmName, String previousStatus, String currentStatus,
                                          String vmId) {
-        String item = vmName + " (" + stateWord(previousStatus) + ", now " + stateWord(currentStatus) + ")";
+        notifyStateDriftDetected(environmentId, environmentName,
+                List.of(new DriftChange(vmName, previousStatus, currentStatus, vmId)));
+    }
+
+    /** One VM's change outside the platform, as state sync saw it. */
+    public record DriftChange(String vmName, String previousStatus, String currentStatus, String vmId) {
+        String item() {
+            return vmName + " (" + stateWord(previousStatus) + ", now " + stateWord(currentStatus) + ")";
+        }
+    }
+
+    /**
+     * Every change one state-sync run saw in an environment, as one notice per person (U24-T01: five VMs
+     * started in the console within one run gave five notices, because the run applies VMs in parallel and
+     * each call found no unread notice yet). Added to the person's unread notice when there is one.
+     */
+    public void notifyStateDriftDetected(String environmentId, String environmentName, List<DriftChange> changes) {
+        if (changes == null || changes.isEmpty()) return;
+        List<String> newItems = changes.stream().map(DriftChange::item).toList();
         String title = "Changed outside the platform: " + environmentName;
         Timestamp since = Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofHours(DRIFT_GROUP_HOURS)));
         List<User> recipients = resolveEnvironmentRecipients(environmentId).stream()
@@ -914,18 +932,24 @@ public class NotificationService {
                     .orElse(null);
             if (open != null) {
                 java.util.List<String> items = driftItems(open.getMessage());
-                items.removeIf(i -> i.startsWith(vmName + " ("));
-                items.add(item);
-                open.setMessage(driftMessage(items));
+                for (DriftChange change : changes) {
+                    items.removeIf(i -> i.startsWith(change.vmName() + " ("));
+                }
+                items.addAll(newItems);
+                open.setMessage(driftMessage(items, driftHidden(open.getMessage())));
                 batch.add(open);
             } else {
                 batch.add(newNotification(user.getUserId(), NotificationType.STATE_DRIFT_DETECTED, title,
-                        driftMessage(new java.util.ArrayList<>(List.of(item))), "ENVIRONMENT", environmentId));
+                        driftMessage(new java.util.ArrayList<>(newItems)), "ENVIRONMENT", environmentId));
             }
         }
         notificationRepository.saveAll(batch);
+        DriftChange only = changes.get(0);
+        String chatText = changes.size() == 1
+                ? only.vmName() + " was " + stateWord(only.previousStatus()) + " and is now " + stateWord(only.currentStatus()) + "."
+                : driftMessage(new java.util.ArrayList<>(newItems));
         toChat(environmentId, NotificationType.STATE_DRIFT_DETECTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
-                title, vmName + " was " + stateWord(previousStatus) + " and is now " + stateWord(currentStatus) + ".");
+                title, chatText);
     }
 
     static final int DRIFT_GROUP_HOURS = 12;
@@ -946,10 +970,22 @@ public class NotificationService {
 
     /** "1 VM changed outside the platform: web-01 (stopped, now running)." with at most 5 named. */
     static String driftMessage(java.util.List<String> items) {
-        int n = items.size();
+        return driftMessage(items, 0);
+    }
+
+    /** As above, with {@code hidden} more VMs an earlier notice only counted ("and N more"). */
+    static String driftMessage(java.util.List<String> items, int hidden) {
+        int n = items.size() + hidden;
         java.util.List<String> shown = items.size() > 5 ? items.subList(items.size() - 5, items.size()) : items;
         return n + (n == 1 ? " VM" : " VMs") + DRIFT_LEAD + String.join("; ", shown)
-                + (n > 5 ? "; and " + (n - 5) + " more" : "") + ".";
+                + (n > shown.size() ? "; and " + (n - shown.size()) + " more" : "") + ".";
+    }
+
+    /** The N of a notice's "; and N more." (0 when every VM is named). */
+    static int driftHidden(String message) {
+        if (message == null) return 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("; and (\\d+) more\\.$").matcher(message);
+        return m.find() ? Integer.parseInt(m.group(1)) : 0;
     }
 
     static java.util.List<String> driftItems(String message) {
