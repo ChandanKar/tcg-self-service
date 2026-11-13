@@ -267,6 +267,28 @@ public class UserService {
     }
 
     /**
+     * The email domains of active people with how many use each, most used first, then by name
+     * (U25-T03: Add people warns about a domain that looks mistyped). Lower-case; people without an
+     * email address, and service accounts, are left out.
+     */
+    public List<com.tcgdigital.vmcontrol.dto.EmailDomainCountDTO> getEmailDomainsInUse() {
+        java.util.Map<String, Long> counts = new java.util.HashMap<>();
+        for (String email : userRepository.findActivePeopleEmails()) {
+            String trimmed = email == null ? "" : email.trim();
+            int at = trimmed.lastIndexOf('@');
+            if (at < 0 || at == trimmed.length() - 1) {
+                continue;
+            }
+            counts.merge(trimmed.substring(at + 1).toLowerCase(java.util.Locale.ROOT), 1L, Long::sum);
+        }
+        return counts.entrySet().stream()
+                .sorted(java.util.Map.Entry.<String, Long>comparingByValue().reversed()
+                        .thenComparing(java.util.Map.Entry.comparingByKey()))
+                .map(e -> new com.tcgdigital.vmcontrol.dto.EmailDomainCountDTO(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    /**
      * Get all users (including inactive).
      */
     public List<User> getAllUsers() {

@@ -40,6 +40,10 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     List<User> findByIsActiveTrue();
 
+    /** Email addresses of active people, not service accounts (U25-T03: the email domains in use). */
+    @Query("SELECT u.email FROM User u WHERE u.isActive = true AND u.serviceAccount = false AND u.email IS NOT NULL")
+    List<String> findActivePeopleEmails();
+
     /**
      * Find all active users ordered by display name.
      */

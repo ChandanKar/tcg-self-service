@@ -86,6 +86,16 @@ public class UserController {
         return ResponseEntity.ok(dtos);
     }
 
+    /** U25-T03: the email domains of active people with counts, most used first (Add people spots a mistyped domain). */
+    @GetMapping("/email-domains")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Email domains in use",
+            description = "The lower-case email domains of active people (service accounts and people without an email left out) "
+                    + "with how many use each, most used first. Requires admin role.")
+    public ResponseEntity<List<com.tcgdigital.vmcontrol.dto.EmailDomainCountDTO>> emailDomains() {
+        return ResponseEntity.ok(userService.getEmailDomainsInUse());
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
