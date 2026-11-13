@@ -692,11 +692,29 @@ public class AuditService {
     /** A system-initiated operation (E15-T05): attributed to {@code userId}, with the trigger as reason. */
     public void logOperationStarted(String userId, String environmentId, String environmentName,
                                     String executionId, String operationType, String trigger) {
+        logOperationStarted(userId, environmentId, environmentName, executionId, operationType, trigger, null);
+    }
+
+    /** As above, with what ran it ({@code runBy}, e.g. 'Schedule "Nightly"'; U24-T02). */
+    public void logOperationStarted(String userId, String environmentId, String environmentName,
+                                    String executionId, String operationType, String trigger, String runBy) {
         logEnvironmentAction(auditUserId(userId), AuditAction.OPERATION_STARTED, environmentId, environmentName,
                 "operation", executionId, operationType,
                 "Operation started by the platform: " + trigger + " (on behalf of " + resolveUsername(userId)
-                        + "). Environment: " + environmentName);
+                        + "). Environment: " + environmentName + runBy(runBy));
     }
+
+    /**
+     * U24-T02: an operation a schedule, rule, lease, idle auto-stop, the budget or the platform ran is
+     * recorded under the person it runs as (their user id, so per-person filters keep working), and its
+     * rows say what ran it: "... Run by: Schedule "ise start-stop"" (before any ". Error: "). The audit
+     * log, My activity and System health name that instead of the person. Empty for a person's own.
+     */
+    static String runBy(String runBy) {
+        return runBy == null || runBy.isBlank() ? "" : ". " + RUN_BY + runBy.trim();
+    }
+
+    static final String RUN_BY = "Run by: ";
 
     /** A lease reached its end and the platform stopped (or tried to stop) the environment (E15-T05). */
     public void logLeaseExpired(String environmentId, String environmentName, String leaseId, String details) {
@@ -706,41 +724,68 @@ public class AuditService {
 
     public void logOperationCompleted(String userId, String environmentId, String environmentName,
                                       String executionId, String operationType, int totalVms, int failed) {
+        logOperationCompleted(userId, environmentId, environmentName, executionId, operationType, totalVms, failed, null);
+    }
+
+    public void logOperationCompleted(String userId, String environmentId, String environmentName,
+                                      String executionId, String operationType, int totalVms, int failed, String runBy) {
         String details = String.format("Operation completed by user: %s. Environment: %s. Total VMs: %d, Failed: %d",
-                resolveUsername(userId), environmentName, totalVms, failed);
+                resolveUsername(userId), environmentName, totalVms, failed) + runBy(runBy);
         logEnvironmentAction(auditUserId(userId), AuditAction.OPERATION_COMPLETED, environmentId, environmentName,
                 "operation", executionId, operationType, details);
     }
 
     public void logOperationFailed(String userId, String environmentId, String environmentName,
                                    String executionId, String operationType, String errorMessage) {
+        logOperationFailed(userId, environmentId, environmentName, executionId, operationType, errorMessage, null);
+    }
+
+    public void logOperationFailed(String userId, String environmentId, String environmentName,
+                                   String executionId, String operationType, String errorMessage, String runBy) {
         logEnvironmentFailure(auditUserId(userId), AuditAction.OPERATION_FAILED, environmentId, environmentName,
                 "operation", executionId, operationType,
-                "User: " + resolveUsername(userId) + ". Environment: " + environmentName + ". Error: " + errorMessage);
+                "User: " + resolveUsername(userId) + ". Environment: " + environmentName + runBy(runBy)
+                        + ". Error: " + errorMessage);
     }
 
     public void logVmStarted(String userId, String vmId, String vmName, String environmentId) {
+        logVmStarted(userId, vmId, vmName, environmentId, null);
+    }
+
+    public void logVmStarted(String userId, String vmId, String vmName, String environmentId, String runBy) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_START_COMPLETED, environmentId, null,
                 "vm", vmId, vmName,
-                "VM started by user: " + resolveUsername(userId));
+                "VM started by user: " + resolveUsername(userId) + runBy(runBy));
     }
 
     public void logVmStopped(String userId, String vmId, String vmName, String environmentId) {
+        logVmStopped(userId, vmId, vmName, environmentId, null);
+    }
+
+    public void logVmStopped(String userId, String vmId, String vmName, String environmentId, String runBy) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_STOP_COMPLETED, environmentId, null,
                 "vm", vmId, vmName,
-                "VM stopped by user: " + resolveUsername(userId));
+                "VM stopped by user: " + resolveUsername(userId) + runBy(runBy));
     }
 
     public void logVmStartFailed(String userId, String vmId, String vmName, String environmentId, String error) {
+        logVmStartFailed(userId, vmId, vmName, environmentId, error, null);
+    }
+
+    public void logVmStartFailed(String userId, String vmId, String vmName, String environmentId, String error, String runBy) {
         logEnvironmentFailure(auditUserId(userId), AuditAction.VM_START_FAILED, environmentId, null,
                 "vm", vmId, vmName,
-                "User: " + resolveUsername(userId) + ". Error: " + error);
+                "User: " + resolveUsername(userId) + runBy(runBy) + ". Error: " + error);
     }
 
     public void logVmStopFailed(String userId, String vmId, String vmName, String environmentId, String error) {
+        logVmStopFailed(userId, vmId, vmName, environmentId, error, null);
+    }
+
+    public void logVmStopFailed(String userId, String vmId, String vmName, String environmentId, String error, String runBy) {
         logEnvironmentFailure(auditUserId(userId), AuditAction.VM_STOP_FAILED, environmentId, null,
                 "vm", vmId, vmName,
-                "User: " + resolveUsername(userId) + ". Error: " + error);
+                "User: " + resolveUsername(userId) + runBy(runBy) + ". Error: " + error);
     }
 
     // ============= User Operations =============

@@ -92,6 +92,32 @@ class AuditServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aVmRowOfARunNoPersonStartedSaysWhatRanIt() {
+        // U24-T02: recorded under the person it runs as, with "Run by: ..." (before the error of a failure).
+        User saved = userRepository.save(User.fromAzureAd("audit-runby-oid", "runs.as@example.com", "Runs As"));
+        Environment env = newEnvironment("Run by");
+
+        auditService.logVmStopped(saved.getUserId(), "vm-runby-1", "web-01", env.getEnvironmentId(), "Schedule \"ise start-stop\"");
+        auditService.logVmStopFailed(saved.getUserId(), "vm-runby-2", "web-02", env.getEnvironmentId(), "throttled", "The lease");
+        auditService.logVmStarted(saved.getUserId(), "vm-runby-3", "web-03", env.getEnvironmentId(), null);
+
+        awaitAsync(() -> {
+            Map<String, AuditLog> byTarget = new java.util.HashMap<>();
+            auditLogRepository.findTop100ByOrderByCreatedAtDesc().forEach(l -> byTarget.putIfAbsent(l.getTargetId(), l));
+            AuditLog stopped = byTarget.get("vm-runby-1");
+            assertNotNull(stopped);
+            assertEquals(saved.getUserId(), stopped.getUserId());
+            assertTrue(stopped.getDetails().endsWith(". Run by: Schedule \"ise start-stop\""), stopped.getDetails());
+            AuditLog failed = byTarget.get("vm-runby-2");
+            assertNotNull(failed);
+            assertTrue(failed.getDetails().endsWith(". Run by: The lease. Error: throttled"), failed.getDetails());
+            AuditLog own = byTarget.get("vm-runby-3");
+            assertNotNull(own);
+            assertFalse(own.getDetails().contains("Run by:"), own.getDetails());
+        });
+    }
+
+    @Test
     void testLogAction_CreatesAuditLog() {
         // Given
         String targetId = "env-001";

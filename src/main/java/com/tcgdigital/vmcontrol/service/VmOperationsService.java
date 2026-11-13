@@ -296,7 +296,8 @@ public class VmOperationsService {
         // Audit logging
         if (system) {
             auditService.logOperationStarted(userId, environmentId, environment.getName(),
-                    execution.getExecutionId(), dto.getOperationType().name(), systemTrigger);
+                    execution.getExecutionId(), dto.getOperationType().name(), systemTrigger,
+                    NotificationService.startedByLabel(source, dto.getTriggerName()));
         } else {
             auditService.logOperationStarted(userId, environmentId, environment.getName(),
                     execution.getExecutionId(), dto.getOperationType().name());
@@ -657,6 +658,8 @@ public class VmOperationsService {
         // never have to navigate detail.getExecution() for a non-id property.
         final OperationType operationType = execution.getOperationType();
         final String initiatedByUserId = execution.getInitiatedByUserId();
+        // U24-T02: what ran it when no person did ('Schedule "ise start-stop"'), for each VM's audit row.
+        final String runBy = NotificationService.startedByLabel(execution.getTriggerSource(), execution.getTriggerName());
 
         // Get all pending details, in dependency order
         List<OperationDetail> details = detailRepository
@@ -727,7 +730,7 @@ public class VmOperationsService {
                             .map(detail -> CompletableFuture.runAsync(() -> {
                                 try {
                                     executeVmOperation(detail, stepType(detail, operationType), executionId,
-                                            initiatedByUserId);
+                                            initiatedByUserId, runBy);
                                 } catch (Exception e) {
                                     log.error("Error executing operation on {}: {}",
                                             detail.getTargetName(), e.getMessage());
@@ -894,7 +897,7 @@ public class VmOperationsService {
      * Execute operation on a single VM.
      */
     private void executeVmOperation(OperationDetail detail, OperationType operationType,
-                                   String executionId, String initiatedByUserId) {
+                                   String executionId, String initiatedByUserId, String runBy) {
         try {
             // Mark as in progress
             detail.setStatus("in_progress");
@@ -963,12 +966,12 @@ public class VmOperationsService {
                 }
 
                 updateExecutionCounters(executionId, true);
-                auditVmStep(vm.getVmId(), detail.getTargetName(), operationType, initiatedByUserId, null);
+                auditVmStep(vm.getVmId(), detail.getTargetName(), operationType, initiatedByUserId, null, runBy);
             } else {
                 detail.setStatus("failed");
                 detail.setErrorMessage(result.getMessage());
                 auditVmStep(vm.getVmId(), detail.getTargetName(), operationType, initiatedByUserId,
-                        result.getMessage() != null ? result.getMessage() : "failed");
+                        result.getMessage() != null ? result.getMessage() : "failed", runBy);
                 if (result.isTimedOut() && result.getResultStatus() != null) {
                     // Still STOPPING (say) when polling gave up: record that, not the old status.
                     writeStatus(vm.getVmId(), result.getResultStatus());
@@ -997,7 +1000,7 @@ public class VmOperationsService {
             detail.setCompletedAt(Timestamp.from(Instant.now()));
             detailRepository.save(detail);
             updateExecutionCounters(executionId, false);
-            auditVmStep(detail.getTargetId(), detail.getTargetName(), operationType, initiatedByUserId, ce.getMessage());
+            auditVmStep(detail.getTargetId(), detail.getTargetName(), operationType, initiatedByUserId, ce.getMessage(), runBy);
         } catch (Exception e) {
             log.error("Error executing operation on {}: {}", detail.getTargetName(), e.getMessage());
 
@@ -1007,7 +1010,7 @@ public class VmOperationsService {
             detailRepository.save(detail);
 
             updateExecutionCounters(executionId, false);
-            auditVmStep(detail.getTargetId(), detail.getTargetName(), operationType, initiatedByUserId, e.getMessage());
+            auditVmStep(detail.getTargetId(), detail.getTargetName(), operationType, initiatedByUserId, e.getMessage(), runBy);
         }
     }
 
@@ -1015,16 +1018,17 @@ public class VmOperationsService {
      * One audit row per VM step (E11-T03, M31): VM_START/STOP_COMPLETED on success, *_FAILED
      * with the error otherwise. A restart's steps are starts and stops. Never fails the step.
      */
-    private void auditVmStep(String vmId, String vmName, OperationType stepType, String userId, String error) {
+    private void auditVmStep(String vmId, String vmName, OperationType stepType, String userId, String error,
+                             String runBy) {
         try {
             String environmentId = vmRepository.findEnvironmentIdByVmId(vmId).orElse(null);
             boolean start = stepType == OperationType.START;
             if (error == null) {
-                if (start) auditService.logVmStarted(userId, vmId, vmName, environmentId);
-                else auditService.logVmStopped(userId, vmId, vmName, environmentId);
+                if (start) auditService.logVmStarted(userId, vmId, vmName, environmentId, runBy);
+                else auditService.logVmStopped(userId, vmId, vmName, environmentId, runBy);
             } else {
-                if (start) auditService.logVmStartFailed(userId, vmId, vmName, environmentId, error);
-                else auditService.logVmStopFailed(userId, vmId, vmName, environmentId, error);
+                if (start) auditService.logVmStartFailed(userId, vmId, vmName, environmentId, error, runBy);
+                else auditService.logVmStopFailed(userId, vmId, vmName, environmentId, error, runBy);
             }
         } catch (Exception e) {
             log.warn("Could not audit {} of VM {}: {}", stepType, vmId, e.getMessage());
@@ -1307,7 +1311,8 @@ public class VmOperationsService {
                         executionId,
                         execution.getOperationType().name(),
                         total,
-                        failed + skipped));
+                        failed + skipped,
+                        NotificationService.startedByLabel(execution.getTriggerSource(), execution.getTriggerName())));
         runTerminalSideEffect("notify finished operation", executionId, () ->
                 notificationService.notifyOperationCompletedForEnvironment(
                         execution.getEnvironment().getEnvironmentId(),
@@ -1363,7 +1368,8 @@ public class VmOperationsService {
                         execution.getEnvironment().getName(),
                         executionId,
                         execution.getOperationType().name(),
-                        errorMessage
+                        errorMessage,
+                        NotificationService.startedByLabel(execution.getTriggerSource(), execution.getTriggerName())
                 ));
         runTerminalSideEffect("notify failed operation", executionId, () ->
                 notificationService.notifyOperationFailedForEnvironment(

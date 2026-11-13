@@ -92,3 +92,27 @@ test('U23-T13: people are named, never by their id; choosing one\'s own password
     assert.equal(say({ action: 'USER_UPDATED', userId: 'a', targetId: 'u1', targetName: 'v@x.com', details: 'Password set by user: admin' }),
         'Set a password for v@x.com');
 });
+
+test('U24-T02: a schedule\'s run names the schedule, not the person it runs as', () => {
+    const stop = { action: 'VM_STOP_COMPLETED', targetName: 'mcube-dev-poc-work1', userDisplayName: 'Chandan Kar',
+        details: 'VM stopped by user: Chandan Kar. Run by: Schedule "ise start-stop"' };
+    assert.equal(T.who(stop), 'Schedule "ise start-stop"');
+    assert.equal(say(stop), 'Stopped mcube-dev-poc-work1');
+    assert.equal(T.runByNote(stop), 'Run by schedule "ise start-stop"');
+    const failed = { action: 'VM_START_FAILED', targetName: 'web-01', userDisplayName: 'Chandan Kar', success: false,
+        details: 'User: Chandan Kar. Run by: The lease. Error: AWS: InsufficientInstanceCapacity',
+        errorMessage: 'User: Chandan Kar. Run by: The lease. Error: AWS: InsufficientInstanceCapacity' };
+    assert.equal(T.who(failed), 'The lease');
+    assert.equal(T.what(failed).note, 'AWS: InsufficientInstanceCapacity');
+    const done = { action: 'OPERATION_COMPLETED', targetName: 'STOP', userDisplayName: 'Chandan Kar',
+        details: 'Operation completed by user: Chandan Kar. Environment: ISE. Total VMs: 3, Failed: 0. Run by: Idle auto-stop' };
+    assert.equal(T.who(done), 'Idle auto-stop');
+    assert.equal(say(done), 'Stopped 3 VMs');
+    assert.equal(T.runByNote(done), 'Run by idle auto-stop');
+    // A person's own run, and rows written before, name the person.
+    const own = { action: 'VM_STOP_COMPLETED', targetName: 'web-01', userDisplayName: 'Chandan Kar', details: 'VM stopped by user: Chandan Kar' };
+    assert.equal(T.who(own), 'Chandan Kar');
+    assert.equal(T.runByNote(own), '');
+    // Only an operation's rows are read for it.
+    assert.equal(T.who({ action: 'LOCK_ACQUIRED', userDisplayName: 'Priya Nair', details: 'Reason: x. Run by: Schedule "y"' }), 'Priya Nair');
+});

@@ -134,3 +134,16 @@ test('U24-T05: the state-changes line says what the list holds', () => {
     assert.equal(M.changesCountText(1, 1, true, false), '1 change outside the platform in 24 hours');
     assert.equal(M.changesCountText(3, 0, false, false), '3 changes in 24 hours, 0 outside the platform');
 });
+
+test('U24-T02: a schedule\'s VM operation is listed under the schedule', () => {
+    const ctx = vm.createContext({});
+    ctx.window = ctx;
+    vm.runInContext(readFileSync(STATIC + 'js/core/audit-text.js', 'utf8'), ctx);
+    vm.runInContext(readFileSync(STATIC + 'js/features/system-health.js', 'utf8') + '\nthis.S = SystemHealth;', ctx);
+    const row = plain(ctx.S.model.complianceRow({ action: 'VM_STOP_COMPLETED', targetName: 'mcube-dev-poc-work1',
+        userDisplayName: 'Chandan Kar', success: true, details: 'VM stopped by user: Chandan Kar. Run by: Schedule "ise start-stop"' }));
+    assert.equal(row.who, 'Schedule "ise start-stop"');
+    assert.equal(row.what, 'Stopped mcube-dev-poc-work1');
+    assert.equal(plain(ctx.S.model.complianceRow({ action: 'VM_STOP_COMPLETED', targetName: 'web-01', userDisplayName: 'Asha Rao',
+        details: 'VM stopped by user: Asha Rao' })).who, 'Asha Rao');
+});

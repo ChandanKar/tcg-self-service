@@ -157,7 +157,9 @@ public class StateSyncService {
             CompletableFuture.allOf(fetchFutures.toArray(new CompletableFuture[0])).join();
             log.info("Batch status fetch complete: {} group(s) queried", groups.size());
 
-            // Apply the pre-fetched statuses to each VM in parallel
+            // Apply the pre-fetched statuses to each VM in parallel; the run's changes are told
+            // once per environment after every VM is applied (U24-T01).
+            DriftNotices notices = new DriftNotices();
             List<CompletableFuture<Void>> applyFutures = vmsToSync.stream()
                     .map(vm -> CompletableFuture.runAsync(() -> {
                         try {
@@ -177,7 +179,7 @@ public class StateSyncService {
                                 cloudStatus = fetchCloudVmStatusWithRetry(vm, 2);
                             }
 
-                            if (applySyncedStatus(vm, cloudStatus)) driftCount.incrementAndGet();
+                            if (applySyncedStatus(vm, cloudStatus, notices)) driftCount.incrementAndGet();
                         } catch (Exception e) {
                             errorCount.incrementAndGet();
                             log.error("Failed to apply sync for VM {}: {}", vm.vmId(), e.getMessage());
@@ -186,6 +188,7 @@ public class StateSyncService {
                     .toList();
 
             CompletableFuture.allOf(applyFutures.toArray(new CompletableFuture[0])).join();
+            notices.send();
 
             lastSyncTime.set(Timestamp.from(Instant.now()));
             lastSyncStatus.set(errorCount.get() == 0 ? "success" : "partial");
@@ -253,7 +256,33 @@ public class StateSyncService {
             return false;
         }
         VmStatus cloudStatus = fetchCloudVmStatusWithRetry(target, 2);
-        return applySyncedStatus(target, cloudStatus);
+        return applySyncedStatus(target, cloudStatus, null);
+    }
+
+    /**
+     * The drift one full sync run saw, by environment (U24-T01). The run applies VMs in parallel, so
+     * notifying per VM let each call miss the others' notice and five console starts gave five notices;
+     * collected here and sent once per environment after the parallel part.
+     */
+    private final class DriftNotices {
+        private final Map<String, String> envNames = new ConcurrentHashMap<>();
+        private final Map<String, java.util.Queue<NotificationService.DriftChange>> changes = new ConcurrentHashMap<>();
+
+        void add(String envId, String envName, NotificationService.DriftChange change) {
+            envNames.putIfAbsent(envId, envName == null ? "" : envName);
+            changes.computeIfAbsent(envId, k -> new java.util.concurrent.ConcurrentLinkedQueue<>()).add(change);
+        }
+
+        void send() {
+            changes.forEach((envId, queue) -> {
+                List<NotificationService.DriftChange> list = queue.stream()
+                        .sorted(java.util.Comparator.comparing(NotificationService.DriftChange::vmName,
+                                java.util.Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER)))
+                        .toList();
+                runNotificationSideEffect("notify state drift", envId, () ->
+                        notificationService.notifyStateDriftDetected(envId, envNames.get(envId), list));
+            });
+        }
     }
 
     /**
@@ -288,7 +317,7 @@ public class StateSyncService {
      * Every write is conditional on the status sync read: an operation that changed the VM
      * meanwhile wins, and no false drift is recorded (H14, M5).
      */
-    private boolean applySyncedStatus(SyncTarget vm, VmStatus cloudStatus) {
+    private boolean applySyncedStatus(SyncTarget vm, VmStatus cloudStatus, DriftNotices notices) {
         VmStatus currentStatus = vm.status();
 
         if (cloudStatus == null || cloudStatus == VmStatus.UNKNOWN) {
@@ -324,7 +353,7 @@ public class StateSyncService {
                 return false;
             }
             recordDrift(vm, currentStatus, cloudStatus, details,
-                    String.format("VM %s in cloud - marked inactive. Previous status: %s", cloudStatus, currentStatus));
+                    String.format("VM %s in cloud - marked inactive. Previous status: %s", cloudStatus, currentStatus), notices);
             auditService.logEnvironmentAction(null, AuditAction.VM_DEACTIVATED, vm.envId(), vm.envName(),
                     "vm", vm.vmId(), vm.name(), cloudStatus == VmStatus.NOT_FOUND
                             ? "Deactivated after " + notFoundThreshold + " consecutive NOT_FOUND results; reactivate it once the instance exists"
@@ -363,7 +392,7 @@ public class StateSyncService {
             }
             log.info("State drift detected for VM {}: {} -> {}", vm.name(), currentStatus, cloudStatus);
             recordDrift(vm, currentStatus, cloudStatus, "Drift detected during state sync",
-                    String.format("State drift: %s -> %s", currentStatus, cloudStatus));
+                    String.format("State drift: %s -> %s", currentStatus, cloudStatus), notices);
             return true;
         }
 
@@ -411,7 +440,8 @@ public class StateSyncService {
     }
 
     /** History, audit and notification for a drift that was applied. */
-    private void recordDrift(SyncTarget vm, VmStatus from, VmStatus to, String historyDetails, String auditDetails) {
+    private void recordDrift(SyncTarget vm, VmStatus from, VmStatus to, String historyDetails, String auditDetails,
+                             DriftNotices notices) {
         String spotCode = spotInterruptionCode(vm, from, to);
         if (spotCode != null) {
             String details = "AWS reclaimed the Spot instance (" + spotCode + "): " + from + " -> " + to;
@@ -422,9 +452,14 @@ public class StateSyncService {
         recordStateChange(vmRepository.getReferenceById(vm.vmId()), from, to, "state_sync", null, null, historyDetails);
         auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED, vm.envId(), vm.envName(),
                 "vm", vm.vmId(), vm.name(), auditDetails);
+        String vmName = vm.displayName() != null && !vm.displayName().isBlank() ? vm.displayName() : vm.name();
+        if (notices != null) {
+            notices.add(vm.envId(), vm.envName(),
+                    new NotificationService.DriftChange(vmName, from.name(), to.name(), vm.vmId()));
+            return;
+        }
         runNotificationSideEffect("notify state drift", vm.vmId(), () ->
-                notificationService.notifyStateDriftDetected(vm.envId(), vm.envName(),
-                        vm.displayName() != null && !vm.displayName().isBlank() ? vm.displayName() : vm.name(),
+                notificationService.notifyStateDriftDetected(vm.envId(), vm.envName(), vmName,
                         from.name(), to.name(), vm.vmId()));
     }
 

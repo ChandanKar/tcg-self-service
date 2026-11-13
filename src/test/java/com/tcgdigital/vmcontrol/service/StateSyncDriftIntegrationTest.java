@@ -86,6 +86,61 @@ class StateSyncDriftIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void severalVmsChangedInOneRunMakeOneNoticePerPersonListingThemAll() {
+        // U24-T01 (staging 08:55 UTC): five VMs started in the console within one run gave five notices.
+        jdbcTemplate.update("UPDATE vm SET status = 'STOPPED' WHERE vm_id = ?", vm.getVmId());
+        com.tcgdigital.vmcontrol.model.VmGroup group = vmRepository.findByIdFetchGroupAndEnvironment(vm.getVmId())
+                .orElseThrow().getGroup();
+        List<Vm> vms = new java.util.ArrayList<>(List.of(vm));
+        for (int i = 2; i <= 5; i++) {
+            vms.add(newVm(group, "es-0" + i, VmStatus.STOPPED));
+        }
+        java.util.Set<String> ours = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        vms.forEach(v -> ours.add(v.getProviderVmId()));
+        when(awsCloudProviderService.getVmStatusBatch(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenAnswer(inv -> {
+            Map<String, VmStatus> result = new HashMap<>();
+            for (Object id : (List<?>) inv.getArgument(0)) {
+                if (ours.contains(id)) result.put((String) id, VmStatus.RUNNING);
+            }
+            return result.isEmpty() ? Map.of("i-none", VmStatus.UNKNOWN) : result;
+        });
+
+        stateSyncService.syncAllVmStates();
+
+        // The per-VM history and audit rows are as before.
+        for (Vm each : vms) {
+            assertThat(count("SELECT COUNT(*) FROM vm_state_history WHERE vm_id = ? AND change_source = 'state_sync'",
+                    each.getVmId())).isEqualTo(1);
+        }
+        awaitAsync(() -> assertThat(count("SELECT COUNT(*) FROM audit_log WHERE action_type = 'STATE_DRIFT_DETECTED' " +
+                "AND environment_id = ?", env.getEnvironmentId())).isEqualTo(5));
+        // One notice per person, naming the five VMs.
+        List<Map<String, Object>> notices = jdbcTemplate.queryForList(
+                "SELECT user_id, message FROM notification WHERE entity_id = ? AND type = 'STATE_DRIFT_DETECTED'",
+                env.getEnvironmentId());
+        assertThat(notices).isNotEmpty();
+        assertThat(notices.stream().map(n -> n.get("user_id")).distinct().count()).isEqualTo(notices.size());
+        for (Map<String, Object> notice : notices) {
+            String message = (String) notice.get("message");
+            assertThat(message).startsWith("5 VMs changed outside the platform: ");
+            for (Vm each : vms) {
+                assertThat(message).contains(each.getDisplayName() + " (stopped, now running)");
+            }
+        }
+
+        // A later run adds to the unread notice instead of making another one.
+        Vm sixth = newVm(group, "es-06", VmStatus.STOPPED);
+        ours.add(sixth.getProviderVmId());
+        stateSyncService.syncAllVmStates();
+        List<Map<String, Object>> after = jdbcTemplate.queryForList(
+                "SELECT user_id, message FROM notification WHERE entity_id = ? AND type = 'STATE_DRIFT_DETECTED'",
+                env.getEnvironmentId());
+        assertThat(after).hasSize(notices.size());
+        assertThat((String) after.get(0).get("message")).startsWith("6 VMs changed outside the platform: ")
+                .contains("es-06 (stopped, now running)");
+    }
+
+    @Test
     void aUserStartDuringTheFetchWinsOverSync() {
         jdbcTemplate.update("UPDATE vm SET status = 'STOPPED' WHERE vm_id = ?", vm.getVmId());
         // While sync is talking to AWS, a user starts the VM.
