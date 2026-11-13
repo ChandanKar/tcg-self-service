@@ -690,7 +690,7 @@ const AddPeople = (function() {
 
     function drawGrants() {
         $('#adp-grants').html(s.access.map((a, i) => Utils.html`<li class="adp-chip adp-chip-grant">
-                <b>${grantName(a, envName)}</b> <span>·${levelLabel(a.level)} · ${daysLabel(a.days)}</span>
+                <b>${grantName(a, envName)}</b> <span>· ${levelLabel(a.level)} · ${daysLabel(a.days)}</span>
                 <button type="button" class="adp-x" data-adp-remove-access="${i}" aria-label="Remove access to ${grantName(a, envName)}">${Utils.raw(CROSS)}</button></li>`).join(''))
             .prop('hidden', !s.access.length);
         $('#adp-no-access').prop('hidden', s.access.length > 0);

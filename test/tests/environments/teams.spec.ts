@@ -203,6 +203,8 @@ test.describe('Teams table', () => {
     await page.getByRole('button', { name: 'Edit CRM' }).click();
     await expect(page.locator('#teamModal')).toBeVisible();
     await expect(page.locator('#team-cost-center')).toHaveValue('CC-4300');
+    // Escape closes the dialog once it has focus (Bootstrap moves focus in when the fade-in ends).
+    await expect(page.locator('#team-display')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.locator('#teamModal')).toBeHidden();
     await page.getByRole('button', { name: 'Deactivate People' }).click();
