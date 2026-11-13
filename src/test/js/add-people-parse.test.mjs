@@ -45,6 +45,9 @@ test('U25-T01: a domain within two edits of one at least three people use looks 
     assert.equal(M.mistypedDomain('a@tiny.co', DOMAINS), '', 'too few people use tiny.io to call it a typo');
     assert.equal(M.mistypedDomain('a@partner.org', DOMAINS), '', 'far from every known domain');
     assert.equal(M.mistypedDomain('a@tcgdigitalc.com', null), '', 'no domain list (the call failed): no check');
+    // U25 staging: the mistyped domain already has one account; it still looks mistyped.
+    assert.equal(M.mistypedDomain('someone@tcgdigitalc.com', [{ domain: 'tcgdigital.com', count: 643 }, { domain: 'tcgdigitalc.com', count: 1 }]), 'tcgdigital.com');
+    assert.equal(M.mistypedDomain('a@labvantage.com', [{ domain: 'labvantage-biomax.com', count: 12 }, { domain: 'labvantage.com', count: 3 }]), '', 'three people make it a real domain');
     assert.equal(M.colleagueDomain('x@tcgdigital.com', DOMAINS), true);
     assert.equal(M.colleagueDomain('x@partner.org', DOMAINS), false);
 });

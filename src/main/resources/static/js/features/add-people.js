@@ -89,7 +89,7 @@ const AddPeople = (function() {
     }
 
     /**
-     * The domain an address probably meant, or '': its own domain is not one people use, and it is
+     * The domain an address probably meant, or '': its own domain is used by fewer than three people, and it is
      * within two edits of a domain at least three active people use (GET /users/email-domains).
      * Without the domain list (the call failed) nothing looks mistyped.
      */
@@ -98,12 +98,15 @@ const AddPeople = (function() {
         const domain = String(email || '').split('@')[1] || '';
         if (!domain) return '';
         const known = domains.map(d => ({ domain: String(d && d.domain || '').toLowerCase(), count: Number(d && d.count) || 0 }));
-        if (known.some(d => d.domain === domain)) return '';
+        // A domain only a few accounts use (staging has one bailsali@tcgdigitalc.com) is no proof it is right:
+        // it still looks mistyped next to one used by at least ten times as many people (U25 staging check).
+        const own = (known.find(d => d.domain === domain) || { count: 0 }).count;
+        if (own >= MIN_PEOPLE) return '';
         let best = '';
         let bestEdits = MAX_EDITS + 1;
         let bestCount = 0;
         known.forEach(d => {
-            if (!d.domain || d.count < MIN_PEOPLE) return;
+            if (!d.domain || d.count < MIN_PEOPLE || d.count < own * 10) return;
             const edits = editDistance(d.domain, domain);
             if (edits > 0 && edits <= MAX_EDITS && (edits < bestEdits || (edits === bestEdits && d.count > bestCount))) {
                 best = d.domain;
