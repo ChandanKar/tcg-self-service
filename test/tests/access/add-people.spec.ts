@@ -20,6 +20,7 @@ const ENVS = [
   { environmentId: 'e-pay', name: 'pay-qa', displayName: 'pay-qa', isActive: true, vmCount: 5, runningVmCount: 0, groupCount: 1 },
   { environmentId: 'e-sit', name: 'sit-55', displayName: 'SIT 55', isActive: true, vmCount: 10, runningVmCount: 9, groupCount: 1 },
 ];
+const TEAMS = [{ teamId: 't-data', displayName: 'Data', active: true }, { teamId: 't-ops', displayName: 'CloudOps', active: true }];
 const EXISTING = 'viraj.gore@lummustech.com';
 
 function onboardResult(body: any, applied: boolean) {
@@ -42,6 +43,7 @@ async function fakeServer(page: Page) {
   await page.route(/\/api\/auth\/options$/, r => r.fulfill({ json: { passwordLoginEnabled: true } }));
   await page.route(/\/api\/v1\/users\/email-domains$/, r => r.fulfill({ json: DOMAINS }));
   await page.route(/\/api\/v1\/environments$/, r => (r.request().method() === 'GET' ? r.fulfill({ json: ENVS }) : r.fallback()));
+  await page.route(/\/api\/v1\/teams$/, r => (r.request().method() === 'GET' ? r.fulfill({ json: TEAMS }) : r.fallback()));
   await page.route(/\/api\/v1\/users\/bulk-onboard\?dryRun=(true|false)$/, r => {
     const body = r.request().postDataJSON();
     const preview = r.request().url().endsWith('dryRun=true');
@@ -242,6 +244,45 @@ test.describe('Add people', () => {
       'pat.example@tcgdigital.com\tpw-pat.example-7Qk\nsam.example@tcgdigital.com\tpw-sam.example-7Qk');
     await page.getByRole('link', { name: 'Back to Users' }).click();
     await expect(page).toHaveURL(/#\/user-management$/, { timeout: 10_000 });
+  });
+
+  test("one person's own name and team (the panel under the chips) go with that person only", async ({ page }) => {
+    const sent = await fakeServer(page);
+    await openAdd(page);
+    await paste(page, 'Pia Sen <pia@tcgdigital.com>, ravi@tcgdigital.com');
+    await expect(chips(page).first()).toContainText('Pia Sen');
+    await page.getByRole('button', { name: /Details for everyone/ }).click();
+    await page.locator('#adp-team').selectOption('t-ops');
+
+    const edit = page.getByRole('button', { name: 'Edit ravi@tcgdigital.com' });
+    const panel = page.locator('#adp-person');
+    await edit.click();
+    await expect(panel).toBeVisible();
+    await expect(page.locator('#adp-person-name')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await expect(edit).toBeFocused();
+
+    await edit.click();
+    await panel.getByLabel('Name').fill('Ravi Kumar');
+    await panel.getByLabel('Team').selectOption('t-data');
+    await panel.getByLabel('Project code').fill('RV 1');
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await expect(page.locator('#adp-person-error')).toHaveText('Project code can only use letters, digits, dot, dash and underscore.');
+    await panel.getByLabel('Project code').fill('RV-1');
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await expect(panel).toBeHidden();
+    const ravi = chips(page).filter({ hasText: 'ravi@tcgdigital.com' });
+    await expect(ravi).toContainText('Ravi Kumar');
+    await expect(ravi).toContainText('own details');
+
+    await expect.poll(() => sent.preview.at(-1)?.people?.find((p: any) => p.email === 'ravi@tcgdigital.com')?.teamId).toBe('t-data');
+    await expect(page.locator('#adp-submit')).toHaveText('Add 2 people', { timeout: 10_000 });
+    await page.locator('#adp-submit').click();
+    await expect(page.locator('#adp-done-title')).toHaveText('2 people added');
+    const people = sent.apply.at(-1).people;
+    expect(people[0]).toMatchObject({ email: 'pia@tcgdigital.com', displayName: 'Pia Sen', teamId: 't-ops', projectCode: null });
+    expect(people[1]).toMatchObject({ email: 'ravi@tcgdigital.com', displayName: 'Ravi Kumar', teamId: 't-data', projectCode: 'RV-1' });
   });
 
   test('Cancel with people in the list asks before discarding them', async ({ page }) => {

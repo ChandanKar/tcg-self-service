@@ -215,6 +215,40 @@ const AddPeople = (function() {
     }
 
     /**
+     * One person as sent: their own department, team and project code (person.own) win over the
+     * details for everyone; an empty own value means "the value for everyone". A directory person's
+     * department from the directory comes last.
+     */
+    function personOf(p, details) {
+        const d = details || {};
+        const own = p.own || {};
+        return {
+            directoryObjectId: p.directoryObjectId || null,
+            email: p.email,
+            displayName: p.name || null,
+            department: own.department || d.department || p.directoryDepartment || null,
+            projectCode: own.projectCode || d.projectCode || null,
+            teamId: own.teamId || d.teamId || null
+        };
+    }
+
+    /** True when the person has a department, team or project code of their own. */
+    function hasOwnDetails(p) {
+        const own = (p && p.own) || {};
+        return !!(own.department || own.teamId || own.projectCode);
+    }
+
+    /** What is wrong with a name, department or project code (the server's own messages), or ''. */
+    function detailsProblem({ name, department, projectCode }) {
+        if (String(name || '').length > 255) return 'Name can be at most 255 characters.';
+        if (String(department || '').length > 100) return 'Department can be at most 100 characters.';
+        const code = String(projectCode || '');
+        if (code.length > 50) return 'Project code can be at most 50 characters.';
+        if (code && !/^[A-Za-z0-9._-]+$/.test(code)) return 'Project code can only use letters, digits, dot, dash and underscore.';
+        return '';
+    }
+
+    /**
      * The request body for /users/bulk-onboard. state: {people (only those to send), role, access,
      * details: {department, teamId, projectCode} for everyone, signIn: MICROSOFT | PASSWORD}.
      * With a password each person gets their own, generated on the server and returned once.
@@ -223,14 +257,7 @@ const AddPeople = (function() {
         const d = state.details || {};
         return {
             people: state.people.map(p => {
-                const person = {
-                    directoryObjectId: p.directoryObjectId || null,
-                    email: p.email,
-                    displayName: p.name || null,
-                    department: d.department || p.department || null,
-                    projectCode: d.projectCode || null,
-                    teamId: d.teamId || null
-                };
+                const person = personOf(p, d);
                 if (state.signIn === 'PASSWORD') person.generatePassword = true;
                 return person;
             }),
@@ -307,7 +334,7 @@ const AddPeople = (function() {
         return { token, people: [], role: 'USER', signIn: 'MICROSOFT', details: { department: '', teamId: '', projectCode: '' },
             detailsOpen: false, access: [], pick: null, pickGroups: null, level: 'USER', days: '30', envMatches: [], envActive: -1,
             teams: [], environments: [], groups: {}, domains: null, result: null, problem: '', previewSeq: 0, previewTimer: null,
-            searchTimer: null, sending: false, results: [], nextKey: 1, done: null, envsFailed: null, directory: has('directory'), passwordLogin: true };
+            searchTimer: null, sending: false, results: [], nextKey: 1, done: null, envsFailed: null, editing: null, directory: has('directory'), passwordLogin: true };
     }
 
     async function load() {
@@ -395,6 +422,7 @@ const AddPeople = (function() {
                     </div>
                     ${s.directory ? '' : '<p class="adp-note" id="adp-no-directory">Microsoft directory search is switched off on this server, so addresses are typed or pasted.</p>'}
                     <ul class="adp-chips" id="adp-chips" aria-label="People to add"></ul>
+                    <div class="adp-person" id="adp-person" role="group" aria-labelledby="adp-person-title" hidden></div>
                     ${signIn}
                     <button type="button" class="adp-link adp-details-toggle" id="adp-details-toggle" aria-expanded="${s.detailsOpen ? 'true' : 'false'}"
                             aria-controls="adp-details"><span aria-hidden="true">${s.detailsOpen ? '▾' : '▸'}</span> Details for everyone (optional): department, team, project code</button>
@@ -402,7 +430,8 @@ const AddPeople = (function() {
                         ${Utils.html`<label class="adp-field">Department<input type="text" class="form-control" id="adp-dept" maxlength="100" value="${d.department}"></label>`}
                         <label class="adp-field">Team<select class="form-select" id="adp-team">${teamOptions(d.teamId)}</select></label>
                         ${Utils.html`<label class="adp-field">Project code<input type="text" class="form-control" id="adp-project" maxlength="50" value="${d.projectCode}"></label>`}
-                        <p class="adp-note adp-details-note">The same for everyone in the list; people from the directory keep their own department when this is empty.</p>
+                        <p class="adp-note adp-details-note">The same for everyone in the list, unless a person has their own (select their address to give them their own). People from the directory keep their directory department when this is empty.</p>
+                        <div class="re-error adp-details-error" id="adp-details-error" role="alert" hidden></div>
                     </div>
                 </section>
                 <div class="adp-side">
@@ -452,14 +481,29 @@ const AddPeople = (function() {
         return s.people.filter(p => sendable(statusOf(p).kind));
     }
 
+    /** The chip control that has focus, as a selector, so a redraw (a preview coming back) keeps it. */
+    function focusedChipControl() {
+        const list = document.getElementById('adp-chips');
+        const active = document.activeElement;
+        if (!list || !active || !list.contains(active)) return '';
+        const attr = ['data-adp-edit', 'data-adp-remove', 'data-adp-fix', 'data-adp-keep'].find(a => active.hasAttribute(a));
+        return attr ? `[${attr}="${active.getAttribute(attr)}"]` : '';
+    }
+
     function drawChips() {
+        const keep = focusedChipControl();
         $('#adp-chips').html(s.people.map(p => {
             const st = statusOf(p);
             const fix = st.fixTo ? Utils.html`<button type="button" class="adp-fix" data-adp-fix="${p.key}" data-to="${st.fixTo}">Use ${st.fixTo}</button> <button type="button" class="adp-fix" data-adp-keep="${p.key}" aria-label="Keep ${p.email} as typed">Keep</button>` : '';
+            const own = hasOwnDetails(p) ? ' <span class="adp-chip-note">· own details</span>' : '';
+            const label = Utils.html`${Utils.raw(p.name ? Utils.html`<b>${p.name}</b> ` : '')}<span class="adp-chip-email">${p.email}</span>`;
+            const who = p.valid ? Utils.html`<button type="button" class="adp-chip-edit" data-adp-edit="${p.key}" aria-expanded="${s.editing === p.key ? 'true' : 'false'}"
+                    aria-controls="adp-person"><span class="visually-hidden">Edit </span>${Utils.raw(label)}</button>` : label;
             return Utils.html`<li class="adp-chip adp-chip-${st.kind}" data-key="${p.key}">
-                ${Utils.raw(p.name ? Utils.html`<b>${p.name}</b> ` : '')}<span class="adp-chip-email">${p.email}</span>${Utils.raw(st.note ? Utils.html` <span class="adp-chip-note">· ${st.note}</span>` : '')}${Utils.raw(fix ? ` ${fix}` : '')}
+                ${Utils.raw(who)}${Utils.raw(own)}${Utils.raw(st.note ? Utils.html` <span class="adp-chip-note">· ${st.note}</span>` : '')}${Utils.raw(fix ? ` ${fix}` : '')}
                 <button type="button" class="adp-x" data-adp-remove="${p.key}" aria-label="Remove ${p.email}">${Utils.raw(CROSS)}</button></li>`;
         }).join('')).prop('hidden', !s.people.length);
+        if (keep) $('#adp-chips').find(keep).trigger('focus');
         drawSignInNote();
     }
 
@@ -476,7 +520,7 @@ const AddPeople = (function() {
         let added = 0;
         list.forEach(p => {
             if (s.people.some(x => x.email === p.email)) return;
-            s.people.push(Object.assign({ key: String(s.nextKey++), name: '', department: '', kept: false }, p));
+            s.people.push(Object.assign({ key: String(s.nextKey++), name: '', directoryDepartment: '', own: { department: '', teamId: '', projectCode: '' }, kept: false }, p));
             added++;
         });
         if (added) changed();
@@ -524,7 +568,7 @@ const AddPeople = (function() {
     function pickResult(i) {
         const u = s.results[i];
         if (!u || !u.email) return;
-        addPeople([{ name: u.displayName || '', email: String(u.email).toLowerCase(), valid: true, department: u.department || '',
+        addPeople([{ name: u.displayName || '', email: String(u.email).toLowerCase(), valid: true, directoryDepartment: u.department || '',
             directoryObjectId: u.directoryObjectId, alreadyInApp: !!u.alreadyInApp }]);
         $('#adp-search').val('').trigger('focus');
         hideResults();
@@ -537,6 +581,59 @@ const AddPeople = (function() {
         if (s.people.some(x => x.email === email && x.key !== key)) s.people = s.people.filter(x => x.key !== key);
         else p.email = email;
         changed();
+    }
+
+    /** One person's own name, department, team and project code, in a panel under the chips. */
+    function openPerson(key) {
+        const p = s.people.find(x => x.key === key);
+        if (!p) return;
+        s.editing = key;
+        const d = s.details;
+        const everyone = value => (value ? `For everyone: ${value}` : 'Same as for everyone');
+        const teamName = id => { const t = s.teams.find(x => x.teamId === id); return t ? (t.displayName || t.name) : ''; };
+        const deptHint = d.department ? everyone(d.department) : (p.directoryDepartment ? `From the directory: ${p.directoryDepartment}` : everyone(''));
+        const teams = s.teams.map(t => Utils.html`<option value="${t.teamId}"${Utils.raw(t.teamId === p.own.teamId ? ' selected' : '')}>${t.displayName || t.name}</option>`).join('');
+        $('#adp-person').html(Utils.html`<h3 id="adp-person-title">Details for ${p.email}</h3>
+                <div class="adp-person-grid">
+                    <label class="adp-field">Name<input type="text" class="form-control" id="adp-person-name" maxlength="255" value="${p.name}" autocomplete="off"></label>
+                    <label class="adp-field">Department<input type="text" class="form-control" id="adp-person-dept" maxlength="100" value="${p.own.department}" placeholder="${deptHint}"></label>
+                    <label class="adp-field">Team<select class="form-select" id="adp-person-team"><option value="">${d.teamId ? everyone(teamName(d.teamId)) : everyone('')}</option>${Utils.raw(teams)}</select></label>
+                    <label class="adp-field">Project code<input type="text" class="form-control" id="adp-person-project" maxlength="50" value="${p.own.projectCode}" placeholder="${everyone(d.projectCode)}"></label>
+                </div>
+                <p class="adp-note">Empty fields use the details for everyone.</p>
+                <div class="re-error" id="adp-person-error" role="alert" hidden></div>
+                <div class="adp-person-actions">
+                    <button type="button" class="btn btn-sm btn-primary" id="adp-person-save">Done</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="adp-person-cancel">Cancel</button>
+                </div>`).prop('hidden', false);
+        drawChips();
+        $('#adp-person-name').trigger('focus');
+    }
+
+    /** Closes the panel; focus goes back to the person's chip. */
+    function closePerson() {
+        const key = s.editing;
+        s.editing = null;
+        $('#adp-person').prop('hidden', true).empty();
+        drawChips();
+        if (key) $(`#adp-chips [data-adp-edit="${key}"]`).trigger('focus');
+    }
+
+    function savePerson() {
+        const p = s.people.find(x => x.key === s.editing);
+        if (!p) { closePerson(); return; }
+        const value = id => String($(id).val() || '').trim();
+        const next = { name: value('#adp-person-name'), department: value('#adp-person-dept'), teamId: $('#adp-person-team').val() || '',
+            projectCode: value('#adp-person-project') };
+        const problem = detailsProblem(next);
+        if (problem) {
+            $('#adp-person-error').text(problem).prop('hidden', false);
+            return;
+        }
+        p.name = next.name;
+        p.own = { department: next.department, teamId: next.teamId, projectCode: next.projectCode };
+        changed();
+        closePerson();
     }
 
     // ---- 3 · Access
@@ -811,6 +908,7 @@ const AddPeople = (function() {
 
     function startOver() {
         s.done = null;
+        s.editing = null;
         s.people = [];
         s.access = [];
         s.pick = null;
@@ -857,6 +955,7 @@ const AddPeople = (function() {
             .on('blur' + NS, '#adp-paste', takeDraft)
             .on('click' + NS, '#adp-paste-add', () => { takeDraft(); $('#adp-paste').trigger('focus'); })
             .on('click' + NS, '#adp-chips [data-adp-remove]', function() {
+                if (s.editing === this.dataset.adpRemove) { s.editing = null; $('#adp-person').prop('hidden', true).empty(); }
                 s.people = s.people.filter(p => p.key !== this.dataset.adpRemove);
                 changed();
                 $('#adp-paste').trigger('focus');
@@ -879,8 +978,22 @@ const AddPeople = (function() {
             })
             .on('input' + NS + ' change' + NS, '#adp-dept, #adp-team, #adp-project', function() {
                 const field = { 'adp-dept': 'department', 'adp-team': 'teamId', 'adp-project': 'projectCode' }[this.id];
-                s.details[field] = String(this.value || '').trim();
+                const value = String(this.value || '').trim();
+                const problem = detailsProblem({ [field]: value });
+                $('#adp-details-error').text(problem).prop('hidden', !problem);
+                if (problem) return;
+                s.details[field] = value;
                 changed();
+            })
+            .on('click' + NS, '#adp-chips [data-adp-edit]', function() {
+                if (s.editing === this.dataset.adpEdit) closePerson();
+                else openPerson(this.dataset.adpEdit);
+            })
+            .on('click' + NS, '#adp-person-save', savePerson)
+            .on('click' + NS, '#adp-person-cancel', closePerson)
+            .on('keydown' + NS, '#adp-person', e => {
+                if (e.key === 'Escape') { e.preventDefault(); closePerson(); }
+                else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); savePerson(); }
             })
             .on('click' + NS, '#add-people-view [data-adp-role]', function() { selectRole(this.dataset.adpRole); })
             .on('keydown' + NS, '#add-people-view [data-adp-role]', function(e) {
@@ -970,7 +1083,7 @@ const AddPeople = (function() {
     return {
         load,
         model: { parseAddresses, parseEntries, editDistance, mistypedDomain, colleagueDomain, chipStatus, sendable, summarySentence,
-            noteLine, requestOf, roleLabel, grantText, matchEnvironments }
+            noteLine, requestOf, personOf, hasOwnDetails, detailsProblem, roleLabel, grantText, matchEnvironments }
     };
 })();
 

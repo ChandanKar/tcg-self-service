@@ -233,6 +233,67 @@
     font-size: var(--fs-caption);
 }
 
+/* A chip's address opens the person's own details (U25-T01). */
+.adp-chip-edit {
+    display: inline;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.adp-chip-edit:hover .adp-chip-email,
+.adp-chip-edit[aria-expanded="true"] .adp-chip-email {
+    text-decoration: underline;
+}
+
+.adp-chip-edit:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.adp-person {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-subtle);
+}
+
+.adp-person[hidden] {
+    display: none;
+}
+
+.adp-person h3 {
+    margin: 0;
+    font-size: var(--fs-body);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.adp-person-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+}
+
+.adp-person-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.adp-details-error {
+    grid-column: 1 / -1;
+}
+
 .adp-fix {
     padding: 0 4px;
     border: 0;
@@ -590,8 +651,17 @@
         padding-bottom: 180px;
     }
 
-    .adp-details {
+    .adp-details,
+    .adp-person-grid {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .adp-chip-edit {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 4px;
+        min-height: 44px;
     }
 
     .adp-roles {

@@ -99,7 +99,7 @@ test('the request: people, details for everyone, role, access rows (groups, days
         role: 'ENV_ADMIN',
         signIn: 'MICROSOFT',
         details: { department: 'Eng', teamId: 't1', projectCode: 'DLK-204' },
-        people: [{ email: 'a@x.com', name: 'A', directoryObjectId: 'oid', department: 'Directory dept' }, { email: 'b@x.com' }],
+        people: [{ email: 'a@x.com', name: 'A', directoryObjectId: 'oid', directoryDepartment: 'Directory dept' }, { email: 'b@x.com' }],
         access: [{ environmentId: 'e1', groupIds: [], level: 'USER', days: '30' },
             { environmentId: 'e2', groupIds: ['g1'], level: 'VIEWER', days: '' }]
     }));
@@ -111,8 +111,31 @@ test('the request: people, details for everyone, role, access rows (groups, days
             { environmentId: 'e2', scopeType: 'GROUP', groupIds: ['g1'], accessLevel: 'VIEWER', durationDays: null }],
         emailPeople: false
     });
-    const own = plain(M.requestOf({ role: 'USER', people: [{ email: 'a@x.com', directoryObjectId: 'oid', department: 'Quality' }], access: [] }));
+    const own = plain(M.requestOf({ role: 'USER', people: [{ email: 'a@x.com', directoryObjectId: 'oid', directoryDepartment: 'Quality' }], access: [] }));
     assert.equal(own.people[0].department, 'Quality', 'a directory person keeps their department when none is given for everyone');
+});
+
+test('U25-T01: a person\'s own details win over the details for everyone; empty ones use the value for everyone', () => {
+    const everyone = { department: 'Eng', teamId: 't1', projectCode: 'DLK-204' };
+    assert.deepEqual(plain(M.personOf({ email: 'p@x.com', name: 'Pia Sen', directoryDepartment: 'Directory dept',
+        own: { department: 'Quality', teamId: 't2', projectCode: '' } }, everyone)),
+    { directoryObjectId: null, email: 'p@x.com', displayName: 'Pia Sen', department: 'Quality', projectCode: 'DLK-204', teamId: 't2' });
+    assert.deepEqual(plain(M.personOf({ email: 'q@x.com', own: { department: '', teamId: '', projectCode: 'OWN-1' } }, {})),
+        { directoryObjectId: null, email: 'q@x.com', displayName: null, department: null, projectCode: 'OWN-1', teamId: null });
+    assert.equal(M.personOf({ email: 'r@x.com', directoryDepartment: 'Directory dept', own: {} }, {}).department, 'Directory dept');
+    const body = plain(M.requestOf({ role: 'USER', details: everyone, access: [],
+        people: [{ email: 'a@x.com', own: { teamId: 't9' } }, { email: 'b@x.com' }] }));
+    assert.deepEqual(body.people.map(p => p.teamId), ['t9', 't1']);
+    assert.equal(M.hasOwnDetails({ own: { department: '', teamId: 't9', projectCode: '' } }), true);
+    assert.equal(M.hasOwnDetails({ name: 'Only a name', own: { department: '', teamId: '', projectCode: '' } }), false);
+});
+
+test('U25-T01: the name, department and project code checks say what the server says', () => {
+    assert.equal(M.detailsProblem({ name: 'Pia', department: 'Eng', projectCode: 'DLK-204.a_b' }), '');
+    assert.equal(M.detailsProblem({ projectCode: 'DLK 204' }), 'Project code can only use letters, digits, dot, dash and underscore.');
+    assert.equal(M.detailsProblem({ projectCode: 'x'.repeat(51) }), 'Project code can be at most 50 characters.');
+    assert.equal(M.detailsProblem({ department: 'x'.repeat(101) }), 'Department can be at most 100 characters.');
+    assert.equal(M.detailsProblem({ name: 'x'.repeat(256) }), 'Name can be at most 255 characters.');
 });
 
 test('U25-T01: with a password each person gets a generated one (none is sent); an administrator gets no access rows', () => {
