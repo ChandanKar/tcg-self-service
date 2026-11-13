@@ -56,6 +56,23 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
            "GROUP BY c.environment.environmentId")
     List<EnvironmentCostTotal> sumByEnvironmentBetween(@Param("start") Date start, @Param("end") Date end);
 
+    /**
+     * The fleet's spend per day in [from, to] (U23-T01): each environment-day counts its AWS billing
+     * figure where it has one, else the estimate; with how many rows the day has and how many are billed.
+     */
+    @Query("SELECT c.snapshotDate AS snapshotDate, SUM(COALESCE(c.actualCost, c.estimatedCost)) AS spend, " +
+           "COUNT(c) AS rowCount, COUNT(c.actualCost) AS billedCount " +
+           "FROM CostDailySnapshot c WHERE c.snapshotDate BETWEEN :from AND :to " +
+           "GROUP BY c.snapshotDate ORDER BY c.snapshotDate ASC")
+    List<DailySpend> findDailySpendBetween(@Param("from") Date from, @Param("to") Date to);
+
+    interface DailySpend {
+        Date getSnapshotDate();
+        BigDecimal getSpend();
+        Long getRowCount();
+        Long getBilledCount();
+    }
+
     interface DailyCostTotal {
         Date getSnapshotDate();
         BigDecimal getTotalEstimatedCost();

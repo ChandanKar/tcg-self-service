@@ -236,10 +236,9 @@ public class DashboardSummaryService {
         }
         Map<String, com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> cost = environmentCostService == null
                 ? Map.of() : environmentCostService.getCostRowsFor(user, environments);
-        BigDecimal monthToDate = cost.values().stream()
-                .map(com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO::monthToDateEstimated)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // The fleet's month to date (U23-T01), the figure Cost management and My account show.
+        BigDecimal monthToDate = environmentCostService == null ? BigDecimal.ZERO
+                : environmentCostService.fleetMonth().monthToDate();
         return new HomeExtras(cost, Map.of(), Map.of(), environmentService.getGroupStateCounts(ids, Map.of()),
                 money(monthToDate), List.of());
     }

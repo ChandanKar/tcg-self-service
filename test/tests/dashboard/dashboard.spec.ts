@@ -60,6 +60,10 @@ test.describe('Administrator Home', () => {
     await page.route(/\/api\/v1\/dashboard\/summary$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(summary) }));
     await page.route(/\/api\/v1\/dashboard\/attention$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(attention) }));
     await page.route(/\/api\/v1\/cost-management\/spend-trend/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(days) }));
+    // U23-T01: the fleet's month, the figures Cost management and My account show.
+    await page.route(/\/api\/v1\/cost-management\/month$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ monthToDate: summary.summary.monthToDateCost, forecast: 9950, dailyAverage: 300, averagedDays: 7,
+        daysLeft: 12, billedDays: 0, estimatedDays: Math.max(0, today.getDate() - 1), firstDay: 1 }) }));
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(() => { location.hash = '#/dashboard'; });
@@ -92,7 +96,7 @@ test.describe('Administrator Home', () => {
     await expect(page.locator('.ah-all-clear')).toHaveText('Nothing needs you right now.');
     await expect(page.locator('.ah-tile')).toHaveCount(0);
     await expect(page.locator('.ah-health')).toContainText('Platform healthy. 35 of 35 scheduled jobs on time · state synced 4 min ago · 0 VMs changed outside the platform in 24 h'); // U22-T12
-    await expect(page.locator('#ah-summary')).toContainText('28 of 44 VMs running across 8 environments · $6,284 this month, heading for $');
+    await expect(page.locator('#ah-summary')).toContainText('28 of 44 VMs running across 8 environments · $6,284 this month, heading for $9,950');
   });
 
   test('fleet right now: the 7 busiest environments with strips, linking to each', async ({ page }) => {
@@ -132,7 +136,7 @@ test.describe('Administrator Home', () => {
     const legend = page.locator('.ah-legend');
     // Acceptance: no budgets: Spent and Forecast only.
     await expect(legend).toContainText('Spent $6,284');
-    await expect(legend).toContainText('Forecast $');
+    await expect(legend).toContainText('Forecast $9,950');
     await expect(legend).not.toContainText('Budgets');
     // U20-T10: where the figure comes from and how the forecast is made.
     await expect(page.locator('#ah-spend-source')).toContainText('Estimated from instance prices.');

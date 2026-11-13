@@ -95,8 +95,13 @@ const MyAccount = (function() {
         return profile && profile.authMethod === 'ENTRA_ID' ? 'Microsoft (Entra ID)' : 'Username and password';
     }
 
-    /** Month to date over the environments whose cost is shown (group-only grants have none). */
-    function costTotal(environments) {
+    /**
+     * Month to date over the environments whose cost is shown (group-only grants have none); the
+     * server's total when it sends one (U23-T01): it covers every environment, not only the 50 listed,
+     * and for administrators it is the fleet's figure Home and Cost management show.
+     */
+    function costTotal(environments, serverTotal) {
+        if (serverTotal !== null && serverTotal !== undefined && Number.isFinite(Number(serverTotal))) return Number(serverTotal);
         return (environments || []).filter(e => e.scope !== 'GROUPS')
             .reduce((sum, e) => sum + Number(e.monthToDateEstimated || 0), 0);
     }
@@ -340,7 +345,7 @@ const MyAccount = (function() {
             : '';
         return `<div class="ma-cost">
                 <div class="ma-cost-label">Month to date across the environments you can use</div>
-                <div class="ma-cost-total" id="ma-cost-total">${Utils.escapeHtml(money(costTotal(list)))}</div>
+                <div class="ma-cost-total" id="ma-cost-total">${Utils.escapeHtml(money(costTotal(list, state.cost.monthToDateTotal)))}</div>
                 <div class="ma-cost-list">${list.map(costRowHtml).join('')}</div>
                 ${capped}
                 <p class="ma-hint">Estimated from daily snapshots.</p>

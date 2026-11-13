@@ -21,6 +21,10 @@ async function open(page: Page, accounts: any[]) {
   const trend = Array.from({ length: today.getDate() }, (_, i) => ({ date: `${ym}-${String(i + 1).padStart(2, '0')}`,
     estimatedCost: 100, actualCost: i === 0 ? 90 : null }));
   await page.route(/\/cost-management\/summary$/, r => r.fulfill({ json: SUMMARY }));
+  // U23-T01: the server's month to date and forecast, the figures Home and My account show.
+  const days = today.getDate();
+  await page.route(/\/cost-management\/month$/, r => r.fulfill({ json: { monthToDate: 90 + (days - 1) * 100, forecast: 9950,
+    billedDays: 1, estimatedDays: days - 1, averagedDays: 7, dailyAverage: 100, daysLeft: 0 } }));
   await page.route(/\/cost-management\/spend-trend\?/, r => r.fulfill({ json: trend }));
   await page.route(/\/cost-management\/spend-by-account$/, r => r.fulfill({ json: accounts }));
   await page.route(/\/cost-management\/spend-by-environment$/, r => r.fulfill({ json: [
@@ -53,6 +57,7 @@ test.describe('Cost overview', () => {
     const mtd = 90 + (days - 1) * 100;
     await expect(page.locator('[data-kpi="mtd"] .cost-kpi-value')).toHaveText('$' + mtd.toLocaleString('en-US'));
     await expect(page.locator('[data-kpi="mtd"]')).toContainText(`${Math.round(100 / days)}% from AWS billing`);
+    await expect(page.locator('[data-kpi="forecast"] .cost-kpi-value')).toHaveText('$9,950'); // the server's, as on Home
     await expect(page.locator('[data-kpi="idle"]')).toContainText('a month if they stay idle, 6 VMs barely used');
     await expect(page.locator('[data-kpi="rightsizing"]')).toContainText('$1,340');
     await expect(page.locator('[data-kpi="priced"]')).toContainText('110 of 112');

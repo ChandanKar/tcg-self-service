@@ -33,6 +33,11 @@ public record MyEnvironmentCostDTO(
         Instant leaseEndsAt,
         String hint
 ) {
-    /** The list; admins see at most {@code limit} environments, highest month to date first. */
-    public record Response(List<MyEnvironmentCostDTO> environments, boolean capped, int totalEnvironments, int limit) {}
+    /**
+     * The list; admins see at most {@code limit} environments, highest month to date first.
+     * monthToDateTotal covers every environment, not only the listed ones (U23-T01): for global
+     * admins and environment admins the fleet's month to date, as on Home and Cost management.
+     */
+    public record Response(List<MyEnvironmentCostDTO> environments, boolean capped, int totalEnvironments, int limit,
+                           BigDecimal monthToDateTotal) {}
 }

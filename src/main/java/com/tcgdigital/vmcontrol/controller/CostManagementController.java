@@ -118,6 +118,19 @@ public class CostManagementController {
         return ResponseEntity.ok(costEstimationService.getSummary());
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService;
+
+    /**
+     * The fleet's month to date and month-end forecast (U23-T01): snapshots from the 1st to yesterday
+     * plus today's live estimate, the figure Home and My account show too.
+     */
+    @GetMapping("/month")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.FleetMonthDTO> getMonth() {
+        return ResponseEntity.ok(environmentCostService.fleetMonth());
+    }
+
     @GetMapping("/spend-by-environment")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SpendByDimensionDTO>> getSpendByEnvironment() {

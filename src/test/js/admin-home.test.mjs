@@ -78,6 +78,22 @@ test('U20-T10: AWS billing where it has arrived, the estimate for the rest, and 
     assert.equal(M.sourceText(M.spend([], null, null, NOW), NOW), '');
 });
 
+test('U23-T01: with the server month, spent and the forecast are the figures Cost management shows', () => {
+    const points = Array.from({ length: 18 }, (_, i) => ({ date: `2026-10-${String(i + 1).padStart(2, '0')}`, estimatedCost: 100 }));
+    const month = { monthToDate: 2612.4, forecast: 6490.2, dailyAverage: 215.21, averagedDays: 7, daysLeft: 12,
+        billedDays: 0, estimatedDays: 18, firstDay: 1 };
+    const m = M.spend(points, 9999, null, NOW, month);
+    assert.equal(m.spent, 2612.4);
+    assert.equal(m.forecast, 6490.2);
+    assert.equal(m.cumulative.length, 18); // the line still follows the days
+    assert.equal(M.sourceText(m, NOW), 'Estimated from instance prices');
+    assert.equal(M.forecastText(m), 'Spent so far plus the average of the last 7 days ($215 a day) for the 12 days left.');
+    // No forecast from the server (no complete day yet): spent plus the average so far.
+    const early = M.spend([], null, null, NOW, { ...month, forecast: null, averagedDays: 0, dailyAverage: null, monthToDate: 190 });
+    assert.equal(early.hasData, true);
+    assert.equal(Math.round(early.forecast), Math.round(190 + (190 / 19) * 12));
+});
+
 test('health: healthy, a late job named (red when a day late or never ran), or a stale state sync', () => {
     assert.deepEqual(plain(M.health(NONE, NOW)), { tone: 'ok', lead: 'Platform healthy.',
         text: '35 of 35 scheduled jobs on time · state synced 4 min ago · 0 VMs changed outside the platform in 24 h' }); // U22-T12

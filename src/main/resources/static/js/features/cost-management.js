@@ -71,6 +71,7 @@ const CostManagement = (function() {
         teamTrend: [],
         trend: [],
         forecast: null,
+        month: null,
         // E35-T02: '14 days' (the trend with both forecasts) or '18 months' (AWS's monthly forecast)
         forecastRange: '90',
         /** Spend broken down by environment, team, account or type (U15-T02). */
@@ -190,6 +191,9 @@ const CostManagement = (function() {
      */
     const REQUESTS = {
         summary: { url: () => Config.API.costManagement.summary, apply: d => { state.summary = d; } },
+        // U23-T01: the fleet's month to date and forecast, as Home and My account show them; without it
+        // the figures are worked out from the trend as before (soft: a failure never blanks the strip).
+        month: { url: () => Config.API.costManagement.month, soft: true, apply: d => { state.month = d || null; } },
         spendByEnvironment: { url: () => Config.API.costManagement.spendByEnvironment, apply: d => { state.spendByEnvironment = d || []; } },
         spendByVmType: { url: () => Config.API.costManagement.spendByVmType, apply: d => { state.spendByVmType = d || []; } },
         spendByAccount: { url: () => Config.API.costManagement.spendByAccount, apply: d => { state.spendByAccount = d || []; } },
@@ -235,6 +239,11 @@ const CostManagement = (function() {
                 REQUESTS[key].optional ? OPTIONAL_REQUEST : PANEL_REQUEST))).then(results => {
             results.forEach((result, i) => {
                 const key = keys[i];
+                if (result.status === 'rejected' && REQUESTS[key].soft) {
+                    delete state.errors[key];
+                    REQUESTS[key].apply(null);
+                    return;
+                }
                 if (result.status === 'rejected' && REQUESTS[key].optional && result.reason && result.reason.status === 404) {
                     delete state.errors[key];
                     REQUESTS[key].apply(null);
@@ -497,7 +506,7 @@ const CostManagement = (function() {
     // ---- panels: each renders on its own, or an error with Retry (E08-T09) ----
 
     const PANELS = {
-        kpi: { keys: ['summary'], label: 'the cost summary', build: () => buildKpiStrip(state.summary) },
+        kpi: { keys: ['summary', 'month'], label: 'the cost summary', build: () => buildKpiStrip(state.summary) },
         breakdown: {
             keys: ['spendByEnvironment', 'spendByVmType', 'spendByAccount', 'teamTrend'], label: 'spend by environment',
             build: () => buildBreakdown()
@@ -796,7 +805,8 @@ const CostManagement = (function() {
      * This month so far from the daily trend: each day's AWS billing figure where it exists, else the
      * estimate; and the share of the days that have a billing figure.
      */
-    function monthToDate(trend, now = new Date()) {
+    function monthToDate(trend, now = new Date(), month = null) {
+        if (month && month.monthToDate !== null && month.monthToDate !== undefined) return fromMonth(month);
         const prefix = monthPrefix(now);
         const days = (trend || []).filter(r => (dayOf(r.date) || '').startsWith(prefix));
         let value = 0;
@@ -810,16 +820,29 @@ const CostManagement = (function() {
     }
 
     /**
-     * The month-end forecast: month to date plus the average of the last 7 days for each day left;
-     * AWS's, when its daily forecast covers every day left in the month.
+     * The server's month so far (U23-T01): the 1st to yesterday from the snapshots plus today's live
+     * estimate, the figure Home and My account show; days counts the complete days (at least 1 once
+     * anything is spent) and billedShare their share with AWS billing.
      */
-    function monthEnd(trend, forecast, now = new Date()) {
-        const mtd = monthToDate(trend, now);
+    function fromMonth(month) {
+        const complete = (Number(month.billedDays) || 0) + (Number(month.estimatedDays) || 0);
+        const value = Number(month.monthToDate) || 0;
+        return { days: complete || (value > 0 ? 1 : 0), value,
+            billedShare: complete ? Math.round(((Number(month.billedDays) || 0) / complete) * 100) : 0 };
+    }
+
+    /**
+     * The month-end forecast: month to date plus the average of the last 7 days for each day left
+     * (the server's, U23-T01, when given); AWS's, when its daily forecast covers every day left in the month.
+     */
+    function monthEnd(trend, forecast, now = new Date(), month = null) {
+        const mtd = monthToDate(trend, now, month);
         const recent = (trend || []).filter(r => dayOf(r.date)).slice(-7);
         const daily = recent.length ? recent.reduce((sum, r) => sum + (Number(r.actualCost ?? r.estimatedCost) || 0), 0) / recent.length : 0;
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const left = Math.max(0, daysInMonth - now.getDate());
-        const platform = mtd.days || recent.length ? mtd.value + daily * left : null;
+        const fleet = month && month.forecast !== null && month.forecast !== undefined ? Number(month.forecast) : null;
+        const platform = fleet !== null ? fleet : (mtd.days || recent.length ? mtd.value + daily * left : null);
         const prefix = monthPrefix(now);
         const today = `${prefix}-${String(now.getDate()).padStart(2, '0')}`;
         const awsDays = ((forecast && forecast.awsDaily) || []).filter(p => (dayOf(p.periodStart) || '').startsWith(prefix) && dayOf(p.periodStart) > today);
@@ -886,8 +909,8 @@ const CostManagement = (function() {
 
     function buildKpiStrip(summary) {
         if (!summary) return '';
-        const mtd = monthToDate(state.trend);
-        const end = monthEnd(state.trend, state.forecast);
+        const mtd = monthToDate(state.trend, new Date(), state.month);
+        const end = monthEnd(state.trend, state.forecast, new Date(), state.month);
         const fee = Number(summary.eksControlPlaneCost || 0);
         const last30 = `Last 30 days ${Utils.formatCurrency(summary.totalMonthlyCost || 0)}${fee > 0 ? `, incl. ${Utils.formatCurrency(fee)} EKS control plane` : ''}.`;
         const unpriced = Math.max(0, (summary.totalVmCount || 0) - (summary.costKnownVmCount || 0));
@@ -2170,7 +2193,7 @@ const CostManagement = (function() {
         navHtml,
         watchReport,
         idleRowsHtml: rows => buildIdleRows(rows || []),
-        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars, savingHtml,
+        model: { monthToDate, monthEnd, fromMonth, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars, savingHtml,
             unregisteredCount, unregisteredHtml }
     };
 })();
