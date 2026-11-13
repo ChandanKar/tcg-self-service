@@ -38,7 +38,10 @@ test('the efficiency line runs left to right, without the AWS median (U23-T06)',
 });
 
 test('Still on the table names its parts: idle VMs, rightsizing and, while checked, waste (U23-T06)', () => {
-    assert.equal(M.potentialParts({ idle: 612.4, rightsizing: 390.85, waste: 48 }), 'Idle VMs $612 · Rightsizing $391 · Waste $48');
-    assert.equal(M.potentialParts({ idle: 612.4, rightsizing: 0, waste: null }), 'Idle VMs $612 · Rightsizing $0');
+    // U24-T04: and how it counts, since Rightsizing here leaves out VMs already counted as idle.
+    assert.equal(M.potentialParts({ idle: 612.4, rightsizing: 390.85, waste: 48 }),
+        'Idle VMs $612 · Rightsizing $391 · Waste $48. Each VM counted once, by its larger saving.');
+    assert.equal(M.potentialParts({ idle: 612.4, rightsizing: 0, waste: null }),
+        'Idle VMs $612 · Rightsizing $0. Each VM counted once, by its larger saving.');
     assert.equal(M.potentialParts(null), '');
 });
