@@ -12,6 +12,9 @@ const AuditText = (function() {
     const VERB = { START: ['start', 'Started'], STOP: ['stop', 'Stopped'], RESTART: ['restart', 'Restarted'] };
     const LEVEL = { USER: 'operator', VIEWER: 'view-only', ENV_ADMIN: 'admin', ADMIN: 'admin' };
     const RUN_ACTIONS = ['AUTOMATION_RULE_TRIGGERED', 'AUTOMATION_RULE_SKIPPED', 'AUTOMATION_RULE_FAILED'];
+    // Rows of an operation, which say what ran it when no person did (U24-T02).
+    const OPERATION_ROWS = ['OPERATION_STARTED', 'OPERATION_COMPLETED', 'OPERATION_FAILED',
+        'VM_START_COMPLETED', 'VM_STOP_COMPLETED', 'VM_START_FAILED', 'VM_STOP_FAILED'];
     // Words kept in capitals when an action name becomes a noun ("VM group", "AWS account").
     const ACRONYMS = { VM: 'VM', VMS: 'VMs', AWS: 'AWS', API: 'API', EKS: 'EKS', RDS: 'RDS', CSV: 'CSV' };
     const CHANGE_VERBS = { CREATED: 'Added', ADDED: 'Added', REGISTERED: 'Added', UPDATED: 'Changed', CHANGED: 'Changed',
@@ -252,16 +255,32 @@ const AuditText = (function() {
         return { text, note: a === 'OPERATION_COMPLETED' ? note : '', result: 'Done', tone: 'ok' };
     }
 
+    /**
+     * What ran an operation no person started, as its rows record it (U24-T02): 'Schedule "ise start-stop"',
+     * 'The lease', 'Idle auto-stop'...; null for a person's own and for rows written before.
+     */
+    function runBy(log) {
+        if (!OPERATION_ROWS.includes(log.action)) return null;
+        const m = /(?:^|\. )Run by: (.+?)(?=\. Error: |$)/.exec(String(log.details || ''));
+        return m && m[1].trim() ? m[1].trim() : null;
+    }
+
+    /** 'Run by schedule "Nightly"' for My activity, whose rows have no Who column; '' for a person's own. */
+    function runByNote(log) {
+        const by = runBy(log);
+        return by ? `Run by ${by.charAt(0).toLowerCase()}${by.slice(1)}` : '';
+    }
+
     /** Who did it: the person, a rule's run as 'Schedule "Nightly batch"' / 'Rule "On lock"', or the platform. */
     function who(log) {
         if (RUN_ACTIONS.includes(log.action)) {
             const rule = /lock acquired|access approved/.test(log.details || '') ? 'Rule' : 'Schedule';
             return `${rule} "${log.targetName || ''}"`;
         }
-        return log.userDisplayName || log.userEmail || 'The platform';
+        return runBy(log) || log.userDisplayName || log.userEmail || 'The platform';
     }
 
-    return { what, who, hoursText, plural, personName, skipReason };
+    return { what, who, runBy, runByNote, hoursText, plural, personName, skipReason };
 })();
 
 if (typeof window !== 'undefined') window.AuditText = AuditText;

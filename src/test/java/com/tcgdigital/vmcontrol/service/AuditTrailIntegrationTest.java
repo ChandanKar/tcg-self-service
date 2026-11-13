@@ -162,4 +162,62 @@ class AuditTrailIntegrationTest extends AbstractIntegrationTest {
         awaitAsync(() -> assertThat(jdbcTemplate.queryForList("SELECT action_status FROM audit_log WHERE action_type = "
                 + "'VM_STOP_FAILED' AND target_id = ?", String.class, vm.getVmId())).containsExactly("failed"));
     }
+
+    /** Details and user id of the VM's newest row of this action. */
+    private java.util.Map<String, Object> vmRow(String action, String targetId) {
+        return jdbcTemplate.queryForList("SELECT details, user_id FROM audit_log WHERE action_type = ? AND target_id = ? "
+                + "ORDER BY created_at DESC", action, targetId).stream().findFirst().orElse(null);
+    }
+
+    private String runStop(User user, Vm vm, String triggerName, com.tcgdigital.vmcontrol.model.OperationTriggerSource source)
+            throws Exception {
+        grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
+        lockService.acquireLock(env.getEnvironmentId(), user.getUserId(), "testing", null);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
+                CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
+        StartOperationDTO dto = new StartOperationDTO();
+        dto.setOperationType(OperationType.STOP);
+        dto.setSkipAlreadyInTargetState(false);
+        dto.setTriggerName(triggerName);
+        String executionId = operationsService.startOperation(env.getEnvironmentId(), user.getUserId(), dto, source)
+                .getExecutionId();
+        awaitFinal(executionId);
+        return executionId;
+    }
+
+    @Test
+    void aSchedulesStopRecordsTheScheduleOnEachVmRowUnderThePersonItRunsAs() throws Exception {
+        // U24-T02 (staging): System health's VM operations read "Chandan Kar Stopped mcube-dev-poc-work1..." for
+        // ISE's scheduled stop, while History said Schedule "ise start-stop".
+        Vm vm = newVm(newGroup(env, "app"), "d", VmStatus.RUNNING);
+        User runsAs = newUser("audit-sched-" + UUID.randomUUID() + "@example.com", false, false);
+
+        String executionId = runStop(runsAs, vm, "ise start-stop", com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE);
+
+        awaitAsync(() -> {
+            java.util.Map<String, Object> row = vmRow("VM_STOP_COMPLETED", vm.getVmId());
+            assertThat(row).isNotNull();
+            assertThat((String) row.get("details")).endsWith(". Run by: Schedule \"ise start-stop\"");
+            assertThat(row.get("user_id")).isEqualTo(runsAs.getUserId());
+            assertThat((String) vmRow("OPERATION_COMPLETED", executionId).get("details"))
+                    .contains("Total VMs: 1, Failed: 0").endsWith(". Run by: Schedule \"ise start-stop\"");
+        });
+    }
+
+    @Test
+    void aPersonsOwnStopRecordsNoTrigger() throws Exception {
+        Vm vm = newVm(newGroup(env, "app"), "e", VmStatus.RUNNING);
+        User user = newUser("audit-own-" + UUID.randomUUID() + "@example.com", false, false);
+
+        String executionId = runStop(user, vm, null, com.tcgdigital.vmcontrol.model.OperationTriggerSource.MANUAL);
+
+        awaitAsync(() -> {
+            java.util.Map<String, Object> row = vmRow("VM_STOP_COMPLETED", vm.getVmId());
+            assertThat(row).isNotNull();
+            assertThat((String) row.get("details")).startsWith("VM stopped by user: ").doesNotContain("Run by:");
+            assertThat(row.get("user_id")).isEqualTo(user.getUserId());
+            assertThat((String) vmRow("OPERATION_COMPLETED", executionId).get("details")).doesNotContain("Run by:");
+        });
+    }
 }

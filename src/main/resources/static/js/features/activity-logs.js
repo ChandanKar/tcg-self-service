@@ -194,7 +194,10 @@ const ActivityLogs = (function() {
 
     function rowMarkup(log) {
         const r = describe(log);
-        const note = r.note ? Utils.html`<div class="activity-note">${r.note}</div>` : '';
+        // U24-T02: a schedule's run is listed under the person it runs as; say what ran it.
+        const by = AuditText.runByNote(log);
+        const note = (r.note ? Utils.html`<div class="activity-note">${r.note}</div>` : '')
+            + (by ? Utils.html`<div class="activity-note">${by}</div>` : '');
         return Utils.html`<tr class="activity-row">
                 <td class="activity-time"><time datetime="${log.createdAt || ''}" title="${log.createdAt ? new Date(log.createdAt).toLocaleString() : ''}">${log.createdAt ? timeText(log.createdAt) : ''}</time></td>
                 <td class="activity-what">${r.text}` + note + Utils.html`</td>

@@ -126,3 +126,16 @@ test('U23-T13: lock and operation report rows in words, with a result', () => {
     assert.equal(row.result, 'Done');
     assert.equal(plain(M.complianceRow({ action: 'VM_STOP_FAILED', success: false })).result, 'Failed');
 });
+
+test('U24-T02: a schedule\'s VM operation is listed under the schedule', () => {
+    const ctx = vm.createContext({});
+    ctx.window = ctx;
+    vm.runInContext(readFileSync(STATIC + 'js/core/audit-text.js', 'utf8'), ctx);
+    vm.runInContext(readFileSync(STATIC + 'js/features/system-health.js', 'utf8') + '\nthis.S = SystemHealth;', ctx);
+    const row = plain(ctx.S.model.complianceRow({ action: 'VM_STOP_COMPLETED', targetName: 'mcube-dev-poc-work1',
+        userDisplayName: 'Chandan Kar', success: true, details: 'VM stopped by user: Chandan Kar. Run by: Schedule "ise start-stop"' }));
+    assert.equal(row.who, 'Schedule "ise start-stop"');
+    assert.equal(row.what, 'Stopped mcube-dev-poc-work1');
+    assert.equal(plain(ctx.S.model.complianceRow({ action: 'VM_STOP_COMPLETED', targetName: 'web-01', userDisplayName: 'Asha Rao',
+        details: 'VM stopped by user: Asha Rao' })).who, 'Asha Rao');
+});
