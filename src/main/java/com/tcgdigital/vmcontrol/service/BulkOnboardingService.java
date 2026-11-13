@@ -14,6 +14,7 @@ import com.tcgdigital.vmcontrol.repository.TeamRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.service.settings.SettingsService;
 import com.tcgdigital.vmcontrol.service.support.AfterCommit;
+import com.tcgdigital.vmcontrol.service.support.PasswordGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -92,6 +93,9 @@ public class BulkOnboardingService {
         String projectCode;
         String teamId;
         String initialPassword;
+        /** U25-T02: the server makes this person's password (applied runs only); returned once. */
+        boolean generatePassword;
+        String generatedPassword;
         Outcome outcome;
         String reason;
         User user;
@@ -135,6 +139,10 @@ public class BulkOnboardingService {
                         actorUserId, p.department, p.projectCode);
                 if (p.initialPassword != null) {
                     authentication.setInitialPassword(p.user, p.initialPassword, actorUserId);
+                } else if (p.generatePassword) {
+                    // U25-T02: one password per person, set as a typed one would be and returned once.
+                    p.generatedPassword = PasswordGenerator.generate();
+                    authentication.setInitialPassword(p.user, p.generatedPassword, actorUserId);
                 }
             }
             if (p.teamId != null) {
@@ -227,6 +235,12 @@ public class BulkOnboardingService {
             Resolved r = new Resolved();
             r.teamId = blankToNull(person.teamId());
             r.initialPassword = person.initialPassword() == null || person.initialPassword().isEmpty() ? null : person.initialPassword();
+            r.generatePassword = Boolean.TRUE.equals(person.generatePassword());
+            if (r.generatePassword && r.initialPassword != null) {
+                String who = firstNonBlank(person.email(), firstNonBlank(person.displayName(), person.directoryObjectId()));
+                throw new ValidationException((who == null ? "" : who + ": ")
+                        + "give an initial password or ask for a generated one, not both");
+            }
             String directoryId = blankToNull(person.directoryObjectId());
             String directoryDepartment = null;
             if (directoryId != null && graphDirectoryService.isEnabled()) {
@@ -288,7 +302,7 @@ public class BulkOnboardingService {
                 r.outcome = Outcome.EXISTING;
                 r.reason = "Already a user: access and team only";
             } else {
-                if (r.initialPassword != null && userRepository.existsByUsername(r.email)) {
+                if ((r.initialPassword != null || r.generatePassword) && userRepository.existsByUsername(r.email)) {
                     throw new ValidationException(r.email + " is already someone's username");
                 }
                 r.outcome = Outcome.NEW;
@@ -340,7 +354,8 @@ public class BulkOnboardingService {
                     : rows.stream().filter(r -> p.email.equalsIgnoreCase(r.userEmail())).toList();
             return new BulkOnboardResultDTO.PersonResult(p.email, p.displayName, p.outcome, p.reason,
                     p.user == null ? null : p.user.getUserId(), p.teamId,
-                    count(mine, BulkGrantPlanDTO.Outcome.NEW), changed(mine), count(mine, BulkGrantPlanDTO.Outcome.SKIP));
+                    count(mine, BulkGrantPlanDTO.Outcome.NEW), changed(mine), count(mine, BulkGrantPlanDTO.Outcome.SKIP),
+                    applied ? p.generatedPassword : null);
         }).toList();
         return new BulkOnboardResultDTO(applied, count(people, Outcome.NEW), count(people, Outcome.EXISTING),
                 count(people, Outcome.SKIPPED), count(rows, BulkGrantPlanDTO.Outcome.NEW), changed(rows),
