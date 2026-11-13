@@ -297,7 +297,26 @@ public class EnvironmentController {
                 dto.setMonthToDateCost(row.monthToDateEstimated());
                 dto.setScheduleRuleCount(row.scheduleRuleCount());
                 dto.setNextScheduledStop(row.nextStop());
+                dto.setPartialScheduledStop(row.partialStop());
             }
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.AutomationRuleService automationRuleService;
+
+    /**
+     * The schedule fields of one environment's details, as its list row has them (U23-T04: the details
+     * said 0 rules and no stop while the list had both).
+     */
+    private void withSchedule(EnvironmentDTO dto) {
+        com.tcgdigital.vmcontrol.service.AutomationRuleService.NextFirings next = automationRuleService
+                .nextScheduledFiringsByEnvironment(List.of(dto.getEnvironmentId()), java.time.Instant.now())
+                .get(dto.getEnvironmentId());
+        if (next != null) {
+            dto.setScheduleRuleCount(next.ruleCount());
+            dto.setNextScheduledStop(next.nextStop());
+            dto.setPartialScheduledStop(next.partialStop());
         }
     }
 
@@ -398,7 +417,10 @@ public class EnvironmentController {
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "List environments available for access request",
-            description = "Retrieves active environments the current user does NOT have access to. Used for Request Access feature."
+            description = "Retrieves active environments the current user does NOT have access to. Used for Request Access feature. "
+                    + "With page (U23-T12): one page of them (size clamped to 100), filtered by search (name, shown name, "
+                    + "description or exact id), ordered by the name shown; includeViewOnly adds the environments the user "
+                    + "can only view; around=<id> returns that environment's page instead. Without page: the whole list, as before."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -410,9 +432,28 @@ public class EnvironmentController {
                     )
             )
     })
-    public ResponseEntity<List<EnvironmentDTO>> listAvailableEnvironments() {
+    public ResponseEntity<?> listAvailableEnvironments(
+            @Parameter(description = "Page number (0-based); without it the whole list is returned (U23-T12)")
+            @RequestParam(required = false) Integer page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Also the environments the user can only view, to ask for Operator")
+            @RequestParam(defaultValue = "false") boolean includeViewOnly,
+            @Parameter(description = "An environment id: its page is returned (page.number says which)")
+            @RequestParam(required = false) String around) {
         // U22-T08: someone whose role covers every environment has nothing to ask for (staging offered an
         // administrator all 162 environments they already administer).
+        if (page != null) {
+            Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
+                    com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
+            if (securityService.seesAllEnvironments()) {
+                return ResponseEntity.ok(new org.springframework.data.domain.PageImpl<EnvironmentDTO>(List.of(), pageable, 0));
+            }
+            Page<Environment> environments = environmentService.getAvailablePageForCurrentUser(search, includeViewOnly, around, pageable);
+            List<EnvironmentDTO> rows = toDtosWithBatchedCounts(environments.getContent());
+            return ResponseEntity.ok(new org.springframework.data.domain.PageImpl<>(rows, environments.getPageable(),
+                    environments.getTotalElements()));
+        }
         if (securityService.seesAllEnvironments()) {
             return ResponseEntity.ok(List.of());
         }
@@ -533,6 +574,7 @@ public class EnvironmentController {
         }
         withViewerFlags(dto);
         withViewerGrant(dto);
+        withSchedule(dto);
 
         return ResponseEntity.ok(dto);
     }

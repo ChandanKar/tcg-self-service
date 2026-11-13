@@ -117,7 +117,8 @@ public class EnvironmentCostService {
 
         AutomationRuleService.NextFirings firings = automationRuleService.nextScheduledFirings(environmentId, now);
         EnvironmentCostDTO.ScheduleStatus schedule = new EnvironmentCostDTO.ScheduleStatus(
-                firings.ruleCount(), firings.nextStop(), firings.nextStart());
+                firings.ruleCount(), firings.nextStop(), firings.nextStart(),
+                firings.partialStop(), firings.partialStart(), firings.vmStops() == null ? Map.of() : firings.vmStops());
 
         if (!full) {
             BigDecimal mtd = monthByVm.values().stream().map(CostDataProvider.VmCostEstimate::cost)
@@ -331,7 +332,8 @@ public class EnvironmentCostService {
                     level == com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN, mtd, change, sparkline,
                     c == null ? 0 : (int) c.getRunning(), c == null ? 0 : (int) c.getTotal(),
                     next == null ? 0 : next.ruleCount(), next == null ? null : next.nextStop(),
-                    next == null ? null : next.nextStart(), null, groupsOnly ? GROUPS_HINT : null));
+                    next == null ? null : next.nextStart(), null, groupsOnly ? GROUPS_HINT : null,
+                    next == null ? null : next.partialStop(), next == null ? null : next.partialStart()));
         }
         return rows;
     }

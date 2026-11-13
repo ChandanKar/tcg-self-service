@@ -31,7 +31,10 @@ public record MyEnvironmentCostDTO(
         Instant nextStop,
         Instant nextStart,
         Instant leaseEndsAt,
-        String hint
+        String hint,
+        /** U23-T04: the next stop / start of part of the environment when sooner than nextStop / nextStart. */
+        ScopedFiringDTO partialStop,
+        ScopedFiringDTO partialStart
 ) {
     /**
      * The list; admins see at most {@code limit} environments, highest month to date first.

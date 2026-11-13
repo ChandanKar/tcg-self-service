@@ -285,6 +285,113 @@ class AutomationRuleServiceTest extends AbstractIntegrationTest {
         assertThat(automationRuleService.listRules(null)).extracting(AutomationRuleDTO::getRuleId).contains(rule.getRuleId());
     }
 
+    // ------------------------------------------------------------------ next stop by scope (U23-T04)
+
+    private AutomationRule timedRule(AutomationScopeType scope, String scopeId, String start, String stop) {
+        AutomationRule r = scheduleRule(scope, scopeId);
+        r.getWindows().get(0).setStartTime(start);
+        r.getWindows().get(0).setStopTime(stop);
+        return rules.saveAndFlush(r);
+    }
+
+    private static java.time.Instant wednesdayAt(int hour) {
+        return LocalDateTime.of(WEDNESDAY, LocalTime.of(hour, 0)).atZone(KOLKATA).toInstant();
+    }
+
+    @Test
+    void anEnvironmentRuleStopsTheWholeEnvironment() {
+        Vm other = newVm(newGroup(env, "db"), "db-1", VmStatus.RUNNING);
+        timedRule(AutomationScopeType.ENVIRONMENT, null, "08:00", "20:00");
+
+        AutomationRuleService.NextFirings next = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+
+        assertThat(next.ruleCount()).isEqualTo(1);
+        assertThat(next.nextStop()).isEqualTo(wednesdayAt(20));
+        assertThat(next.nextStart()).isEqualTo(wednesdayAt(8).plus(java.time.Duration.ofDays(1)));
+        assertThat(next.partialStop()).isNull();
+        assertThat(next.partialStart()).isNull();
+        assertThat(next.vmStops()).containsEntry(vm.getVmId(), wednesdayAt(20)).containsEntry(other.getVmId(), wednesdayAt(20));
+        AutomationRuleService.NextFirings listed = automationRuleService
+                .nextScheduledFiringsByEnvironment(List.of(env.getEnvironmentId()), wednesdayAt(10)).get(env.getEnvironmentId());
+        assertThat(listed.nextStop()).isEqualTo(wednesdayAt(20));
+        assertThat(listed.partialStop()).isNull();
+    }
+
+    @Test
+    void aGroupRuleStopsOnlyItsGroupAndSaysWhich() {
+        // Staging's ise: Group-1 runs, the only rule stops Group-2; nothing stops the environment.
+        VmGroup second = newGroup(env, "Group-2");
+        Vm secondVm = newVm(second, "g2-1", VmStatus.STOPPED);
+        newVm(newGroup(env, "Group-3"), "g3-1", VmStatus.STOPPED);
+        timedRule(AutomationScopeType.GROUP, second.getGroupId(), "11:00", "17:00");
+
+        AutomationRuleService.NextFirings next = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+
+        assertThat(next.ruleCount()).isEqualTo(1);
+        assertThat(next.nextStop()).isNull();
+        assertThat(next.nextStart()).isNull();
+        assertThat(next.partialStop().at()).isEqualTo(wednesdayAt(17));
+        assertThat(next.partialStop().scope()).isEqualTo("Group-2");
+        assertThat(next.partialStop().groupIds()).containsExactly(second.getGroupId());
+        assertThat(next.partialStart().at()).isEqualTo(wednesdayAt(11));
+        assertThat(next.vmStops()).containsOnlyKeys(secondVm.getVmId());
+
+        AutomationRuleService.NextFirings listed = automationRuleService
+                .nextScheduledFiringsByEnvironment(List.of(env.getEnvironmentId()), wednesdayAt(10)).get(env.getEnvironmentId());
+        assertThat(listed.nextStop()).isNull();
+        assertThat(listed.partialStop().scope()).isEqualTo("Group-2");
+        assertThat(listed.vmStops()).isEmpty();
+    }
+
+    @Test
+    void aVmRuleNamesTheVmAndRulesAtTheSameTimeAreNamedTogether() {
+        VmGroup second = newGroup(env, "Group-2");
+        Vm web = newVm(second, "web-01", VmStatus.RUNNING);
+        newVm(second, "web-02", VmStatus.RUNNING);
+        timedRule(AutomationScopeType.VM, web.getVmId(), null, "18:00");
+
+        AutomationRuleService.NextFirings next = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+        assertThat(next.nextStop()).isNull();
+        assertThat(next.partialStop().scope()).isEqualTo("web-01");
+        assertThat(next.partialStop().groupIds()).containsExactly(second.getGroupId());
+        assertThat(next.vmStops()).containsOnlyKeys(web.getVmId());
+
+        timedRule(AutomationScopeType.GROUP, group.getGroupId(), null, "18:00");
+        next = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+        assertThat(next.partialStop().scope()).isIn("web-01 and app", "app and web-01");
+        assertThat(next.vmStops()).containsOnlyKeys(web.getVmId(), vm.getVmId());
+    }
+
+    @Test
+    void aGroupRuleOnTheOnlyGroupWithVmsStopsTheWholeEnvironment() {
+        newGroup(env, "empty");
+        timedRule(AutomationScopeType.GROUP, group.getGroupId(), null, "20:00");
+
+        AutomationRuleService.NextFirings next = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+
+        assertThat(next.nextStop()).isEqualTo(wednesdayAt(20));
+        assertThat(next.partialStop()).isNull();
+    }
+
+    @Test
+    void aPartialStopIsGivenOnlyWhenItComesBeforeTheWholeEnvironmentStop() {
+        VmGroup second = newGroup(env, "Group-2");
+        newVm(second, "g2-1", VmStatus.RUNNING);
+        timedRule(AutomationScopeType.ENVIRONMENT, null, null, "20:00");
+        AutomationRule partial = timedRule(AutomationScopeType.GROUP, second.getGroupId(), null, "22:00");
+
+        AutomationRuleService.NextFirings later = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+        assertThat(later.nextStop()).isEqualTo(wednesdayAt(20));
+        assertThat(later.partialStop()).isNull();
+
+        partial.getWindows().get(0).setStopTime("15:00");
+        rules.saveAndFlush(partial);
+        AutomationRuleService.NextFirings sooner = automationRuleService.nextScheduledFirings(env.getEnvironmentId(), wednesdayAt(10));
+        assertThat(sooner.nextStop()).isEqualTo(wednesdayAt(20));
+        assertThat(sooner.partialStop().at()).isEqualTo(wednesdayAt(15));
+        assertThat(sooner.partialStop().scope()).isEqualTo("Group-2");
+    }
+
     @Test
     void migrationV31AddedTheReasonColumns() {
         Integer columns = jdbcTemplate.queryForObject(

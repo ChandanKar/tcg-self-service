@@ -138,3 +138,64 @@ test('a stop names the VMs someone else started (U22-T10)', () => {
         'Someone else started this VM. master-01: started by Sayan Hazra at 07:01.');
     assert.equal(M.othersStarted([t('mine', 'Me', 'u-me'), t('sched', 'the schedule Office hours', null), t('aws', 'outside the platform', null)], 'u-me'), '');
 });
+
+// U23-T04: staging priced Group-2 and Group-3 "for 17 h, until the next scheduled stop" while the only rule
+// stopped Group-2.
+test('each target takes its own scheduled stop; one stop for all keeps the old dialog', () => {
+    const M = load();
+    const fri = new Date(2026, 10, 13, 12, 30).toISOString();
+    const g2 = { vm: { vmId: 'g2-1', name: 'g2-1' } };
+    const g3 = { vm: { vmId: 'web-01', name: 'web-01' } };
+    // A whole-environment rule: every VM has the same stop, so nothing changes.
+    const whole = M.stopsFor([g2, g3], { ruleCount: 1, nextStop: fri, vmStops: { 'g2-1': fri, 'web-01': fri } });
+    assert.equal(whole.nextStop, fri);
+    assert.equal(whole.mixed, null);
+    // An older answer without vmStops: the environment's stop, as before.
+    assert.equal(M.stopsFor([g2], { ruleCount: 1, nextStop: fri }).nextStop, fri);
+    assert.equal(M.stopsFor([g2], null).nextStop, null);
+    // Only Group-2 is targeted: its stop, though it is not the environment's.
+    assert.equal(M.stopsFor([g2], { ruleCount: 1, nextStop: null, vmStops: { 'g2-1': fri } }).nextStop, fri);
+    // Only Group-3: no stop, and the words do not blame the environment.
+    const none = M.stopsFor([g3], { ruleCount: 1, nextStop: null, vmStops: { 'g2-1': fri } });
+    assert.equal(none.nextStop, null);
+    assert.equal(none.partial, true);
+    assert.equal(M.runWithoutLease(null, new Date(), { partial: true }).text,
+        'They run until someone stops them: no schedule stops them.');
+    // Both: mixed.
+    const both = M.stopsFor([g2, g3], { ruleCount: 1, nextStop: null, vmStops: { 'g2-1': fri } });
+    assert.equal(both.nextStop, null);
+    assert.deepEqual(plain(both.mixed.map(e => [e.target.vm.vmId, e.stop])), [['g2-1', fri], ['web-01', null]]);
+});
+
+test('a mixed start prices each VM to its stop and the rest by the hour', () => {
+    const M = load();
+    const now = new Date(2026, 10, 12, 19, 30);                    // Thu 19:30
+    const fri = new Date(2026, 10, 13, 12, 30).toISOString();      // 17 h later
+    const g2 = { vm: { vmId: 'g2-1', name: 'g2-1' } };
+    const web = { vm: { vmId: 'web-01', name: 'web-01' } };
+    const run = M.mixedRun([{ target: g2, stop: fri }, { target: web, stop: null }], now);
+    assert.equal(run.hours, 17);
+    assert.deepEqual(plain(run.hoursByVm), { 'g2-1': 17, 'web-01': null });
+    assert.equal(run.text, 'g2-1 runs until its scheduled stop, Fri 12:30 (in 17 h). web-01 runs until someone stops it: no schedule stops it.');
+    const cost = M.mixedCost({ vms: [{ vmId: 'g2-1', hourlyRate: 0.2 }, { vmId: 'web-01', name: 'web-01', hourlyRate: 0.11 }],
+        unknownPriceCount: 0 }, run, [g2, web]);
+    assert.equal(cost.value, '$3.40');
+    assert.equal(cost.note, 'to its scheduled stop · $0.11 an hour for web-01, no schedule stops it');
+    assert.equal(M.mixedCost(null, run, [g2, web]), null);
+    // Two stops, nothing open.
+    const two = M.mixedRun([{ target: g2, stop: fri }, { target: web, stop: new Date(2026, 10, 12, 21, 0).toISOString() }], now);
+    assert.equal(two.hours, 17);
+    assert.match(two.text, /web-01 runs until its scheduled stop, today 21:00 \(in 1 h 30 min\)\.$/);
+    assert.equal(M.mixedCost({ vms: [{ vmId: 'g2-1', hourlyRate: 0.2 }, { vmId: 'web-01', hourlyRate: 0.1 }] }, two, [g2, web]).note,
+        'to their scheduled stops');
+});
+
+test('one VM reads "It runs until…" (U23-T11)', () => {
+    const M = load();
+    const now = new Date(2026, 10, 12, 14, 0);
+    assert.equal(M.runWithoutLease(new Date(2026, 10, 13, 12, 30).toISOString(), now, { count: 1 }).text,
+        'It runs until the next scheduled stop, Fri 12:30 (in 23 h), unless someone stops it sooner.');
+    assert.equal(M.runWithoutLease(null, now, { count: 1 }).text, 'It runs until someone stops it: no schedule stops this environment.');
+    assert.equal(M.runWithoutLease(null, now, { count: 1, partial: true }).text, 'It runs until someone stops it: no schedule stops it.');
+    assert.match(M.runWithoutLease(null, now, { count: 2 }).text, /^They run until someone stops them/);
+});

@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.dto.CreateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
@@ -236,6 +237,49 @@ public class EnvironmentService {
                 .filter(env -> !accessedEnvIds.contains(env.getEnvironmentId()))
                 .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                 .toList();
+    }
+
+    /**
+     * One page of the environments the current user can ask for (U23-T12: staging sent all 161, 165 KB in
+     * 4.3 s, before Request access showed anything). Those without access, plus, with includeViewOnly, those
+     * the user can only view (to ask for Operator); ordered by the name shown. search matches the shown name,
+     * the name or the description, or an environment id exactly. around: an environment whose page is
+     * returned instead of the one asked for, when it is in the list (a link to one environment opens on it).
+     */
+    public org.springframework.data.domain.Page<Environment> getAvailablePageForCurrentUser(
+            String search, boolean includeViewOnly, String around, org.springframework.data.domain.Pageable pageable) {
+        String userId = userService.getCurrentUserId();
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        java.util.Map<String, AccessLevel> best = new java.util.HashMap<>();
+        for (EnvironmentAccess ea : accessRepository.findActiveAccessByUser(userId, now)) {
+            best.merge(ea.getEnvironment().getEnvironmentId(),
+                    ea.getAccessLevel() == null ? AccessLevel.VIEWER : ea.getAccessLevel(),
+                    (a, b) -> a.ordinal() >= b.ordinal() ? a : b);
+        }
+        String q = search == null || search.isBlank() ? null : search.trim().toLowerCase(java.util.Locale.ROOT);
+        java.util.function.Function<Environment, String> shown = env ->
+                env.getDisplayName() != null && !env.getDisplayName().isBlank() ? env.getDisplayName() : env.getName();
+        List<Environment> all = getAllActiveEnvironments().stream()
+                .filter(env -> {
+                    AccessLevel level = best.get(env.getEnvironmentId());
+                    return level == null || (includeViewOnly && level == AccessLevel.VIEWER);
+                })
+                .filter(env -> q == null || env.getEnvironmentId().equalsIgnoreCase(q)
+                        || java.util.stream.Stream.of(shown.apply(env), env.getName(), env.getDescription())
+                                .anyMatch(v -> v != null && v.toLowerCase(java.util.Locale.ROOT).contains(q)))
+                .sorted(java.util.Comparator.comparing(shown, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        if (around != null && !around.isBlank()) {
+            for (int i = 0; i < all.size(); i++) {
+                if (all.get(i).getEnvironmentId().equals(around)) {
+                    pageable = org.springframework.data.domain.PageRequest.of(i / pageable.getPageSize(), pageable.getPageSize());
+                    break;
+                }
+            }
+        }
+        int from = (int) Math.min(pageable.getOffset(), all.size());
+        int to = Math.min(from + pageable.getPageSize(), all.size());
+        return new org.springframework.data.domain.PageImpl<>(all.subList(from, to), pageable, all.size());
     }
 
     /**

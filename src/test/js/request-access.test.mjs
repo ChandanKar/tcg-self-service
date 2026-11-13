@@ -57,3 +57,18 @@ test('the reason needs 10 to 1000 characters', () => {
     assert.equal(M.reasonProblem('Regression testing for release 4.2'), null);
     assert.equal(M.reasonProblem('x'.repeat(1001)), 'Keep it under 1000 characters.');
 });
+
+test('the environments are read a page at a time, the search going to the server (U23-T12)', () => {
+    const M = load();
+    assert.equal(M.availableUrl('/api/v1/environments/available', 0, 10, ''),
+        '/api/v1/environments/available?page=0&size=10&includeViewOnly=true');
+    assert.equal(M.availableUrl('/api/v1/environments/available', 2, 7, 'pay qa&x'),
+        '/api/v1/environments/available?page=2&size=7&includeViewOnly=true&search=pay%20qa%26x');
+    assert.deepEqual(plain(M.pageOf({ content: [{ environmentId: 'a' }], page: { size: 10, number: 0, totalElements: 161, totalPages: 17 } })),
+        { rows: [{ environmentId: 'a' }], total: 161, number: 0 });
+    assert.equal(M.availableUrl('/x', 0, 10, '', 'env-9'), '/x?page=0&size=10&includeViewOnly=true&around=env-9');
+    assert.equal(M.pageOf({ content: [], page: { number: 3, totalElements: 40 } }).number, 3);
+    // An older server's whole list, and nothing.
+    assert.deepEqual(plain(M.pageOf([{ environmentId: 'a' }, { environmentId: 'b' }])).total, 2);
+    assert.deepEqual(plain(M.pageOf(null)), { rows: [], total: 0, number: 0 });
+});

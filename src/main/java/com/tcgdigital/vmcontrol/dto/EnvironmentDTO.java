@@ -117,6 +117,15 @@ public class EnvironmentDTO {
     public java.time.Instant getNextScheduledStop() { return nextScheduledStop; }
     public void setNextScheduledStop(java.time.Instant nextScheduledStop) { this.nextScheduledStop = nextScheduledStop; }
 
+    /**
+     * U23-T04: nextScheduledStop stops the whole environment; a rule on part of it ("Group-2") gives
+     * this instead, when sooner. Null when there is none.
+     */
+    private ScopedFiringDTO partialScheduledStop;
+
+    public ScopedFiringDTO getPartialScheduledStop() { return partialScheduledStop; }
+    public void setPartialScheduledStop(ScopedFiringDTO partialScheduledStop) { this.partialScheduledStop = partialScheduledStop; }
+
     public void setMonthToDateCost(java.math.BigDecimal monthToDateCost) {
         this.monthToDateCost = monthToDateCost;
     }

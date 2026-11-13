@@ -79,6 +79,21 @@ const HomeModel = (function() {
         return times.length ? new Date(Math.min(...times.map(t => t.getTime()))) : null;
     }
 
+    /** A stop or start on part of the environment ({at, scope, groupIds}, U23-T04) when it has a time. */
+    function partialAt(firing) {
+        return firing && firing.scope ? toDate(firing.at) : null;
+    }
+
+    /**
+     * Whether the partial stop acts on a group with VMs running: staging's Home said "1 of 3 running ·
+     * stops at Fri 12:30" while the schedule stopped only Group-2, which was not running.
+     */
+    function stopsRunningGroup(card) {
+        const ids = (card.partialStop && card.partialStop.groupIds) || [];
+        const groups = Array.isArray(card.groupStates) ? card.groupStates : [];
+        return groups.some(g => ids.includes(g.groupId) && n(g.running) > 0);
+    }
+
     /**
      * The card's status line: at most two parts joined with " · ". The first says what is
      * happening (starting, failed, a stopped group, how many run, when it starts); then the lock;
@@ -101,10 +116,16 @@ const HomeModel = (function() {
         } else if (run === 0 && all > 0 && card.nextStart) {
             primary = 'Stopped';
             time = `starts ${when(card.nextStart, now)}`;
+        } else if (run === 0 && all > 0 && partialAt(card.partialStart)) {
+            primary = 'Stopped';
+            time = `${card.partialStart.scope} starts ${when(card.partialStart.at, now)}`;
         }
         if (run > 0 && !time) {
             const stop = nextStopAt(card);
             if (stop) time = `stops at ${when(stop, now)}`;
+            else if (partialAt(card.partialStop) && stopsRunningGroup(card)) {
+                time = `${card.partialStop.scope} stops at ${when(card.partialStop.at, now)}`;
+            }
         }
         let lock = '';
         if (card.lockedByMe) {

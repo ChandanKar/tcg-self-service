@@ -229,6 +229,13 @@ test.describe('Phone layout (admin)', () => {
     await expect(rows.first()).toContainText('application-server-with-a-long-name-a1');
     await expect(rows.first().getByRole('button', { name: /^Stop / })).toBeVisible();
     await expect(page.locator('#phone-group-g2')).toBeHidden();
+    // U23-T11: each group row has its own start or stop, a 44 px target that opens the confirm.
+    const groupStart = page.getByRole('button', { name: 'Start group Web tier' });
+    expect((await groupStart.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await groupStart.click();
+    await expect(page.locator('#operationConfirmModal')).toBeVisible();
+    await page.locator('#operationConfirmModal [data-bs-dismiss="modal"]').first().click();
+    await expect(page.locator('.modal.show')).toHaveCount(0);
     await expectNoSideScroll(page);
     expect(await expectInViewport(page, '[data-action="start-vm"], [data-action="stop-vm"]')).toBeGreaterThan(0);
   });

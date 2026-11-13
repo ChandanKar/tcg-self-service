@@ -129,22 +129,127 @@ const OperationConfirm = (function() {
      * How long a start runs when the environment has no lease (U22-T05): until the environment's next
      * scheduled stop, priced for those hours, or, with no schedule, until someone stops it (priced per
      * hour). Staging's dialog said "$1.78 for 8 h" while ise would run about 22 hours, to its Friday stop.
-     * Returns {hours, text}; hours is null when nothing stops it.
+     * Returns {hours, text}; hours is null when nothing stops it. opts.partial: the environment has
+     * schedule rules, none of which stops these VMs (U23-T04), so the words do not blame the environment.
+     * opts.count: how many VMs start; one reads "It runs until…" (U23-T11).
      */
-    function runWithoutLease(nextStopAt, now = new Date()) {
-        const stop = nextStopAt ? new Date(nextStopAt) : null;
-        if (stop && !Number.isNaN(stop.getTime()) && stop > now) {
-            const minutes = Math.round((stop.getTime() - now.getTime()) / 60000);
-            const day = stop.toDateString() === now.toDateString() ? 'today' : DAYS[stop.getDay()];
-            const h = Math.floor(minutes / 60), m = minutes % 60;
-            // From 10 hours the minutes are dropped: the text and the priced hours then round alike
-            // (staging said "$4.00 for 18 h" beside "in 17 h" for 17 h 36 min).
-            const long = h >= 10;
-            const inText = long ? `${Math.round(minutes / 60)} h` : h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
-            return { hours: long ? Math.round(minutes / 60) : Math.max(1, Math.ceil(minutes / 60)),
-                text: `They run until the next scheduled stop, ${day} ${pad(stop.getHours())}:${pad(stop.getMinutes())} (in ${inText}), unless someone stops them sooner.` };
+    function runWithoutLease(nextStopAt, now = new Date(), opts = {}) {
+        const until = runUntil(nextStopAt, now);
+        const one = opts.count === 1;
+        const [They, run, them] = one ? ['It', 'runs', 'it'] : ['They', 'run', 'them'];
+        if (until) {
+            return { hours: until.hours,
+                text: `${They} ${run} until the next scheduled stop, ${until.at} (in ${until.inText}), unless someone stops ${them} sooner.` };
         }
-        return { hours: null, text: 'They run until someone stops them: no schedule stops this environment.' };
+        return { hours: null, text: `${They} ${run} until someone stops ${them}: no schedule stops ${opts.partial ? them : 'this environment'}.` };
+    }
+
+    /** A stop ahead as {hours, at: "Fri 12:30" / "today 18:45", inText: "17 h" / "2 h 15 min"}; null when none. */
+    function runUntil(stopAt, now) {
+        const stop = stopAt ? new Date(stopAt) : null;
+        if (!stop || Number.isNaN(stop.getTime()) || stop <= now) return null;
+        const minutes = Math.round((stop.getTime() - now.getTime()) / 60000);
+        const day = stop.toDateString() === now.toDateString() ? 'today' : DAYS[stop.getDay()];
+        const h = Math.floor(minutes / 60), m = minutes % 60;
+        // From 10 hours the minutes are dropped: the text and the priced hours then round alike
+        // (staging said "$4.00 for 18 h" beside "in 17 h" for 17 h 36 min).
+        const long = h >= 10;
+        const inText = long ? `${Math.round(minutes / 60)} h` : h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
+        return { hours: long ? Math.round(minutes / 60) : Math.max(1, Math.ceil(minutes / 60)),
+            at: `${day} ${pad(stop.getHours())}:${pad(stop.getMinutes())}`, inText };
+    }
+
+    /**
+     * Each target's next scheduled stop (U23-T04). Staging priced Group-2 and Group-3 "for 17 h, until
+     * the next scheduled stop" while the only rule stopped Group-2. schedule is EnvCost.scheduleFor's
+     * answer; its vmStops gives each VM's own stop. Returns {nextStop, partial, mixed}: when every target
+     * stops at the same time (or never), nextStop is that time and the dialog works as before; otherwise
+     * mixed lists [{target, stop}] in target order. partial: the environment has rules but none stops
+     * these targets.
+     */
+    function stopsFor(targets, schedule) {
+        if (!schedule) return { nextStop: null, partial: false, mixed: null };
+        const vmStops = schedule.vmStops;
+        if (!vmStops || !targets.length) return { nextStop: schedule.nextStop || null, partial: false, mixed: null };
+        const each = targets.map(target => ({ target, stop: vmStops[target.vm.vmId] || schedule.nextStop || null }));
+        const keys = new Set(each.map(e => e.stop ? new Date(e.stop).getTime() : null));
+        if (keys.size === 1) {
+            const stop = each[0].stop;
+            return { nextStop: stop, partial: !stop && schedule.ruleCount > 0, mixed: null };
+        }
+        return { nextStop: null, partial: false, mixed: each };
+    }
+
+    /** VM names for a sentence: "web-01", "web-01 and web-02", or "4 VMs" past three. */
+    function vmNames(targets) {
+        const names = targets.map(({ vm }) => vm.displayName || vm.name);
+        return names.length > 3 ? `${names.length} VMs` : joinNames(names);
+    }
+
+    /**
+     * How long a start runs without a lease when its VMs stop at different times (U23-T04): "Web-01 runs
+     * until its scheduled stop, Fri 12:30 (in 17 h). Web-02 runs until someone stops it: no schedule stops
+     * it." Returns {hours (the longest priced run), hoursByVm: {vmId: hours or null}, text}.
+     */
+    function mixedRun(mixed, now = new Date()) {
+        const runs = [];
+        const open = [];
+        mixed.forEach(({ target, stop }) => {
+            const until = runUntil(stop, now);
+            if (!until) { open.push(target); return; }
+            const same = runs.find(r => r.until.at === until.at && r.until.hours === until.hours);
+            if (same) same.targets.push(target); else runs.push({ until, targets: [target] });
+        });
+        const hoursByVm = {};
+        open.forEach(t => { hoursByVm[t.vm.vmId] = null; });
+        const sentences = runs.map(({ until, targets }) => {
+            targets.forEach(t => { hoursByVm[t.vm.vmId] = until.hours; });
+            const one = targets.length === 1;
+            return `${vmNames(targets)} ${one ? 'runs' : 'run'} until ${one ? 'its' : 'their'} scheduled stop, ${until.at} (in ${until.inText}).`;
+        });
+        if (open.length) {
+            const it = open.length === 1 ? 'it' : 'them';
+            sentences.push(`${vmNames(open)} ${open.length === 1 ? 'runs' : 'run'} until someone stops ${it}: no schedule stops ${it}.`);
+        }
+        return { hours: runs.length ? Math.max(...runs.map(r => r.until.hours)) : null, hoursByVm,
+            text: sentences.join(' ') };
+    }
+
+    /**
+     * The cost of a start whose VMs stop at different times (U23-T04): each VM priced up to its own stop,
+     * and the ones nothing stops by the hour: {value: "$3.12", note: "to their scheduled stops · $0.11 an
+     * hour for web-01, no schedule stops it", total}. Null when nothing is priced.
+     */
+    function mixedCost(preview, run, targets) {
+        if (!preview || !preview.vms || !preview.vms.length) return null;
+        const usd = v => '$' + Number(v || 0).toFixed(2);
+        const cents = v => Math.round(v * 100) / 100;
+        let total = 0;
+        let openHourly = 0;
+        const openTargets = [];
+        preview.vms.forEach(line => {
+            const hours = run.hoursByVm[line.vmId];
+            const rate = Number(line.hourlyRate || 0);
+            if (hours) total += cents(rate * hours);
+            else {
+                openHourly += rate;
+                const t = targets.find(x => x.vm.vmId === line.vmId);
+                openTargets.push(t || { vm: { name: line.name } });
+            }
+        });
+        const timed = Object.values(run.hoursByVm).filter(Boolean);
+        const parts = [timed.length === 1 ? 'to its scheduled stop' : 'to their scheduled stops'];
+        if (openTargets.length) {
+            const it = openTargets.length === 1 ? 'it' : 'them';
+            parts.push(`${usd(openHourly)} an hour for ${vmNames(openTargets)}, no schedule stops ${it}`);
+        }
+        const extra = [];
+        if (preview.unknownPriceCount > 0) {
+            extra.push(`price unknown for ${preview.unknownPriceCount} VM${preview.unknownPriceCount === 1 ? '' : 's'}`);
+        }
+        if (preview.approximate) extra.push('approximate');
+        if (extra.length) parts.push(extra.join(', '));
+        return { value: usd(total), note: parts.join(' · '), total: cents(total) };
     }
 
     /**
@@ -254,7 +359,7 @@ const OperationConfirm = (function() {
         const starting = opType !== 'STOP';
         const chipsHtml = starting && chips.length ? `
             <div class="op-confirm-duration">
-                ${ChoiceChips.markup({ id: 'op-confirm-chips', legend: 'Keep them running until', selected,
+                ${ChoiceChips.markup({ id: 'op-confirm-chips', legend: targets.length === 1 ? 'Keep it running until' : 'Keep them running until', selected,
                     options: chips.map(c => ({ value: c.minutes, label: c.label })) })}
                 <p class="op-confirm-hint" id="op-confirm-hint" aria-live="polite"></p>
             </div>` : '';
@@ -307,7 +412,10 @@ const OperationConfirm = (function() {
         const key = state.selected ?? 'none';
         const chip = state.chips.find(c => c.minutes === state.selected);
         // No lease: the run lasts until the next scheduled stop, or until someone stops it (U22-T05).
-        const run = chip ? null : runWithoutLease(state.nextStop);
+        // U23-T04: VMs that stop at different times are each priced up to their own stop.
+        const mixed = !chip && state.mixed ? mixedRun(state.mixed) : null;
+        const run = chip ? null : mixed && mixed.hours !== null ? mixed
+            : runWithoutLease(state.nextStop, new Date(), { partial: state.partial || !!mixed, count: state.targets.length });
         const hours = state.selected ? Math.ceil(state.selected / 60) : run && run.hours;
         $('#op-confirm-hint').text(chip ? hintFor(chip, state.nextStop) : '');
         $('#op-confirm-run').text(run ? run.text : '');
@@ -317,10 +425,22 @@ const OperationConfirm = (function() {
 
         const showCost = preview => {
             if (!current()) return;
+            const split = run && run.hoursByVm ? mixedCost(preview, run, state.targets) : null;
+            if (split) {
+                $('#op-confirm-cost').text(split.value);
+                $('#op-confirm-rate').text(split.note);
+                updateButton();
+                if (typeof CostPreview !== 'undefined' && CostPreview.renderQuota) {
+                    const priced = Object.assign({}, preview, { estimatedTotal: split.total, hours: run.hours });
+                    CostPreview.renderQuota($('#quota-preview-line'), state.env.teamId || null, priced, $('#op-confirm-btn'))
+                        .then(() => { if (current()) updateButton(); });
+                }
+                return;
+            }
             const openEnded = !chip && run && run.hours === null;
             const note = costNote(preview, state.targets.length, !chip && !openEnded);
             $('#op-confirm-cost').text(!note ? '—' : openEnded ? `${money(preview.hourlyTotal)} an hour` : money(preview.estimatedTotal));
-            $('#op-confirm-rate').text(!note ? 'No price known' : openEnded ? 'until someone stops them' : note);
+            $('#op-confirm-rate').text(!note ? 'No price known' : openEnded ? `until someone stops ${state.targets.length === 1 ? 'it' : 'them'}` : note);
             updateButton();
             if (note && typeof CostPreview !== 'undefined' && CostPreview.renderQuota) {
                 CostPreview.renderQuota($('#quota-preview-line'), state.env.teamId || null, preview, $('#op-confirm-btn'))
@@ -385,9 +505,10 @@ const OperationConfirm = (function() {
     function show({ env, opType, scope, onConfirm }) {
         const targets = targetsFor(env, opType, scope);
         const policy = opType === 'STOP' || typeof Leases === 'undefined' || !Leases.policyFor ? null : Leases.policyFor(env.environmentId);
-        const nextStop = typeof EnvCost !== 'undefined' && EnvCost.scheduleFor ? (EnvCost.scheduleFor(env.environmentId) || {}).nextStop : null;
+        const schedule = typeof EnvCost !== 'undefined' && EnvCost.scheduleFor ? EnvCost.scheduleFor(env.environmentId) : null;
+        const { nextStop, partial, mixed } = stopsFor(targets, schedule);
         const { chips, selected } = durationChips(policy, nextStop);
-        state = { env, opType, scope, targets, chips, selected, nextStop, cost: {}, approval: {}, token: Date.now() + Math.random() };
+        state = { env, opType, scope, targets, chips, selected, nextStop, partial, mixed, cost: {}, approval: {}, token: Date.now() + Math.random() };
         Modals.show({
             id: MODAL_ID,
             title: titleFor(env, opType, targets, scope),
@@ -413,7 +534,7 @@ const OperationConfirm = (function() {
         refreshChoice();
     }
 
-    return { open, model: { targetsFor, groupSentence, durationChips, hintFor, runWithoutLease, othersStarted, approvalText, titleFor, costNote, joinNames } };
+    return { open, model: { targetsFor, groupSentence, durationChips, hintFor, runWithoutLease, stopsFor, mixedRun, mixedCost, othersStarted, approvalText, titleFor, costNote, joinNames } };
 })();
 
 if (typeof window !== 'undefined') window.OperationConfirm = OperationConfirm;

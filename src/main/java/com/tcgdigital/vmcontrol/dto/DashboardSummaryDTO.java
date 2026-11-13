@@ -88,7 +88,10 @@ public record DashboardSummaryDTO(
             Integer startingVms,
             Integer failedVms,
             /** VM state counts per group in start order, for the power strip (U05-T03). */
-            List<GroupStateCountsDTO> groupStates
+            List<GroupStateCountsDTO> groupStates,
+            /** U23-T04: the next stop / start of part of the environment ("Group-2") when sooner than nextStop / nextStart. */
+            ScopedFiringDTO partialStop,
+            ScopedFiringDTO partialStart
     ) {}
 
     public record ChartPointDTO(

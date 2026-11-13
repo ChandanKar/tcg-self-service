@@ -170,3 +170,19 @@ test('the phone alert: the soonest lease ending within 4 hours, else nothing', (
     assert.equal(H.phoneAlert([{ kind: 'LEASE_ENDING', environmentId: 'e', at: at(0, 17, 0) }], NOW), null); // already past
     assert.equal(H.phoneAlert([], NOW), null);
 });
+
+// U23-T04: staging's Home said "1 of 3 running · stops at Fri 12:30" while the schedule stopped only Group-2.
+test('a schedule on part of the environment: named, and only beside the groups it stops', () => {
+    const H = load();
+    const groups = [{ groupId: 'g1', name: 'Group-1', running: 1, total: 1 }, { groupId: 'g2', name: 'Group-2', running: 0, total: 1 },
+        { groupId: 'g3', name: 'Group-3', running: 0, total: 1 }];
+    const partialStop = { at: at(3, 12, 30), scope: 'Group-2', groupIds: ['g2'] };
+    assert.equal(H.cardLine(card({ totalVms: 3, runningVms: 1, groupStates: groups, partialStop }), NOW), '1 of 3 running');
+    const g2Running = groups.map(g => g.groupId === 'g2' ? Object.assign({}, g, { running: 1 }) : g);
+    assert.equal(H.cardLine(card({ totalVms: 3, runningVms: 2, groupStates: g2Running, partialStop }), NOW),
+        'Group-3 group stopped · Group-2 stops at Fri 12:30');
+    const partialStart = { at: at(3, 11, 0), scope: 'Group-2', groupIds: ['g2'] };
+    assert.equal(H.cardLine(card({ totalVms: 3, partialStart }), NOW), 'Stopped · Group-2 starts Fri 11:00');
+    // The whole environment's times win.
+    assert.equal(H.cardLine(card({ totalVms: 3, nextStart: at(6, 8, 0), partialStart }), NOW), 'Stopped · starts Mon 08:00');
+});

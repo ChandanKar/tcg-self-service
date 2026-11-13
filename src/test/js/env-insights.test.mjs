@@ -73,3 +73,12 @@ test('U23-T10: a budget forecast past its amount is the first thing to do, in th
     assert.equal(M.budgetLine(null, 'ISE'), null);
     assert.equal(M.budgetLine({ ...ise, forecastPercent: null }, 'ISE').title, 'ISE heading for 131% of its budget.');
 });
+
+test('a long busiest name is cut in the middle, keeping the end that tells the VMs apart (U23-T11)', () => {
+    const M = load();
+    assert.equal(M.middleCut('mcube_dev_poc_work1_100.112.1.162'), 'mcube_dev…work1_100.112.1.162');
+    assert.equal(M.middleCut('pay-api-01'), 'pay-api-01');
+    const rows = plain(M.busiest({ busiestVms: [{ vmId: 'a', name: 'mcube_dev_poc_worker2_100.112.1.170', avgCpuWindow: 3 }] }));
+    assert.equal(rows[0].name, 'mcube_dev_poc_worker2_100.112.1.170');
+    assert.equal(rows[0].short, 'mcube_dev…rker2_100.112.1.170');
+});

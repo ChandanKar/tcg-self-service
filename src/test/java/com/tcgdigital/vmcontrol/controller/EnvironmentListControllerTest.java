@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class EnvironmentListControllerTest extends SecuredWebTestBase {
 
     @Autowired private LockService lockService;
+    @Autowired private com.tcgdigital.vmcontrol.repository.AutomationRuleRepository automationRules;
 
     private Environment env;
     private String tag;
@@ -366,5 +367,64 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
                 .andReturn().getResponse().getContentAsString();
         org.assertj.core.api.Assertions.assertThat(all.split("\r\n")).hasSize(4);
         org.assertj.core.api.Assertions.assertThat(all).contains("\"'=HYPERLINK(\"\"x\"\") " + tag + "\"");
+    }
+
+    // ---------------------------------------------------------------- U23-T04: the schedule follows its scope
+
+    @Test
+    void aGroupScheduleIsNotTheEnvironmentsStopInTheListOrTheDetails() throws Exception {
+        newVm(newGroup(env, "Group-1"), "master-1", VmStatus.RUNNING);
+        VmGroup second = newGroup(env, "Group-2");
+        newVm(second, "g2-1", VmStatus.STOPPED);
+        com.tcgdigital.vmcontrol.model.AutomationRule rule = new com.tcgdigital.vmcontrol.model.AutomationRule();
+        rule.setRuleId(UUID.randomUUID().toString());
+        rule.setName("ise start-stop " + tag);
+        rule.setEnvironment(env);
+        rule.setScopeType(com.tcgdigital.vmcontrol.model.AutomationScopeType.GROUP);
+        rule.setScopeId(second.getGroupId());
+        rule.setTriggerType(com.tcgdigital.vmcontrol.model.AutomationTriggerType.SCHEDULE);
+        rule.addWindow("MON,TUE,WED,THU,FRI,SAT,SUN", "11:00", "17:00");
+        rule.setTimezone("Asia/Kolkata");
+        rule.setEnabled(true);
+        rule.setCreatedByUserId(operator.getUserId());
+        automationRules.saveAndFlush(rule);
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(row("scheduleRuleCount")).value(contains(1)))
+                .andExpect(jsonPath(row("nextScheduledStop")).value(contains((Object) null)))
+                .andExpect(jsonPath(row("partialScheduledStop.scope")).value(contains("Group-2")))
+                .andExpect(jsonPath(row("partialScheduledStop.groupIds[0]")).value(contains(second.getGroupId())));
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduleRuleCount").value(1))
+                .andExpect(jsonPath("$.nextScheduledStop").doesNotExist())
+                .andExpect(jsonPath("$.partialScheduledStop.scope").value("Group-2"))
+                .andExpect(jsonPath("$.partialScheduledStop.at").exists());
+    }
+
+    @Test
+    void anEnvironmentScheduleIsTheEnvironmentsStopInTheDetailsToo() throws Exception {
+        newVm(newGroup(env, "App"), "app-1", VmStatus.RUNNING);
+        com.tcgdigital.vmcontrol.model.AutomationRule rule = new com.tcgdigital.vmcontrol.model.AutomationRule();
+        rule.setRuleId(UUID.randomUUID().toString());
+        rule.setName("nightly " + tag);
+        rule.setEnvironment(env);
+        rule.setScopeType(com.tcgdigital.vmcontrol.model.AutomationScopeType.ENVIRONMENT);
+        rule.setTriggerType(com.tcgdigital.vmcontrol.model.AutomationTriggerType.SCHEDULE);
+        rule.addWindow("MON,TUE,WED,THU,FRI,SAT,SUN", null, "20:00");
+        rule.setTimezone("Asia/Kolkata");
+        rule.setEnabled(true);
+        rule.setCreatedByUserId(operator.getUserId());
+        automationRules.saveAndFlush(rule);
+
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduleRuleCount").value(1))
+                .andExpect(jsonPath("$.nextScheduledStop").exists())
+                .andExpect(jsonPath("$.partialScheduledStop").doesNotExist());
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asUser()))
+                .andExpect(jsonPath(row("nextScheduledStop")).value(hasSize(1)))
+                .andExpect(jsonPath(row("partialScheduledStop")).value(contains((Object) null)));
     }
 }
