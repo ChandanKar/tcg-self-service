@@ -98,11 +98,13 @@ test.describe('System Health', () => {
     const table = page.locator('#sh-changes-table');
     await expect(table.locator('tbody tr')).toHaveCount(10, { timeout: 10_000 });
     await expect(page.getByText('Drift Events (24h)')).toHaveCount(0); // one table, not two
-    await expect(page.locator('.sh-changes-count')).toHaveText('4 changes outside the platform in 24 hours');
+    // U24-T05: the line says what the list holds.
+    await expect(page.locator('.sh-changes-count')).toHaveText('14 changes in 24 hours, 4 outside the platform');
     await expect(table.locator('tbody tr').first()).toContainText('Outside the platform');
     await expect(table.locator('tbody tr').nth(1)).toContainText('Platform, by Asha Rao');
     await expect(page.locator('#sh-changes .pager-range')).toHaveText('1–10 of 14');
     await page.getByLabel('Only outside the platform').check();
+    await expect(page.locator('.sh-changes-count')).toHaveText('4 changes outside the platform in 24 hours');
     await expect(table.locator('tbody tr')).toHaveCount(4);
     await expect(table.locator('tbody tr.sh-change-outside')).toHaveCount(4);
   });

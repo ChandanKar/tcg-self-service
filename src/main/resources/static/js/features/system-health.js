@@ -521,6 +521,7 @@ const SystemHealth = (function () {
         s.changes = { list, outsideOnly: !!s.outsideFirst, page: 1, truncated: list.length >= CHANGES_LIMIT };
         // The count and the list cover the same 24 hours; the count is the server's when the list was cut short.
         const driftCount = s.changes.truncated ? (drift.total || 0) : changeRows(list, true).length;
+        s.changes.outsideCount = driftCount;
         $('#sh-panel-reports').html(reportsHtml({ canAdmin, driftCount, outsideOnly: s.changes.outsideOnly, auditReport, lockReport, vmOpsReport, emailLog }));
         drawChanges();
     }
@@ -535,6 +536,18 @@ const SystemHealth = (function () {
         return c.changedByUsername || 'Platform';
     }
 
+    /**
+     * The line above the state changes says what the list holds (U24-T05: it said "251 changes outside the
+     * platform" above an unfiltered list of 277): "251 changes outside the platform in 24 hours" when only
+     * those are listed, otherwise "277 changes in 24 hours, 251 outside the platform" ("2,000+" when cut short).
+     */
+    function changesCountText(total, outside, outsideOnly, truncated) {
+        const outsideText = `${Number(outside || 0).toLocaleString('en-US')} outside the platform`;
+        if (outsideOnly) return `${plural(Number(outside || 0), 'change', 'changes')} outside the platform in 24 hours`;
+        const all = truncated ? `${Number(total || 0).toLocaleString('en-US')}+ changes` : plural(Number(total || 0), 'change', 'changes');
+        return `${all} in 24 hours, ${outsideText}`;
+    }
+
     /** The rows shown: everything, or only what changed outside the platform. */
     function changeRows(list, outsideOnly) {
         return (list || []).filter(c => !outsideOnly || c.drift || c.changeSource === 'state_sync');
@@ -545,6 +558,7 @@ const SystemHealth = (function () {
         const $box = $('#sh-changes');
         if (!c || !$box.length) return;
         const rows = changeRows(c.list, c.outsideOnly);
+        $('.sh-changes-count').text(changesCountText((c.list || []).length, c.outsideCount, c.outsideOnly, c.truncated));
         const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
         c.page = Math.min(Math.max(1, c.page), pages);
         const shown = Pagination.slice(rows, c.page, PAGE_SIZE);
@@ -818,7 +832,7 @@ const SystemHealth = (function () {
     // ─── shared ──────────────────────────────────────────────────────────────
 
     return { load, triggerSync, triggerEksSync, setChangesOutsideOnly, changesPage,
-        model: { span, lastRun, cadenceText, complianceRow, scanErrorText, notesSummary, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows } };
+        model: { span, lastRun, cadenceText, complianceRow, scanErrorText, notesSummary, status, ordered, tiles, regionRows, foundText, noteKind, syncResultText, sourceText, changeRows, changesCountText } };
 })();
 
 if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;

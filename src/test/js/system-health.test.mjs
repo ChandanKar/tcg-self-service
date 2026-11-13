@@ -126,3 +126,11 @@ test('U23-T13: lock and operation report rows in words, with a result', () => {
     assert.equal(row.result, 'Done');
     assert.equal(plain(M.complianceRow({ action: 'VM_STOP_FAILED', success: false })).result, 'Failed');
 });
+
+test('U24-T05: the state-changes line says what the list holds', () => {
+    assert.equal(M.changesCountText(277, 251, false, false), '277 changes in 24 hours, 251 outside the platform');
+    assert.equal(M.changesCountText(277, 251, true, false), '251 changes outside the platform in 24 hours');
+    assert.equal(M.changesCountText(2000, 1900, false, true), '2,000+ changes in 24 hours, 1,900 outside the platform');
+    assert.equal(M.changesCountText(1, 1, true, false), '1 change outside the platform in 24 hours');
+    assert.equal(M.changesCountText(3, 0, false, false), '3 changes in 24 hours, 0 outside the platform');
+});
