@@ -1,6 +1,8 @@
 /*
  * Team detail (U13-T08, TeamDetail.dc.html): members on the left, monthly limits and the team's
- * environments in a 400px column on the right; one column below 1200px.
+ * environments in a 400px column on the right; one column below 1200px. U25-T05: the environments
+ * are a table like the Teams list (um-* from user-management.css) in a list panel that takes the
+ * column's remaining height on the page frame.
  */
 
 .td-page {
@@ -226,24 +228,64 @@
     gap: 8px;
 }
 
-.td-envs {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: 13.5px;
+/* Environments (U25-T05) */
+.td-envs-panel .list-panel-head h2 {
+    flex: 1 1 auto;
 }
 
-.td-envs a {
+.td-envs-panel .um-search {
+    flex: 1 1 170px;
+    max-width: none;
+}
+
+.td-env-name {
     color: var(--ink);
     font-weight: 500;
     text-decoration: none;
+    overflow-wrap: anywhere;
 }
 
-.td-envs a:hover {
+.td-env-name:hover {
     text-decoration: underline;
+}
+
+.td-env-table .td-mono {
+    font-size: var(--fs-small);
+    white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+    .um-table.td-env-table th,
+    .um-table.td-env-table td {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+}
+
+/* The page frame (1280 x 600 and up): the page keeps still; the members card and the column scroll
+   inside themselves when taller than the window, and the environments fill what the limits leave. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .td-page.page-frame .td-grid {
+        flex: 1 1 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .td-page.page-frame .td-grid > .td-card {
+        max-height: 100%;
+        overflow-y: auto;
+    }
+
+    .td-page.page-frame .td-aside {
+        align-self: stretch;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .td-page.page-frame .td-envs-panel {
+        flex: 1 1 0;
+        min-height: 240px;
+    }
 }
 
 /* Dialogs: group search, add people, environments */
@@ -286,6 +328,12 @@
 @media (max-width: 1199.98px) {
     .td-grid {
         grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 767.98px) {
+    .um-table.td-env-table td[data-label=""]::before {
+        content: none;
     }
 }
 

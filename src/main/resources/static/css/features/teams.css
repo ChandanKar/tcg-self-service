@@ -1,6 +1,6 @@
 /*
- * Teams (E23-T03, U13-T07 Teams.dc.html): a card per team, two to a row at 1440, with its
- * environments' power strips and this month's VM hours. A team's own page is team-detail.css.
+ * Teams (E23-T03, U25-T05): the Users page's counts, filters and table (user-management.css: um-*),
+ * one row per team. These rules add what a team row needs. A team's own page is team-detail.css.
  */
 
 .teams-page {
@@ -22,144 +22,60 @@
     font-size: var(--fs-small);
 }
 
-.tm-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+.tm-mono {
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
 }
 
-.tm-card {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px 18px;
-    background: #fff;
-    border: 1px solid var(--line);
-    border-radius: 12px;
+.tm-muted {
+    color: var(--text-secondary);
 }
 
-.tm-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
-}
-
-.tm-head h2 {
-    margin: 0;
-    font-size: 16px;
+.um-who .tm-name {
     font-weight: 600;
-}
-
-.tm-head h2 a {
     color: var(--ink);
     text-decoration: none;
 }
 
-.tm-head h2 a:hover {
+.um-who .tm-name:hover {
     text-decoration: underline;
-}
-
-.tm-mono {
-    font-family: var(--font-mono);
-}
-
-.tm-cc,
-.tm-members {
-    font-size: var(--fs-small);
-    color: var(--text-secondary);
 }
 
 .tm-envs {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.tm-env {
-    display: flex;
-    justify-content: space-between;
+    display: inline-flex;
     align-items: center;
-    gap: 12px;
-    font-size: var(--fs-body);
+    gap: 10px;
+    white-space: nowrap;
 }
 
-.tm-env a {
-    color: var(--ink);
-    text-decoration: none;
+.tm-limit {
+    white-space: nowrap;
 }
 
-.tm-env a:hover {
-    text-decoration: underline;
+.tm-over {
+    color: var(--brand-red-text);
+    font-weight: 600;
 }
 
-.tm-env-none,
-.tm-quota-none {
-    font-size: var(--fs-small);
-    color: var(--text-secondary);
+#teams-pagination:not(:empty) {
+    padding: 10px 16px;
+    border-top: 1px solid var(--line-soft);
 }
 
-/* A link inside the sentence is underlined, not told apart by colour alone (axe link-in-text-block). */
-.tm-env-none .tm-link {
-    text-decoration: underline;
-}
+@media (max-width: 767.98px) {
+    .um-table.tm-table td[data-label=""]::before {
+        content: none;
+    }
 
-.tm-quota {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
+    .tm-envs {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        white-space: normal;
+    }
 
-.tm-quota-line {
-    display: flex;
-    justify-content: space-between;
-    font-size: var(--fs-small);
-    color: var(--text-secondary);
-}
-
-.tm-quota-line .tm-mono {
-    color: var(--ink);
-}
-
-.tm-bar {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--surface-muted);
-    overflow: hidden;
-}
-
-.tm-bar span {
-    display: block;
-    height: 100%;
-    border-radius: 4px;
-    background: var(--brand-navy);
-}
-
-.tm-bar-over span {
-    background: var(--brand-red);
-}
-
-.tm-links {
-    display: flex;
-    gap: 14px;
-}
-
-.tm-link {
-    padding: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    font-size: var(--fs-small);
-    color: var(--brand-navy);
-    cursor: pointer;
-}
-
-.tm-link:hover {
-    text-decoration: underline;
-}
-
-@media (max-width: 991.98px) {
-    .tm-grid {
-        grid-template-columns: minmax(0, 1fr);
+    .tm-table .um-act {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
     }
 }

@@ -55,7 +55,7 @@ test.describe('Teams', () => {
     await expect(page.locator('#team-detail-view .content-header')).toContainText('1 member');
 
     await page.locator('#team-detail-view .page-breadcrumb a', { hasText: 'Teams' }).click();
-    await expect(page.locator('#teams-cards .tm-card').first()).toBeVisible(); // back on the cards (U13-T07)
+    await expect(page.locator('#teams-table-body tr').first()).toBeVisible(); // back on the table (U25-T05)
   });
 
   test('the environment modal offers teams instead of a free-text owner', async ({ page }) => {
@@ -106,68 +106,132 @@ test.describe('Teams', () => {
 });
 
 /**
- * U13-T07 (Teams.dc.html): one card per team with cost centre, members line, environments with
- * strips and the VM-hours bar. The overview and the environment list are faked.
+ * U25-T05: the Teams table, like Users: counts, search and Show filter, one row per team with its
+ * cost centre, members (and Entra group), environments ("1 · 1 running" with a strip while it fits),
+ * this month's cost and the VM-hours limit, and Open / Edit / Deactivate. The overview, the
+ * environment list and the month by team are faked.
  */
-test.describe('Team cards', () => {
+test.describe('Teams table', () => {
   test.beforeEach(() => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
   const quota = (used: number, limit: number) => [{ quotaId: 'q', metric: 'VM_HOURS', limit, enforcement: 'WARN', warnPercent: 80, active: true,
     used, percent: Math.round(used / limit * 100) }];
-  const team = (id: string, name: string, cc: string, members: number, envs: string[], quotas: any[], entra?: string) => ({
+  const envId = (e: string) => 'env-' + e.toLowerCase().replace(/ /g, '-');
+  const team = (id: string, name: string, cc: string | null, members: number, envs: string[], quotas: any[], entra?: string) => ({
     teamId: id, name: name.toLowerCase(), displayName: name, costCenter: cc, active: true, memberCount: members,
     entraGroupId: entra ? 'g-' + id : null, entraGroupName: entra || null, entraMemberCount: entra ? members : 0, lastSyncedAt: null,
-    environments: envs.map(e => ({ environmentId: 'env-' + e.toLowerCase().replace(/ /g, '-'), name: e.toLowerCase(), displayName: e, production: false })),
+    environments: envs.map(e => ({ environmentId: envId(e), name: e.toLowerCase(), displayName: e, production: false })),
     quotas });
   const TEAMS = [
     team('t1', 'Payments', 'CC-4105', 6, ['Payments Dev'], quota(1840, 4000), 'Payments Engineering'),
     team('t2', 'Data', 'CC-4410', 9, ['Data Lake Dev', 'Analytics QA'], quota(5120, 6000)),
     team('t3', 'CRM', 'CC-4300', 4, ['CRM UAT'], quota(2890, 3000)),
-    team('t4', 'People', 'CC-4510', 3, [], [])];
-  const ENVS = ['Payments Dev', 'Data Lake Dev', 'Analytics QA', 'CRM UAT'].map(e => ({ environmentId: 'env-' + e.toLowerCase().replace(/ /g, '-'),
-    name: e.toLowerCase(), displayName: e, isActive: true, groupStates: [{ groupName: 'app', running: 2, stopped: 1, transitioning: 0, failed: 0, unknown: 0, total: 3 }] }));
+    team('t4', 'People', null, 0, [], [])];
+  const TEAM_OF: Record<string, string> = { 'Payments Dev': 't1', 'Data Lake Dev': 't2', 'Analytics QA': 't2', 'CRM UAT': 't3' };
+  const ENVS = ['Payments Dev', 'Data Lake Dev', 'Analytics QA', 'CRM UAT', 'Legacy'].map((e, i) => ({ environmentId: envId(e),
+    name: e.toLowerCase(), displayName: e, isActive: true, teamId: TEAM_OF[e] || null, vmCount: 3, runningVmCount: i === 1 ? 0 : 2,
+    groupStates: [{ groupId: 'g' + i, name: 'app', sequencePosition: 1, total: 3, running: i === 1 ? 0 : 2, busy: 0, stopped: i === 1 ? 3 : 1, problem: 0, unknown: 0 }] }));
+  const MONTH = [{ dimensionKey: 'Payments', dimensionLabel: 'Payments', cost: 1234.5, vmCount: null },
+    { dimensionKey: 'Unassigned', dimensionLabel: 'Unassigned', cost: 12, vmCount: null }];
 
-  async function openCards(page: Page, quotasOn: boolean) {
+  async function openTable(page: Page, quotasOn: boolean, teams: any[] = TEAMS) {
     await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
       const response = await route.fetch();
       const caps = await response.json();
       return route.fulfill({ response, body: JSON.stringify({ ...caps, features: { ...caps.features, quotas: quotasOn } }) });
     });
     await page.route(/\/api\/v1\/teams\/overview$/, route => route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify(quotasOn ? TEAMS : TEAMS.map(t => ({ ...t, quotas: [] }))) }));
-    await page.route(/\/api\/v1\/environments$/, route => route.request().method() === 'GET'
+      body: JSON.stringify(quotasOn ? teams : teams.map(t => ({ ...t, quotas: [] }))) }));
+    await page.route(/\/api\/v1\/environments(\?includeGroups=true)?$/, route => route.request().method() === 'GET'
       ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ENVS) }) : route.continue());
+    await page.route(/\/api\/v1\/cost-management\/month-by-team$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify(MONTH) }));
     await openTeams(page);
   }
 
-  test('four cards: cost centre, members, environments with strips, VM hours', async ({ page }) => {
-    await openCards(page, true);
-    const cards = page.locator('#teams-cards .tm-card');
-    await expect(cards).toHaveCount(4);
-    const payments = cards.filter({ hasText: 'Payments' });
-    await expect(payments.locator('.tm-cc')).toHaveText('CC-4105');
-    await expect(payments.locator('.tm-members')).toHaveText('6 people · synced from Entra group "Payments Engineering"');
-    await expect(payments.locator('.tm-env a')).toHaveText('Payments Dev');
-    await expect(payments.locator('.tm-env .power-strip, .tm-env [class*="strip"]').first()).toBeVisible();
-    await expect(payments.locator('.tm-quota-line')).toContainText('1,840 / 4,000');
-    await expect(payments.locator('.tm-bar')).toHaveAttribute('aria-label', '46% of the monthly VM hours used');
-    await expect(cards.filter({ hasText: 'Data' }).locator('.tm-env')).toHaveCount(2);
-    // Acceptance: 96% of the hours: the red bar.
-    await expect(cards.filter({ hasText: 'CRM' }).locator('.tm-bar')).toHaveClass(/tm-bar-over/);
-    const people = cards.filter({ hasText: 'People' });
-    await expect(people.locator('.tm-env-none')).toContainText('No environments yet.');
-    await expect(people.locator('.tm-quota-none')).toHaveText('No monthly limit');
-    await expect(payments.getByRole('link', { name: 'Members of Payments' })).toHaveAttribute('href', '#/teams/t1'); // U13-T08
+  test('counts and one row per team: cost centre, members, environments, this month, VM hours', async ({ page }) => {
+    await openTable(page, true);
+    const counts = page.locator('#teams-counts');
+    await expect(counts).toContainText('4 teams');
+    await expect(counts).toContainText('1 without a cost centre');
+    await expect(counts).toContainText('1 with no members');
+    await expect(counts).toContainText('1 environment without a team');
+
+    const rows = page.locator('#teams-table-body tr');
+    await expect(rows).toHaveCount(4);
+    const payments = rows.filter({ hasText: 'Payments' });
+    await expect(payments.locator('.tm-name')).toHaveAttribute('href', '#/teams/t1');
+    await expect(payments.locator('td[data-label="Cost centre"]')).toHaveText('CC-4105');
+    await expect(payments.locator('td[data-label="Members"]')).toContainText('6 people');
+    await expect(payments.locator('td[data-label="Members"]')).toContainText('synced from Entra group "Payments Engineering"');
+    await expect(payments.locator('td[data-label="Environments"]')).toContainText('1 · 1 running');
+    await expect(payments.locator('td[data-label="Environments"] .power-strip')).toBeVisible();
+    await expect(payments.locator('td[data-label="This month"]')).toHaveText('$1,234.50');
+    await expect(payments.locator('td[data-label="Monthly limit"]')).toContainText('1,840 / 4,000 h');
+    await expect(payments.getByRole('link', { name: 'Open Payments' })).toHaveAttribute('href', '#/teams/t1');
+    await expect(rows.filter({ hasText: 'Data Lake' })).toHaveCount(0); // environments are counted, not listed
+    await expect(rows.filter({ hasText: 'CC-4410' }).locator('td[data-label="Environments"]')).toContainText('2 · 1 running');
+    // 96% of the hours: red.
+    await expect(rows.filter({ hasText: 'CRM' }).locator('.tm-over')).toHaveText('2,890 / 3,000 h');
+    const people = rows.filter({ has: page.locator('.tm-name', { hasText: 'People' }) }); // not "6 people" in other rows
+    await expect(people.locator('td[data-label="Cost centre"]')).toHaveText('—');
+    await expect(people.locator('td[data-label="Environments"]')).toHaveText('None yet');
+    await expect(people.locator('td[data-label="This month"]')).toHaveText('—');
+    await expect(people.locator('td[data-label="Monthly limit"]')).toHaveText('No limit');
   });
 
-  test('with quotas off there is no bar and no quota request', async ({ page }) => {
+  test('search and Show filter the rows; Show all teams clears them', async ({ page }) => {
+    await openTable(page, true);
+    const rows = page.locator('#teams-table-body tr');
+    await page.locator('#teams-show').selectOption({ label: 'Linked to Entra' });
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('Payments');
+    await page.locator('#teams-show').selectOption({ label: 'All teams' });
+    await page.locator('#teams-search').fill('cc-43');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('CRM');
+    await page.locator('#teams-search').fill('nothing like it');
+    await expect(page.locator('#teams-table-body')).toContainText('No teams match these filters');
+    await page.getByRole('button', { name: 'Show all teams' }).click();
+    await expect(rows).toHaveCount(4);
+  });
+
+  test('Edit opens the team dialog; Deactivate asks first', async ({ page }) => {
+    await openTable(page, true);
+    await page.getByRole('button', { name: 'Edit CRM' }).click();
+    await expect(page.locator('#teamModal')).toBeVisible();
+    await expect(page.locator('#team-cost-center')).toHaveValue('CC-4300');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#teamModal')).toBeHidden();
+    await page.getByRole('button', { name: 'Deactivate People' }).click();
+    await expect(page.locator('.modal.show')).toContainText('Deactivate People? It must own no active environments.');
+  });
+
+  test('many teams page to fit the window, with no page scrollbar at 1440 x 900', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const many = Array.from({ length: 25 }, (_, i) => team(`m${i}`, `Team ${String(i).padStart(2, '0')}`, `CC-${i}`, 1, [], []));
+    await openTable(page, false, many);
+    await expect(page.locator('#teams-pagination .pager-range')).toContainText('of 25');
+    await page.waitForTimeout(500); // the rows a page settle after a resize
+    const fit = await page.evaluate(() => {
+      const main = document.getElementById('mainContent')!;
+      return { page: document.scrollingElement!.scrollHeight, window: window.innerHeight, main: main.scrollHeight, mainBox: main.clientHeight,
+        bottom: document.getElementById('teams-panel')!.getBoundingClientRect().bottom };
+    });
+    expect(fit.page).toBeLessThanOrEqual(fit.window + 1);
+    expect(fit.main).toBeLessThanOrEqual(fit.mainBox + 1);
+    expect(fit.bottom).toBeLessThanOrEqual(fit.window);
+  });
+
+  test('with quotas off every row says No limit and no quota request is sent', async ({ page }) => {
     const quotaCalls: string[] = [];
     page.on('request', r => { if (/\/quotas|quota-usage/.test(r.url())) quotaCalls.push(r.url()); });
-    await openCards(page, false);
-    await expect(page.locator('#teams-cards .tm-card')).toHaveCount(4);
-    await expect(page.locator('.tm-quota')).toHaveCount(0);
+    await openTable(page, false);
+    await expect(page.locator('#teams-table-body tr')).toHaveCount(4);
+    await expect(page.locator('#teams-table-body td[data-label="Monthly limit"]', { hasText: 'No limit' })).toHaveCount(4);
+    await expect(page.locator('.tm-over')).toHaveCount(0);
     expect(quotaCalls).toEqual([]);
   });
 });
@@ -189,7 +253,7 @@ test.describe('Team page', () => {
   const MEMBERS = Array.from({ length: 14 }, (_, i) => ({ userId: `u${String(i).padStart(2, '0')}`, displayName: `Person ${String(i).padStart(2, '0')}`,
     email: `p${i}@example.com`, source: i < 12 ? 'ENTRA' : 'MANUAL' }));
 
-  async function openTeam(page: Page, opts: { quotasOn?: boolean } = {}) {
+  async function openTeam(page: Page, opts: { quotasOn?: boolean, team?: any } = {}) {
     const calls = { overview: 0, quotas: [] as string[] };
     await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
       const response = await route.fetch();
@@ -197,7 +261,7 @@ test.describe('Team page', () => {
       return route.fulfill({ response, body: JSON.stringify({ ...caps, features: { ...caps.features, quotas: opts.quotasOn !== false } }) });
     });
     await page.route(/\/api\/v1\/teams\/tp1\/overview$/, route => { calls.overview++;
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEAM) }); });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.team || TEAM) }); });
     await page.route(/\/api\/v1\/teams\/tp1\/members$/, route => route.request().method() === 'GET'
       ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MEMBERS) }) : route.continue());
     page.on('request', r => { if (/\/quotas|quota-usage/.test(r.url())) calls.quotas.push(r.method() + ' ' + r.url()); });
@@ -262,13 +326,36 @@ test.describe('Team page', () => {
     expect(calls.quotas).toEqual([]);
   });
 
+  test('the environments table: VMs running and this month, search, paged (U25-T05)', async ({ page }) => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ environmentId: `env-${i}`, name: `env-${i}`,
+      displayName: `Env ${String(i).padStart(2, '0')}`, production: false }));
+    await page.route(/\/api\/v1\/environments\/page\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ content: [{ environmentId: 'env-pay-dev', name: 'pay-dev', displayName: 'Payments Dev', vmCount: 5, runningVmCount: 3,
+        monthToDateCost: 412.4 }], page: { size: 100, number: 0, totalElements: 1, totalPages: 1 } }) }));
+    await openTeam(page, { quotasOn: false, team: { ...TEAM, environments: [TEAM.environments[0], ...many] } });
+    const rows = page.locator('#td-env-body tr');
+    const pay = rows.filter({ hasText: 'Payments Dev' });
+    await expect(pay.locator('td[data-label="VMs running"]')).toHaveText('3 of 5');
+    await expect(pay.locator('td[data-label="This month"]')).toHaveText('$412.40');
+    await expect(pay.locator('a')).toHaveAttribute('href', '#/environments/env-pay-dev');
+    await expect(page.locator('#td-env-pager .pager-range')).toContainText('of 31');
+    await page.locator('#td-env-search').fill('env 07');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('Env 07');
+    await page.locator('#td-env-search').fill('nothing like it');
+    await expect(page.locator('#td-env-body')).toContainText('No environments match');
+    await page.getByRole('button', { name: 'Show all environments' }).click();
+    await expect(page.locator('#td-env-pager .pager-range')).toContainText('of 31');
+    await expect(page.locator('#td-change-envs')).toBeVisible();
+  });
+
   test('the environments dialog sends the ticked environments', async ({ page }) => {
     await page.route(/\/api\/v1\/environments$/, route => route.request().method() === 'GET'
       ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
         { environmentId: 'env-pay-dev', name: 'pay-dev', displayName: 'Payments Dev', isActive: true, teamId: 'tp1', teamName: 'Payments' },
         { environmentId: 'env-crm', name: 'crm', displayName: 'CRM UAT', isActive: true, teamId: 'other', teamName: 'CRM' }]) }) : route.continue());
     await openTeam(page);
-    await expect(page.locator('.td-envs a')).toHaveText('Payments Dev');
+    await expect(page.locator('#td-env-table a')).toHaveText('Payments Dev');
     let sent: any = null;
     await page.route(/\/api\/v1\/teams\/tp1\/environments$/, route => { sent = route.request().postDataJSON();
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEAM) }); });
