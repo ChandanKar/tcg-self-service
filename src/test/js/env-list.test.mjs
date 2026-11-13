@@ -28,3 +28,14 @@ test('schedule: rules without a stop ahead, and none at all', () => {
     assert.equal(M.scheduleText({ scheduleRuleCount: 0 }, NOW), 'No schedule');
     assert.equal(M.scheduleText({}, NOW), 'No schedule');
 });
+
+test('schedule: a rule on part of the environment names what it stops (U23-T04)', () => {
+    const M = load();
+    const partial = { scope: 'Group-2', at: new Date(2026, 10, 13, 12, 30).toISOString(), groupIds: ['g2'] };
+    assert.equal(M.scheduleText({ scheduleRuleCount: 1, nextScheduledStop: null, partialScheduledStop: partial }, NOW), 'Group-2 stops 12:30');
+    assert.equal(M.scheduleText({ scheduleRuleCount: 1, partialScheduledStop: Object.assign({}, partial, { at: new Date(2026, 10, 14, 12, 30).toISOString() }) }, NOW),
+        'Group-2 stops Sat 12:30');
+    // The whole environment's stop comes first.
+    assert.equal(M.scheduleText({ scheduleRuleCount: 2, nextScheduledStop: new Date(2026, 10, 13, 19, 0).toISOString(), partialScheduledStop: partial }, NOW),
+        'Stops 19:00');
+});

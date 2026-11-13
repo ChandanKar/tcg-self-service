@@ -949,30 +949,156 @@ public class AutomationRuleService {
         return rule.getEnvironment().getName();
     }
 
-    /** Next stop and start of an environment's enabled schedule rules (E18-T01); null when none. */
-    public record NextFirings(int ruleCount, Instant nextStop, Instant nextStart) {}
+    /**
+     * Next stop and start of an environment's enabled schedule rules (E18-T01). Since U23-T04 the two
+     * times are environment-wide: they come only from rules that act on every VM of the environment (an
+     * environment rule, or a group or VM rule whose target holds all its VMs); null otherwise. A rule on
+     * part of the environment gives {@code partialStop} / {@code partialStart} instead, when it comes
+     * before the environment-wide one, with the groups or VMs it acts on. {@code vmStops} is each VM's own
+     * next stop (by VM id; VMs no rule stops are absent), filled for one environment only.
+     */
+    public record NextFirings(int ruleCount, Instant nextStop, Instant nextStart,
+                              com.tcgdigital.vmcontrol.dto.ScopedFiringDTO partialStop,
+                              com.tcgdigital.vmcontrol.dto.ScopedFiringDTO partialStart,
+                              java.util.Map<String, Instant> vmStops) {
+        public NextFirings(int ruleCount, Instant nextStop, Instant nextStart) {
+            this(ruleCount, nextStop, nextStart, null, null, java.util.Map.of());
+        }
+    }
 
     /**
-     * The earliest next stop and start over the environment's enabled SCHEDULE rules, computed
-     * with the evaluator's own day and time parsing (ScheduleCalculator).
+     * The next environment-wide stop and start over the environment's enabled SCHEDULE rules, and the
+     * next stop or start of part of it (U23-T04), computed with the evaluator's own day and time
+     * parsing (ScheduleCalculator). Staging's ise said "Stops Fri 12:30" everywhere while its only
+     * rule stopped Group-2 alone.
      */
     @Transactional(readOnly = true)
     public NextFirings nextScheduledFirings(String environmentId, Instant from) {
         List<AutomationRule> schedules = automationRuleRepository.findByEnvironmentFetchEnvironment(environmentId).stream()
                 .filter(r -> Boolean.TRUE.equals(r.getEnabled()) && r.getTriggerType() == AutomationTriggerType.SCHEDULE)
                 .toList();
-        return firingsOf(schedules, from);
+        if (schedules.isEmpty()) {
+            return new NextFirings(0, null, null);
+        }
+        return scopedFiringsOf(schedules, vmRepository.findByEnvironmentIdFetchGroupAndEnvironment(environmentId), from, true);
     }
 
-    /** {@link #nextScheduledFirings} for many environments with one query; absent when none. */
+    /** {@link #nextScheduledFirings} for many environments with two queries (no per-VM stops); absent when none. */
     @Transactional(readOnly = true)
     public java.util.Map<String, NextFirings> nextScheduledFiringsByEnvironment(List<String> environmentIds, Instant from) {
         if (environmentIds.isEmpty()) {
             return java.util.Map.of();
         }
-        return automationRuleRepository.findEnabledSchedulesForEnvironments(environmentIds).stream()
-                .collect(Collectors.groupingBy(r -> r.getEnvironment().getEnvironmentId())).entrySet().stream()
-                .collect(Collectors.toMap(java.util.Map.Entry::getKey, e -> firingsOf(e.getValue(), from)));
+        java.util.Map<String, List<AutomationRule>> byEnv = automationRuleRepository
+                .findEnabledSchedulesForEnvironments(environmentIds).stream()
+                .collect(Collectors.groupingBy(r -> r.getEnvironment().getEnvironmentId()));
+        if (byEnv.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<String, List<Vm>> vmsByEnv = vmRepository
+                .findActiveByEnvironmentIdsFetchGroupAndEnvironment(List.copyOf(byEnv.keySet())).stream()
+                .collect(Collectors.groupingBy(v -> v.getGroup().getEnvironment().getEnvironmentId()));
+        return byEnv.entrySet().stream().collect(Collectors.toMap(java.util.Map.Entry::getKey,
+                e -> scopedFiringsOf(e.getValue(), vmsByEnv.getOrDefault(e.getKey(), List.of()), from, false)));
+    }
+
+    /** The VMs of {@code vms} a rule acts on: all for an environment rule, else its group's or its VM. */
+    private static List<Vm> coveredBy(AutomationRule rule, List<Vm> vms) {
+        if (rule.getScopeType() == AutomationScopeType.GROUP) {
+            return vms.stream().filter(v -> v.getGroup() != null && v.getGroup().getGroupId().equals(rule.getScopeId())).toList();
+        }
+        if (rule.getScopeType() == AutomationScopeType.VM) {
+            return vms.stream().filter(v -> v.getVmId().equals(rule.getScopeId())).toList();
+        }
+        return vms;
+    }
+
+    private NextFirings scopedFiringsOf(List<AutomationRule> schedules, List<Vm> vms, Instant from, boolean withVmStops) {
+        Instant envStop = null;
+        Instant envStart = null;
+        Partial stop = new Partial();
+        Partial start = new Partial();
+        java.util.Map<String, Instant> vmStops = new java.util.LinkedHashMap<>();
+        for (AutomationRule rule : schedules) {
+            NextFirings own = firingsOf(List.of(rule), from);
+            List<Vm> covered = coveredBy(rule, vms);
+            boolean whole = rule.getScopeType() == null || rule.getScopeType() == AutomationScopeType.ENVIRONMENT
+                    || (!vms.isEmpty() && covered.size() == vms.size());
+            if (withVmStops && own.nextStop() != null) {
+                covered.forEach(v -> vmStops.merge(v.getVmId(), own.nextStop(), AutomationRuleService::earlier));
+            }
+            if (whole) {
+                envStop = earlier(envStop, own.nextStop());
+                envStart = earlier(envStart, own.nextStart());
+            } else {
+                String name = scopeNameOf(rule, covered);
+                List<String> groupIds = groupIdsOf(rule, covered);
+                stop.offer(own.nextStop(), name, groupIds);
+                start.offer(own.nextStart(), name, groupIds);
+            }
+        }
+        return new NextFirings(schedules.size(), envStop, envStart, stop.before(envStop), start.before(envStart),
+                java.util.Map.copyOf(vmStops));
+    }
+
+    /** The earliest partial firing so far, with every target that fires at that same time. */
+    private static final class Partial {
+        private Instant at;
+        private final List<String> names = new java.util.ArrayList<>();
+        private final java.util.LinkedHashSet<String> groupIds = new java.util.LinkedHashSet<>();
+
+        void offer(Instant time, String name, List<String> ids) {
+            if (time == null) {
+                return;
+            }
+            if (at == null || time.isBefore(at)) {
+                at = time;
+                names.clear();
+                groupIds.clear();
+            } else if (!time.equals(at)) {
+                return;
+            }
+            if (!names.contains(name)) {
+                names.add(name);
+            }
+            groupIds.addAll(ids);
+        }
+
+        /** Null when there is none, or the environment-wide firing comes first (or at the same time). */
+        com.tcgdigital.vmcontrol.dto.ScopedFiringDTO before(Instant envWide) {
+            if (at == null || (envWide != null && !at.isBefore(envWide))) {
+                return null;
+            }
+            return new com.tcgdigital.vmcontrol.dto.ScopedFiringDTO(at, joinNames(names), List.copyOf(groupIds));
+        }
+    }
+
+    /** "A", "A and B", "A, B and C". */
+    static String joinNames(List<String> names) {
+        if (names.size() <= 1) {
+            return String.join("", names);
+        }
+        return String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
+    }
+
+    /** The group's or VM's name, from the VMs already loaded when it has any (else one lookup). */
+    private String scopeNameOf(AutomationRule rule, List<Vm> covered) {
+        if (!covered.isEmpty()) {
+            Vm first = covered.get(0);
+            if (rule.getScopeType() == AutomationScopeType.VM) {
+                return first.getDisplayName() != null && !first.getDisplayName().isBlank() ? first.getDisplayName() : first.getName();
+            }
+            VmGroup g = first.getGroup();
+            return g.getDisplayName() != null && !g.getDisplayName().isBlank() ? g.getDisplayName() : g.getName();
+        }
+        return resolveScopeName(rule);
+    }
+
+    private static List<String> groupIdsOf(AutomationRule rule, List<Vm> covered) {
+        if (rule.getScopeType() == AutomationScopeType.GROUP && rule.getScopeId() != null) {
+            return List.of(rule.getScopeId());
+        }
+        return covered.stream().map(v -> v.getGroup().getGroupId()).distinct().toList();
     }
 
     private NextFirings firingsOf(List<AutomationRule> schedules, Instant from) {

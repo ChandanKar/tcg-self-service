@@ -117,15 +117,30 @@ const EnvCost = (function() {
                     <div class="env-fact-note">Started and stopped by hand</div>
                 </div>`;
         }
-        const parts = [];
-        if (s.nextStop) parts.push(Utils.html`next stop ${when(s.nextStop)}`);
-        if (s.nextStart) parts.push(Utils.html`next start ${when(s.nextStart)}`);
-        const value = parts.length ? parts.join(' · ') : 'Nothing planned';
+        const value = scheduleValue(s);
+        const stopNote = s.nextStop ? ' · stops ' + relative(s.nextStop)
+            : s.partialStop && s.partialStop.at ? ` · ${s.partialStop.scope} stops ${relative(s.partialStop.at)}` : '';
         return Utils.html`<div class="env-fact schedule-fact">
                 <div class="env-fact-head"><span>Schedule</span></div>
-                <div class="env-fact-value" id="env-cost-schedule">${Utils.raw(value.charAt(0).toUpperCase() + value.slice(1))}</div>
-                <div class="env-fact-note">${s.ruleCount} schedule rule${s.ruleCount === 1 ? '' : 's'}${s.nextStop ? ' · stops ' + relative(s.nextStop) : ''}</div>
+                <div class="env-fact-value" id="env-cost-schedule">${value}</div>
+                <div class="env-fact-note">${s.ruleCount} schedule rule${s.ruleCount === 1 ? '' : 's'}${stopNote}</div>
             </div>`;
+    }
+
+    /**
+     * The Schedule fact's value (U23-T04): the next stop and start, the sooner first ("Next start Mon
+     * 08:00 · next stop Mon 20:00"); a rule on part of the environment names what it acts on ("Group-2
+     * stops Fri 12:30"). Staging's ise said "Next stop Fri 12:30" while its only rule stopped Group-2.
+     */
+    function scheduleValue(s, whenFn = when) {
+        const items = [];
+        if (s.nextStop) items.push({ at: s.nextStop, text: `next stop ${whenFn(s.nextStop)}` });
+        if (s.partialStop && s.partialStop.at) items.push({ at: s.partialStop.at, text: `${s.partialStop.scope} stops ${whenFn(s.partialStop.at)}` });
+        if (s.nextStart) items.push({ at: s.nextStart, text: `next start ${whenFn(s.nextStart)}` });
+        if (s.partialStart && s.partialStart.at) items.push({ at: s.partialStart.at, text: `${s.partialStart.scope} starts ${whenFn(s.partialStart.at)}` });
+        if (!items.length) return 'Nothing planned';
+        const value = items.sort((a, b) => new Date(a.at) - new Date(b.at)).map(i => i.text).join(' · ');
+        return value.startsWith('next ') ? 'N' + value.slice(1) : value;
     }
 
     /** The last 14 days as bars: weekends lighter, today gold; a summary for screen readers. */
@@ -173,12 +188,15 @@ const EnvCost = (function() {
             </div>`;
     }
 
-    /** The schedule last read for an environment ({nextStop, nextStart, ruleCount}), or null. */
+    /**
+     * The schedule last read for an environment ({ruleCount, nextStop, nextStart, partialStop, partialStart,
+     * vmStops}), or null.
+     */
     function scheduleFor(envId) {
         return schedules[envId] || null;
     }
 
-    return { render, retry, scheduleFor };
+    return { render, retry, scheduleFor, model: { scheduleValue } };
 })();
 
 window.EnvCost = EnvCost;

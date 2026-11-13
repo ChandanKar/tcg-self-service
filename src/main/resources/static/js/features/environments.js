@@ -465,16 +465,20 @@ const Environments = (function() {
 
     /**
      * The Schedule cell (U22-T13): when the next scheduled stop is ("Stops 19:00" today, "Stops Fri 19:00"
-     * later), "Scheduled" when rules exist without a stop ahead, otherwise "No schedule".
+     * later), "Scheduled" when rules exist without a stop ahead, otherwise "No schedule". A rule on part of
+     * the environment names what it stops (U23-T04): "Group-2 stops Fri 12:30".
      */
     function scheduleText(env, now = new Date()) {
-        if (env && env.nextScheduledStop) {
-            const d = new Date(env.nextScheduledStop);
+        const at = ts => {
+            const d = new Date(ts);
             const pad = n => String(n).padStart(2, '0');
             const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
             const sameDay = d.toDateString() === now.toDateString();
-            return `Stops ${sameDay ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' '}${clock}`;
-        }
+            return `${sameDay ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' '}${clock}`;
+        };
+        if (env && env.nextScheduledStop) return `Stops ${at(env.nextScheduledStop)}`;
+        const partial = env && env.partialScheduledStop;
+        if (partial && partial.at && partial.scope) return `${partial.scope} stops ${at(partial.at)}`;
         return env && env.scheduleRuleCount > 0 ? 'Scheduled' : 'No schedule';
     }
 

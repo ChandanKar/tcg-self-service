@@ -297,7 +297,26 @@ public class EnvironmentController {
                 dto.setMonthToDateCost(row.monthToDateEstimated());
                 dto.setScheduleRuleCount(row.scheduleRuleCount());
                 dto.setNextScheduledStop(row.nextStop());
+                dto.setPartialScheduledStop(row.partialStop());
             }
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.AutomationRuleService automationRuleService;
+
+    /**
+     * The schedule fields of one environment's details, as its list row has them (U23-T04: the details
+     * said 0 rules and no stop while the list had both).
+     */
+    private void withSchedule(EnvironmentDTO dto) {
+        com.tcgdigital.vmcontrol.service.AutomationRuleService.NextFirings next = automationRuleService
+                .nextScheduledFiringsByEnvironment(List.of(dto.getEnvironmentId()), java.time.Instant.now())
+                .get(dto.getEnvironmentId());
+        if (next != null) {
+            dto.setScheduleRuleCount(next.ruleCount());
+            dto.setNextScheduledStop(next.nextStop());
+            dto.setPartialScheduledStop(next.partialStop());
         }
     }
 
@@ -533,6 +552,7 @@ public class EnvironmentController {
         }
         withViewerFlags(dto);
         withViewerGrant(dto);
+        withSchedule(dto);
 
         return ResponseEntity.ok(dto);
     }
