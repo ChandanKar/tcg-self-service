@@ -34,6 +34,17 @@ test('the month-end forecast, and AWS only when it covers every day left', () =>
     assert.equal(M.monthEnd([], null, NOW).platform, null);
 });
 
+test('U23-T01: the server month wins over the trend, as on Home', () => {
+    const trend = Array.from({ length: 24 }, (_, i) => ({ date: day(i + 1), estimatedCost: 100, actualCost: null }));
+    const month = { monthToDate: 2612.4, forecast: 6490.2, billedDays: 6, estimatedDays: 18 };
+    assert.deepEqual(plain(M.monthToDate(trend, NOW, month)), { days: 24, value: 2612.4, billedShare: 25 });
+    assert.equal(M.monthEnd(trend, null, NOW, month).platform, 6490.2);
+    // Without it, the trend as before.
+    assert.equal(M.monthToDate(trend, NOW, null).value, 2400);
+    // The 1st: no complete day, only today's live estimate.
+    assert.deepEqual(plain(M.fromMonth({ monthToDate: 40, billedDays: 0, estimatedDays: 0 })), { days: 1, value: 40, billedShare: 0 });
+});
+
 test('bars: the six largest and Other; teams this month', () => {
     const rows = Array.from({ length: 8 }, (_, i) => ({ label: `E${i}`, cost: 10 * (i + 1) }));
     const bars = plain(M.topBars(rows));

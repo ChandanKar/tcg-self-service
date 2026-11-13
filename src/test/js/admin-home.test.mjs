@@ -39,6 +39,20 @@ test('tiles: the mockup six with their counts, details and links; zero counts ar
         .map(t => [t.count, t.detail]), [[1, '1 stopped reporting']]);
 });
 
+test('U23-T10: the budget tile names the real risk, the forecast when it passes the budget', () => {
+    const tile = top => plain(M.tiles({ ...NONE, budgets: { nearLimit: 1, top } }, NOW))[0];
+    assert.deepEqual([tile({ scopeName: 'ISE', percentUsed: 62, forecastPercent: 131.1 })].map(t => [t.title, t.detail]),
+        [['Budget heading over', 'ISE heading for 131% of its budget']]);
+    assert.deepEqual([tile({ scopeName: 'CRM team', percentUsed: 96.2, forecastPercent: 99 })].map(t => [t.title, t.detail]),
+        [['Budget almost used', 'CRM team at 96%']]);
+    // Spent 95%, forecast 120%: almost used, and the forecast says by how much.
+    assert.deepEqual([tile({ scopeName: 'Payments', percentUsed: 95, forecastPercent: 120 })].map(t => [t.title, t.detail]),
+        [['Budget almost used', 'Payments heading for 120% of its budget']]);
+    assert.equal(tile({ scopeName: 'Old', percentUsed: 91 }).detail, 'Old at 91%'); // no forecast field
+    assert.equal(plain(M.tiles({ ...NONE, budgets: { nearLimit: 2, top: { scopeName: 'ISE', percentUsed: 62, forecastPercent: 131 } } }, NOW))[0].title,
+        'Budgets heading over');
+});
+
 test('fleet: most running first, then by name; at most 7; only environments with a strip', () => {
     const card = (name, running, strip = true) => ({ environmentId: name, displayName: name, runningVms: running, groupStates: strip ? [{}] : [] });
     const cards = [card('B', 2), card('A', 2), card('C', 6), card('D', 0), card('E', 9, false),
@@ -76,6 +90,22 @@ test('U20-T10: AWS billing where it has arrived, the estimate for the rest, and 
     const all = M.spend(points.map(p => ({ ...p, actualCost: 80 })), null, null, NOW);
     assert.equal(M.sourceText(all, NOW), 'From AWS billing · data from 11 Oct');
     assert.equal(M.sourceText(M.spend([], null, null, NOW), NOW), '');
+});
+
+test('U23-T01: with the server month, spent and the forecast are the figures Cost management shows', () => {
+    const points = Array.from({ length: 18 }, (_, i) => ({ date: `2026-10-${String(i + 1).padStart(2, '0')}`, estimatedCost: 100 }));
+    const month = { monthToDate: 2612.4, forecast: 6490.2, dailyAverage: 215.21, averagedDays: 7, daysLeft: 12,
+        billedDays: 0, estimatedDays: 18, firstDay: 1 };
+    const m = M.spend(points, 9999, null, NOW, month);
+    assert.equal(m.spent, 2612.4);
+    assert.equal(m.forecast, 6490.2);
+    assert.equal(m.cumulative.length, 18); // the line still follows the days
+    assert.equal(M.sourceText(m, NOW), 'Estimated from instance prices');
+    assert.equal(M.forecastText(m), 'Spent so far plus the average of the last 7 days ($215 a day) for the 12 days left.');
+    // No forecast from the server (no complete day yet): spent plus the average so far.
+    const early = M.spend([], null, null, NOW, { ...month, forecast: null, averagedDays: 0, dailyAverage: null, monthToDate: 190 });
+    assert.equal(early.hasData, true);
+    assert.equal(Math.round(early.forecast), Math.round(190 + (190 / 19) * 12));
 });
 
 test('health: healthy, a late job named (red when a day late or never ran), or a stale state sync', () => {

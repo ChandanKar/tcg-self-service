@@ -61,3 +61,15 @@ test('idle now, busiest bars relative to the busiest, groups in start order, sto
     assert.deepEqual(plain(M.storageRows(ins)), [{ type: 'gp3', hint: '', count: '6 disks' },
         { type: 'gp2', hint: 'move to gp3, same speed for less', count: '1 disk' }]);
 });
+
+test('U23-T10: a budget forecast past its amount is the first thing to do, in the words Home uses', () => {
+    const M = load();
+    const ise = { enabled: true, monthlyAmount: 50, spendToDate: 31.1, forecastMonthEnd: 65.57, forecastPercent: 131.1 };
+    assert.deepEqual(plain(M.budgetLine(ise, 'ISE')), { title: 'ISE heading for 131% of its budget.',
+        detail: 'Forecast $65.57 of $50.00 this month, $31.10 spent so far.', saves: '', tone: 'gold', action: null });
+    assert.equal(M.budgetLine({ ...ise, forecastMonthEnd: 48, forecastPercent: 96 }, 'ISE'), null); // within the budget
+    assert.equal(M.budgetLine({ ...ise, enabled: false }, 'ISE'), null);
+    assert.equal(M.budgetLine({ ...ise, forecastMonthEnd: null, forecastPercent: null }, 'ISE'), null);
+    assert.equal(M.budgetLine(null, 'ISE'), null);
+    assert.equal(M.budgetLine({ ...ise, forecastPercent: null }, 'ISE').title, 'ISE heading for 131% of its budget.');
+});

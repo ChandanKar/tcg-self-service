@@ -65,9 +65,9 @@ const AdminHome = (function() {
             [drift ? `${drift} changed outside the platform, 24 h` : '', found ? `${found} found by discovery` : ''].filter(Boolean).join(', '), '#/vm-registry', 'gold');
         const budgets = att.budgets || {};
         const near = Number(budgets.nearLimit) || 0;
-        const top = budgets.top;
-        add('budgets', near, near === 1 ? 'Budget almost used' : 'Budgets almost used',
-            top ? `${top.scopeName} at ${Math.round(Number(top.percentUsed) || 0)}%` : '', '#/budgets', 'red');
+        const risk = budgetRisk(budgets.top);
+        add('budgets', near, risk.heading ? (near === 1 ? 'Budget heading over' : 'Budgets heading over')
+            : (near === 1 ? 'Budget almost used' : 'Budgets almost used'), risk.detail, '#/budgets', 'red');
         const jobs = att.lateJobs || {};
         const late = Number(jobs.count) || 0;
         add('jobs', late, late === 1 ? 'Late scheduled job' : 'Late scheduled jobs', jobText(jobs.worst), '#/system-health', 'gold');
@@ -78,6 +78,22 @@ const AdminHome = (function() {
             (regions.environmentNames || []).join(', '),
             regions.firstEnvironmentId ? `#/environments/${encodeURIComponent(regions.firstEnvironmentId)}/settings/details` : '#/my-environments', 'gold');
         return out;
+    }
+
+    /**
+     * The budget most at risk in words (U23-T10): "ISE heading for 131% of its budget" when its month-end
+     * forecast passes the amount and is the larger figure, else "ISE at 62%". Staging said "Budget almost
+     * used: ISE at 62%" while ISE's forecast was $65.57 of its $50. heading: the forecast is the risk
+     * and less than 90% is spent, so the tile is not "almost used".
+     */
+    function budgetRisk(top) {
+        if (!top) return { detail: '', heading: false };
+        const used = Number(top.percentUsed) || 0;
+        const forecast = top.forecastPercent === null || top.forecastPercent === undefined ? null : Number(top.forecastPercent);
+        if (forecast !== null && Number.isFinite(forecast) && forecast > 100 && forecast > used) {
+            return { detail: `${top.scopeName} heading for ${Math.round(forecast)}% of its budget`, heading: used < 90 };
+        }
+        return { detail: `${top.scopeName} at ${Math.round(used)}%`, heading: false };
     }
 
     /** "Cost snapshot, 2 h late" or "Cost snapshot, never ran". */
@@ -116,8 +132,10 @@ const AdminHome = (function() {
      * else the server's month to date, else the days' sum); and the forecast: spent plus the average
      * of the last 7 days with data for every day left in the month. Also where the figure comes from
      * and the first day with data, so a month that started without data says so.
+     * With the server's month (U23-T01, /cost-management/month) spent, the forecast and its basis are
+     * the server's, the figures Cost management and My account show; the days only draw the line.
      */
-    function spend(points, monthToDate, plan, now = new Date()) {
+    function spend(points, monthToDate, plan, now = new Date(), fleet = null) {
         const year = now.getFullYear();
         const month = now.getMonth();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -137,6 +155,19 @@ const AdminHome = (function() {
         const daysLeft = Math.max(0, daysInMonth - today);
         const forecast = spent + daily * daysLeft;
         const planAmount = plan && Number(plan.amount) > 0 ? Number(plan.amount) : null;
+        if (fleet && fleet.monthToDate !== null && fleet.monthToDate !== undefined) {
+            const fleetSpent = Number(fleet.monthToDate) || 0;
+            const averaged = Number(fleet.averagedDays) || 0;
+            const fleetDaily = averaged ? Number(fleet.dailyAverage) || 0 : (today ? fleetSpent / today : 0);
+            const left = Math.max(0, Number(fleet.daysLeft) || 0);
+            const billedFleet = Number(fleet.billedDays) || 0;
+            return { spent: fleetSpent,
+                forecast: fleet.forecast !== null && fleet.forecast !== undefined ? Number(fleet.forecast) : fleetSpent + fleetDaily * left,
+                plan: planAmount, budgetCount: plan ? Number(plan.budgetCount) || 0 : 0,
+                today, daysInMonth, cumulative, hasData: days.length > 0 || fleetSpent > 0,
+                billedDays: billedFleet, estimatedDays: Number(fleet.estimatedDays) || 0,
+                firstDay: fleet.firstDay || null, averagedDays: averaged, daily: fleetDaily, daysLeft: left };
+        }
         return { spent, forecast, plan: planAmount, budgetCount: plan ? Number(plan.budgetCount) || 0 : 0,
             today, daysInMonth, cumulative, hasData: days.length > 0 || spent > 0,
             billedDays, estimatedDays: days.length - billedDays, firstDay: days.length ? days[0].date.getDate() : null,
@@ -262,7 +293,7 @@ const AdminHome = (function() {
 
     function cachedSpend(data) {
         return extras && extras.trend ? spend(extras.trend, (data.summary || {}).monthToDateCost,
-            extras.attention && extras.attention.monthPlan, new Date()) : null;
+            extras.attention && extras.attention.monthPlan, new Date(), extras.month) : null;
     }
 
     /**
@@ -302,9 +333,10 @@ const AdminHome = (function() {
             ApiClient.get(url, { suppressGlobalError: true }).done(v => resolve({ ok: true, v })).fail(() => resolve({ ok: false }));
         });
         const dayOfMonth = new Date().getDate();
-        Promise.all([get(Config.API.dashboard.attention), get(Config.API.costManagement.spendTrend(dayOfMonth))]).then(([att, trend]) => {
+        Promise.all([get(Config.API.dashboard.attention), get(Config.API.costManagement.spendTrend(dayOfMonth)),
+            get(Config.API.costManagement.month)]).then(([att, trend, month]) => {
             extras = { at: Date.now(), attention: att.ok ? att.v : null, attentionFailed: !att.ok,
-                trend: trend.ok ? (trend.v || []) : null, trendFailed: !trend.ok };
+                trend: trend.ok ? (trend.v || []) : null, trendFailed: !trend.ok, month: month.ok ? month.v : null };
             if (ContentRouter.isCurrent(token)) draw(data);
         });
     }
@@ -322,7 +354,7 @@ const AdminHome = (function() {
             : '<p class="ah-note ah-pad ah-all-clear">Nothing needs you right now.</p>');
 
         const summary = data.summary || {};
-        const m = extras.trend ? spend(extras.trend, summary.monthToDateCost, att && att.monthPlan, now) : null;
+        const m = extras.trend ? spend(extras.trend, summary.monthToDateCost, att && att.monthPlan, now, extras.month) : null;
         $('#ah-summary').html(summaryHtml(data, m));
         let body;
         if (!m) {
@@ -354,7 +386,7 @@ const AdminHome = (function() {
         extras = null;
     }
 
-    return { html, fill, reset, model: { tiles, fleet, topSpenders, spend, spendSvg, health, span, jobText, sourceText, forecastText } };
+    return { html, fill, reset, model: { tiles, budgetRisk, fleet, topSpenders, spend, spendSvg, health, span, jobText, sourceText, forecastText } };
 })();
 
 if (typeof window !== 'undefined') window.AdminHome = AdminHome;

@@ -465,6 +465,7 @@ const Config = (function() {
         // Cost Management (admin only)
         costManagement: {
             summary: `${API_BASE_URL}/cost-management/summary`,
+            month: `${API_BASE_URL}/cost-management/month`,
             // Carbon by environment (E37-T03); 404 while carbon.enabled is off
             carbon: (month) => `${API_BASE_URL}/cost-management/carbon` + (month ? `?month=${encodeURIComponent(month)}` : ''),
             carbonExport: (month) => `${API_BASE_URL}/cost-management/carbon/export` + (month ? `?month=${encodeURIComponent(month)}` : ''),

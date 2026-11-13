@@ -228,7 +228,8 @@ public class EnvironmentCostService {
         }
         List<String> ids = List.copyOf(envs.keySet());
         if (ids.isEmpty()) {
-            return new com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response(List.of(), false, 0, ADMIN_LIST_LIMIT);
+            return new com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response(List.of(), false, 0, ADMIN_LIST_LIMIT,
+                    BigDecimal.ZERO.setScale(2));
         }
         List<com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> rows = buildRows(envs, levels, now, today);
         Comparator<com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> byMtd = Comparator.comparing(
@@ -237,8 +238,13 @@ public class EnvironmentCostService {
         rows.sort(Comparator.comparing((com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO r) -> !r.owner()).thenComparing(byMtd));
         int total = rows.size();
         boolean capped = globalAdmin && total > ADMIN_LIST_LIMIT;
+        // The total covers every environment, not the 50 listed (U23-T01: My account said $2,467 while
+        // Home said $2,612); for admins it is the fleet's month to date, the figure Home shows.
+        BigDecimal monthToDateTotal = globalAdmin ? fleetMonth().monthToDate()
+                : money(rows.stream().map(com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO::monthToDateEstimated)
+                        .filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add));
         return new com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response(
-                capped ? rows.subList(0, ADMIN_LIST_LIMIT) : rows, capped, total, ADMIN_LIST_LIMIT);
+                capped ? rows.subList(0, ADMIN_LIST_LIMIT) : rows, capped, total, ADMIN_LIST_LIMIT, monthToDateTotal);
     }
 
     /**
@@ -355,6 +361,68 @@ public class EnvironmentCostService {
                         .merge(today, e.cost(), BigDecimal::add);
             }
         }
+    }
+
+    /**
+     * The fleet's month to date and forecast, the one definition Home, Cost management and My account
+     * show (U23-T01). Staging showed three figures at once: Home $2,612 (snapshots + today), Cost
+     * management $2,404 (snapshots to yesterday, worked out in the browser) and My account $2,467 (the
+     * 50 largest environments only). Every environment's snapshots from the 1st to yesterday (AWS
+     * billing where an environment-day has it, else the estimate) plus today's live estimate of the
+     * active environments' VMs; the forecast adds the average of the last 7 complete days for each
+     * day left, as the environment page does.
+     */
+    @Transactional(readOnly = true)
+    public com.tcgdigital.vmcontrol.dto.FleetMonthDTO fleetMonth() {
+        Instant now = clock.instant();
+        LocalDate today = LocalDate.now(clock);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate yesterday = today.minusDays(1);
+        LocalDate runRateStart = today.minusDays(RUN_RATE_DAYS);
+        LocalDate from = runRateStart.isBefore(monthStart) ? runRateStart : monthStart;
+
+        BigDecimal complete = BigDecimal.ZERO;
+        int billedDays = 0;
+        int estimatedDays = 0;
+        Integer firstDay = null;
+        List<BigDecimal> recent = new java.util.ArrayList<>();
+        for (CostDailySnapshotRepository.DailySpend day
+                : snapshotRepository.findDailySpendBetween(Date.valueOf(from), Date.valueOf(yesterday))) {
+            LocalDate date = day.getSnapshotDate().toLocalDate();
+            BigDecimal spend = nz(day.getSpend());
+            if (!date.isBefore(monthStart)) {
+                complete = complete.add(spend);
+                if (firstDay == null) {
+                    firstDay = date.getDayOfMonth();
+                }
+                long rows = day.getRowCount() == null ? 0 : day.getRowCount();
+                long billed = day.getBilledCount() == null ? 0 : day.getBilledCount();
+                if (rows > 0 && billed >= rows) {
+                    billedDays++;
+                } else {
+                    estimatedDays++;
+                }
+            }
+            if (!date.isBefore(runRateStart)) {
+                recent.add(spend);
+            }
+        }
+
+        List<String> activeIds = environmentRepository.findByIsActiveTrue().stream()
+                .map(com.tcgdigital.vmcontrol.model.Environment::getEnvironmentId).toList();
+        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
+        addTodaysLiveEstimate(live, activeIds, now, today);
+        BigDecimal todaySoFar = live.values().stream().map(days -> days.getOrDefault(today, BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal mtd = complete.add(todaySoFar);
+        int daysLeft = today.lengthOfMonth() - today.getDayOfMonth();
+        BigDecimal forecast = CostRunRate.forecast(mtd, recent, daysLeft);
+        BigDecimal average = recent.isEmpty() ? null
+                : recent.stream().reduce(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal.valueOf(recent.size()), 2, RoundingMode.HALF_UP);
+        return new com.tcgdigital.vmcontrol.dto.FleetMonthDTO(monthStart, yesterday, money(mtd), money(complete),
+                money(todaySoFar), billedDays, estimatedDays, firstDay, average, recent.size(), daysLeft,
+                forecast == null ? null : money(forecast));
     }
 
     private static BigDecimal sumBetween(Map<LocalDate, BigDecimal> days, LocalDate from, LocalDate to) {

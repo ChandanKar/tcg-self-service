@@ -31,10 +31,14 @@ public record AttentionSummaryDTO(
 
     public record VmsToReview(long drift, long pendingReview) { }
 
-    /** Enabled budgets at 90 % or more of their amount, or forecast past it; top is the fullest. */
+    /**
+     * Enabled budgets at 90 % or more of their amount, or forecast past it; top is the one most at risk,
+     * by the larger of spent and forecast percentages (U23-T10).
+     */
     public record Budgets(long nearLimit, BudgetUse top) { }
 
-    public record BudgetUse(String scopeName, BigDecimal percentUsed) { }
+    /** forecastPercent: the month-end forecast against the amount (U23-T10); null without a forecast. */
+    public record BudgetUse(String scopeName, BigDecimal percentUsed, BigDecimal forecastPercent) { }
 
     /** Scheduled jobs that are late, stale or never ran (switched-off jobs excluded); worst is the latest one. */
     public record LateJobs(long count, LateJob worst) { }

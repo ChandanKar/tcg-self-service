@@ -65,6 +65,12 @@ test('the cost total leaves out group-only rows', () => {
     assert.equal(M.costTotal([]), 0);
 });
 
+test('U23-T01: the server total wins, so an admin sees the fleet and not the 50 listed', () => {
+    assert.equal(M.costTotal([{ monthToDateEstimated: 10 }], 2612.4), 2612.4);
+    assert.equal(M.costTotal([{ monthToDateEstimated: 10 }], '2612.40'), 2612.4);
+    assert.equal(M.costTotal([{ monthToDateEstimated: 10 }], null), 10);
+});
+
 test('ended grants', () => {
     assert.equal(M.endedText({ status: 'REVOKED', revokedAt: inDays(-3) }, now), 'Removed 16 Oct');
     assert.equal(M.endedText({ status: 'EXPIRED', expiresAt: inDays(-1) }, now), 'Ended 18 Oct');
