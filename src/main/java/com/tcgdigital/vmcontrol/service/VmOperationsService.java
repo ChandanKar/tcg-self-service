@@ -302,15 +302,7 @@ public class VmOperationsService {
                     execution.getExecutionId(), dto.getOperationType().name());
         }
 
-        runSideEffect("notify requested operation", execution.getExecutionId(), () ->
-                notificationService.notifyOperationRequestedForEnvironment(
-                        environmentId,
-                        environment.getName(),
-                        userId,
-                        dto.getOperationType().name(),
-                        operationScopeLabel(dto),
-                        vmCount
-                ));
+        // U23-T08: no "<person> requested stop" notice; the bell hears the run once, when it completes or fails.
 
         // Leases (E15-T02): a lease error never affects the operation (AfterCommit logs and swallows).
         if (system) {
@@ -1323,7 +1315,9 @@ public class VmOperationsService {
                         execution.getInitiatedByUserId(),
                         execution.getOperationType().name(),
                         total,
-                        failed + skipped));
+                        failed + skipped,
+                        execution.getTriggerSource(),
+                        execution.getTriggerName()));
         if (platformEvents != null) {
             // E34-T07: webhooks hear the operation and, when every step was done, the environment's new state.
             String envId = execution.getEnvironment().getEnvironmentId();
@@ -1377,7 +1371,9 @@ public class VmOperationsService {
                         execution.getEnvironment().getName(),
                         execution.getInitiatedByUserId(),
                         execution.getOperationType().name(),
-                        errorMessage));
+                        errorMessage,
+                        execution.getTriggerSource(),
+                        execution.getTriggerName()));
         if (platformEvents != null) {
             java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
             data.put("operationId", executionId);
@@ -1399,15 +1395,5 @@ public class VmOperationsService {
         } catch (Exception e) {
             log.warn("Could not {} for execution {}: {}", action, executionId, e.getMessage());
         }
-    }
-
-    private String operationScopeLabel(StartOperationDTO dto) {
-        if (dto.getVmIds() != null && !dto.getVmIds().isEmpty()) {
-            return dto.getVmIds().size() == 1 ? "1 VM" : dto.getVmIds().size() + " VMs";
-        }
-        if (dto.getGroupIds() != null && !dto.getGroupIds().isEmpty()) {
-            return dto.getGroupIds().size() == 1 ? "1 group" : dto.getGroupIds().size() + " groups";
-        }
-        return "the environment";
     }
 }

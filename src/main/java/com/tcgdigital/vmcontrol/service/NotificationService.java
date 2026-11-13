@@ -760,20 +760,77 @@ public class NotificationService {
                "ENVIRONMENT", environmentId);
     }
 
-    public void notifyOperationRequestedForEnvironment(String environmentId, String environmentName,
+    /**
+     * What started an operation that no person started, as the bell names it (U23-T08: a schedule's
+     * stop read "admin's stop completed", while History said Schedule "..."); null for a person's own.
+     */
+    static String startedByLabel(com.tcgdigital.vmcontrol.model.OperationTriggerSource source, String triggerName) {
+        if (source == null) return null;
+        String name = triggerName == null || triggerName.isBlank() ? null : triggerName.trim();
+        return switch (source) {
+            case SCHEDULE -> name == null ? "A schedule" : "Schedule \"" + name + "\"";
+            case ACCESS_AUTOMATION -> name == null ? "An automation rule" : "Rule \"" + name + "\"";
+            case LEASE -> "The lease";
+            case IDLE_STOP -> "Idle auto-stop";
+            case BUDGET -> "The budget";
+            case SYSTEM -> "The platform";
+            default -> null;
+        };
+    }
+
+    private static String pastVerb(String operationType) {
+        return "STOP".equalsIgnoreCase(operationType) ? "stopped" : "started";
+    }
+
+    private static String vmCount(int n) {
+        return n == 1 ? "1 VM" : n + " VMs";
+    }
+
+    /** As below, for the run's own trigger: a schedule, rule, lease... is named instead of the person it ran as. */
+    public void notifyOperationCompletedForEnvironment(String environmentId, String environmentName,
                                                        String actorUserId, String operationType,
-                                                       String scopeLabel, int targetCount) {
-        String actorName = resolveUserDisplayName(actorUserId);
+                                                       int totalTargets, int failedTargets,
+                                                       com.tcgdigital.vmcontrol.model.OperationTriggerSource source,
+                                                       String triggerName) {
+        String starter = startedByLabel(source, triggerName);
+        if (starter == null) {
+            notifyOperationCompletedForEnvironment(environmentId, environmentName, actorUserId, operationType,
+                    totalTargets, failedTargets);
+            return;
+        }
+        String done = pastVerb(operationType);
+        String title = starter + " " + done + " " + environmentName + (failedTargets > 0 ? ", with failures" : "");
+        String message = failedTargets > 0
+                ? starter + " " + done + " \"" + environmentName + "\": " + failedTargets + " of "
+                        + vmCount(totalTargets) + " failed or were skipped."
+                : starter + " " + done + " " + vmCount(totalTargets) + " in \"" + environmentName + "\".";
+        // Nobody is told "Your ..." for a run they did not start.
+        broadcastToEnvironment(environmentId, null, NotificationType.OPERATION_COMPLETED,
+                title, message, title, message, "ENVIRONMENT", environmentId);
+    }
+
+    /** As below, for the run's own trigger (see the completed overload). */
+    public void notifyOperationFailedForEnvironment(String environmentId, String environmentName,
+                                                    String actorUserId, String operationType,
+                                                    String reason,
+                                                    com.tcgdigital.vmcontrol.model.OperationTriggerSource source,
+                                                    String triggerName) {
+        String starter = startedByLabel(source, triggerName);
+        if (starter == null) {
+            notifyOperationFailedForEnvironment(environmentId, environmentName, actorUserId, operationType, reason);
+            return;
+        }
         String verb = operationVerb(operationType);
-        String targetSummary = targetCount == 1 ? "1 target" : targetCount + " targets";
-        broadcastToEnvironment(environmentId, actorUserId,
-                NotificationType.OPERATION_REQUESTED,
-                "You requested " + verb + ": " + environmentName,
-                "You requested " + verb + " for " + scopeLabel + " in \"" + environmentName + "\" (" + targetSummary + ").",
-                actorName + " requested " + verb + ": " + environmentName,
-                actorName + " requested " + verb + " for " + scopeLabel + " in \"" + environmentName + "\" (" + targetSummary + ").",
-                "ENVIRONMENT",
-                environmentId);
+        String failureReason = isBlank(reason) ? "Unknown error" : reason;
+        String title = starter + " couldn't " + verb + " " + environmentName;
+        String message = starter + " couldn't " + verb + " \"" + environmentName + "\". Reason: " + failureReason;
+        broadcastToEnvironment(environmentId, null, NotificationType.OPERATION_FAILED,
+                title, message, title, message, "ENVIRONMENT", environmentId);
+        toChat(environmentId, NotificationType.OPERATION_FAILED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.CRITICAL, title, message);
+        if (setting("notification.email.operation-failed.enabled", false)) {
+            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId, false), NotificationType.OPERATION_FAILED, null,
+                    title, message, title, message);
+        }
     }
 
     public void notifyOperationCompletedForEnvironment(String environmentId, String environmentName,

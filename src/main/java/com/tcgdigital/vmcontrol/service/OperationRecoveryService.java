@@ -162,7 +162,8 @@ public class OperationRecoveryService {
         try {
             notificationService.notifyOperationFailedForEnvironment(execution.getEnvironment().getEnvironmentId(),
                     execution.getEnvironment().getName(), execution.getInitiatedByUserId(),
-                    execution.getOperationType().name(), message);
+                    execution.getOperationType().name(), message,
+                    execution.getTriggerSource(), execution.getTriggerName());
         } catch (Exception e) {
             log.warn("Could not notify about recovered operation {}: {}", executionId, e.getMessage());
         }

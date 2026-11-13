@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 public class NotificationPreferenceService {
 
     /** Bell notifications a user must always get. */
+    /** Types the platform no longer sends, so not offered as a choice (U23-T08: no "requested" notice). */
+    static final Set<NotificationType> NOT_SENT = EnumSet.of(NotificationType.OPERATION_REQUESTED);
+
     public static final Set<NotificationType> MANDATORY_IN_APP = EnumSet.of(
             NotificationType.ACCESS_REVOKED, NotificationType.ACCESS_EXPIRED, NotificationType.LOCK_BROKEN,
             NotificationType.ENVIRONMENT_STOP_NOTICE, NotificationType.OPERATION_FAILED, NotificationType.APPROVAL_REQUESTED,
@@ -107,6 +110,7 @@ public class NotificationPreferenceService {
         repository.findByUserId(userId).forEach(p -> stored.put(p.getNotificationType(), p));
         List<NotificationPreferenceDTO> result = new ArrayList<>();
         for (NotificationType type : NotificationType.values()) {
+            if (NOT_SENT.contains(type)) continue;
             UserNotificationPreference p = stored.get(type);
             boolean locked = MANDATORY_IN_APP.contains(type);
             result.add(new NotificationPreferenceDTO(type.name(), label(type), category(type),

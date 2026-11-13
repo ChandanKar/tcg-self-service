@@ -51,7 +51,8 @@ class NotificationPreferenceServiceTest {
     void everythingIsOnUntilTurnedOffAndRequiredBellsAreLocked() {
         List<NotificationPreferenceDTO> list = service.list("u1");
 
-        assertThat(list).hasSize(NotificationType.values().length);
+        assertThat(list).hasSize(NotificationType.values().length - 1);
+        assertThat(list).noneMatch(p -> p.type().equals("OPERATION_REQUESTED")); // no longer sent (U23-T08)
         assertThat(list).allMatch(p -> p.inApp() && p.email());
         NotificationPreferenceDTO lockBroken = list.stream().filter(p -> p.type().equals("LOCK_BROKEN")).findFirst().orElseThrow();
         assertThat(lockBroken.inAppLocked()).isTrue();
