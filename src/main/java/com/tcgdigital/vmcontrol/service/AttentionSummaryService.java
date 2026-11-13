@@ -99,7 +99,7 @@ public class AttentionSummaryService {
                 failedOperations(dayAgo, now),
                 // U22-T12: the VMs changed outside the platform in 24 h, as on System health; the drift
                 // flag cleared at the next sync, 5 minutes later (staging showed 2, then 0, then nothing).
-                new AttentionSummaryDTO.VmsToReview(history.countDriftVmsInRange(dayAgo, Timestamp.from(now)),
+                new AttentionSummaryDTO.VmsToReview(history.countDriftVmsInRange(dayAgo, upToNow(now)),
                         vms.countByIsActiveTrueAndDiscoveryPendingTrue()),
                 budgetsNearLimit(budgets),
                 lateJobs(jobs),
@@ -200,11 +200,20 @@ public class AttentionSummaryService {
         return Math.max(0, job.freshnessSeconds() - job.expectedIntervalSeconds());
     }
 
+    /**
+     * The end of "the last 24 hours" for history rows: MySQL stores their time rounded to the nearest second,
+     * so a change recorded in the last half second can read as up to one second in the future and fall
+     * outside a range that ends exactly now (seen as a flaky drift count of 0).
+     */
+    private static Timestamp upToNow(Instant now) {
+        return Timestamp.from(now.plusSeconds(1));
+    }
+
     private AttentionSummaryDTO.Health health(List<DashboardSummaryDTO.SchedulerHealthDTO> jobs, Timestamp dayAgo, Instant now) {
         long enabled = jobs.stream().filter(job -> !"DISABLED".equals(job.status())).count();
         long onTime = jobs.stream().filter(job -> ON_TIME.contains(job.status())).count();
         Timestamp lastSync = stateSyncService.getSyncStatus().getLastSyncTime();
-        long drift = history.countDriftVmsInRange(dayAgo, Timestamp.from(now));
+        long drift = history.countDriftVmsInRange(dayAgo, upToNow(now));
         return new AttentionSummaryDTO.Health(enabled, onTime, lastSync, drift);
     }
 
