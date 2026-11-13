@@ -133,7 +133,10 @@ public class DashboardSummaryService {
         int totalVms = vms.size();
         int runningVms = countStatus(vms, VmStatus.RUNNING);
         int stoppedVms = countStatus(vms, VmStatus.STOPPED);
-        int idleVms = (int) idleSummaries.stream().filter(summary -> Boolean.TRUE.equals(summary.getIdle())).count();
+        // Idle means running and idle now: a stopped VM may keep an old summary (U23-T03).
+        int idleVms = (int) vms.stream().filter(vm -> vm.getStatus() == VmStatus.RUNNING)
+                .map(vm -> idleByVmId.get(vm.getVmId()))
+                .filter(summary -> summary != null && Boolean.TRUE.equals(summary.getIdle())).count();
         int driftedVms = (int) vms.stream().filter(vm -> Boolean.TRUE.equals(vm.getStateDriftDetected())).count();
         Set<String> lockedEnvironmentIds = lockRepository.findByIsActiveTrue().stream()
                 .map(lock -> lock.getEnvironment().getEnvironmentId())
@@ -322,6 +325,7 @@ public class DashboardSummaryService {
         int running = countStatus(vms, VmStatus.RUNNING);
         int stopped = countStatus(vms, VmStatus.STOPPED);
         int idle = (int) vms.stream()
+                .filter(vm -> vm.getStatus() == VmStatus.RUNNING)
                 .map(vm -> idleByVmId.get(vm.getVmId()))
                 .filter(Objects::nonNull)
                 .filter(summary -> Boolean.TRUE.equals(summary.getIdle()))
@@ -492,6 +496,7 @@ public class DashboardSummaryService {
             Map<String, VmIdleSummary> idleByVmId,
             Map<String, VmInventorySnapshot> inventoryByVmId) {
         return vms.stream()
+                .filter(vm -> vm.getStatus() == VmStatus.RUNNING)
                 .map(vm -> toTopVm(vm, idleByVmId.get(vm.getVmId()), inventoryByVmId.get(vm.getVmId())))
                 .filter(row -> row.idleDurationMinutes() != null && row.idleDurationMinutes() > 0)
                 .sorted(Comparator.comparing(DashboardSummaryDTO.TopVmDTO::idleDurationMinutes).reversed())

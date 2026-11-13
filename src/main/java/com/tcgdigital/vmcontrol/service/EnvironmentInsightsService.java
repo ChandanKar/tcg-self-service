@@ -226,7 +226,8 @@ public class EnvironmentInsightsService {
                 missingMetricVms++;
             }
 
-            boolean idle = idleSummary.map(VmIdleSummary::getIdle).orElse(false);
+            // Only a running VM is idle now; a stopped one may keep an old summary (U23-T03).
+            boolean idle = status == VmStatus.RUNNING && idleSummary.map(VmIdleSummary::getIdle).orElse(false);
             if (idle) {
                 idleVms++;
             }
@@ -238,7 +239,7 @@ public class EnvironmentInsightsService {
                     vm.getGroup().getDisplayName() != null ? vm.getGroup().getDisplayName() : vm.getGroup().getName(),
                     status == null ? "UNKNOWN" : status.name(),
                     latestSample.map(VmMetricSample::getCpuUtilization).orElse(null),
-                    idleSummary.map(VmIdleSummary::getIdleDurationMinutes).orElse(0),
+                    idle ? idleSummary.map(VmIdleSummary::getIdleDurationMinutes).orElse(0) : 0,
                     vmStorageGib,
                     latestSample.map(VmMetricSample::getSampleTime).orElse(null),
                     windowCpuByVm.get(vm.getVmId())

@@ -271,4 +271,90 @@ class VmMetricsServiceTest {
         assertThat(dto.getSeries().get(0).getMemoryUtilization()).isEqualByComparingTo("45");
         assertThat(dto.getPeriodSeconds()).isEqualTo(300);
     }
+    // ---- Idle means running and idle now (U23-T03) ----
+
+    private void idleThresholds() {
+        ReflectionTestUtils.setField(service, "idleNetworkThresholdBytes", 1_000_000L);
+        ReflectionTestUtils.setField(service, "idleDiskThresholdBytes", 1_000_000L);
+    }
+
+    @Test
+    void aStoppedVmWithAnOldIdleSummaryIsNoLongerIdle() {
+        Vm stopped = new Vm();
+        stopped.setVmId("vm-stopped");
+        stopped.setStatus(VmStatus.STOPPED);
+        com.tcgdigital.vmcontrol.model.VmIdleSummary old = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        old.setVm(stopped);
+        old.setIdle(true);
+        old.setIdleSince(Timestamp.from(Instant.now().minus(Duration.ofDays(3))));
+        old.setIdleDurationMinutes(30);
+        when(idleSummaryRepository.findIdleOfVmsNotRunning()).thenReturn(List.of(old));
+        when(vmRepository.findByStatus(VmStatus.RUNNING)).thenReturn(List.of());
+
+        service.syncRunningVmMetrics();
+
+        assertThat(old.getIdle()).isFalse();
+        assertThat(old.getIdleSince()).isNull();
+        assertThat(old.getIdleDurationMinutes()).isZero();
+        verify(idleSummaryRepository).saveAll(List.of(old));
+    }
+
+    @Test
+    void consecutiveIdleRunsKeepTheFirstIdleSinceAndTheDurationGrows() {
+        idleThresholds();
+        Instant now = Instant.now();
+        latestStored(now.minus(Duration.ofMinutes(10)));
+        when(provider.fetchMetricSeries(anyList(), any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt()))
+                .thenReturn(Map.of("i-1", points(now.minus(Duration.ofMinutes(5)), 1)));
+        List<VmMetricSample> recent = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            VmMetricSample s = new VmMetricSample();
+            s.setVm(vm);
+            s.setSampleTime(Timestamp.from(now.minus(Duration.ofMinutes(5L * i))));
+            s.setCpuUtilization(BigDecimal.ONE);
+            recent.add(s);
+        }
+        when(sampleRepository.findByVmVmIdOrderBySampleTimeDesc(anyString(), any())).thenReturn(recent);
+        Timestamp firstIdle = Timestamp.from(now.minus(Duration.ofHours(4)));
+        com.tcgdigital.vmcontrol.model.VmIdleSummary summary = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        summary.setVm(vm);
+        summary.setIdle(true);
+        summary.setIdleSince(firstIdle);
+        summary.setIdleDurationMinutes(210);
+        when(idleSummaryRepository.findByVmVmId("vm-1")).thenReturn(Optional.of(summary));
+
+        service.syncRunningVmMetrics();
+
+        assertThat(summary.getIdle()).isTrue();
+        assertThat(summary.getIdleSince()).isEqualTo(firstIdle);
+        assertThat(summary.getIdleDurationMinutes()).isBetween(239, 240);
+    }
+
+    @Test
+    void aVmThatBecomesIdleStartsAtTheOldestSampleOfTheWindow() {
+        idleThresholds();
+        Instant now = Instant.now();
+        latestStored(now.minus(Duration.ofMinutes(10)));
+        when(provider.fetchMetricSeries(anyList(), any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt()))
+                .thenReturn(Map.of("i-1", points(now.minus(Duration.ofMinutes(5)), 1)));
+        List<VmMetricSample> recent = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            VmMetricSample s = new VmMetricSample();
+            s.setVm(vm);
+            s.setSampleTime(Timestamp.from(now.minus(Duration.ofMinutes(5L * i))));
+            s.setCpuUtilization(BigDecimal.ONE);
+            recent.add(s);
+        }
+        when(sampleRepository.findByVmVmIdOrderBySampleTimeDesc(anyString(), any())).thenReturn(recent);
+        com.tcgdigital.vmcontrol.model.VmIdleSummary summary = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        summary.setVm(vm);
+        summary.setIdle(false);
+        when(idleSummaryRepository.findByVmVmId("vm-1")).thenReturn(Optional.of(summary));
+
+        service.syncRunningVmMetrics();
+
+        assertThat(summary.getIdle()).isTrue();
+        assertThat(summary.getIdleSince()).isEqualTo(recent.get(5).getSampleTime());
+        assertThat(summary.getIdleDurationMinutes()).isEqualTo(30);
+    }
 }

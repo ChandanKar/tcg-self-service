@@ -564,7 +564,8 @@ public class CostEstimationService {
                     cpuStats == null ? null : cpuStats.getMaxCpu(),
                     cpuStats == null ? null : cpuStats.getAvgMemory(),
                     cpuStats == null ? null : cpuStats.getMaxMemory(),
-                    idleSummary != null && Boolean.TRUE.equals(idleSummary.getIdle()),
+                    // Idle means running and idle now: a stopped VM costs nothing to leave idle (U23-T03).
+                    vm.getStatus() == com.tcgdigital.vmcontrol.model.VmStatus.RUNNING && idleSummary != null && Boolean.TRUE.equals(idleSummary.getIdle()),
                     idleSummary == null ? null : idleSummary.getIdleSince(),
                     idleSummary == null ? null : idleSummary.getIdleDurationMinutes(),
                     idleSummary == null ? null : idleSummary.getLatestCpuUtilization(),

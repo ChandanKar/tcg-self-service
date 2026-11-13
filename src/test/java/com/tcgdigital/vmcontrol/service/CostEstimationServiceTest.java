@@ -534,6 +534,7 @@ class CostEstimationServiceTest {
         vm.setProviderVmId(INSTANCE_ID);
         vm.setRegion(REGION);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
+        vm.setStatus(VmStatus.RUNNING);
         return vm;
     }
 
@@ -581,6 +582,22 @@ class CostEstimationServiceTest {
         assertEquals("OPS-9", row.jiraKey());
         assertEquals("https://acme.atlassian.net/browse/OPS-9", row.jiraUrl());
         org.mockito.Mockito.verify(tickets, org.mockito.Mockito.times(1)).findBySourceTypeAndSystemAndSourceIdIn(any(), any(), anyList());
+    }
+
+    @Test
+    void aStoppedVmWithAnOldIdleSummaryIsNotIdleWaste() {
+        // U23-T03: 20 of the 29 "barely used" VMs on staging were stopped, their last summary still idle.
+        Vm stopped = buildAwsVm();
+        stopped.setStatus(VmStatus.STOPPED);
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(stopped));
+        com.tcgdigital.vmcontrol.model.VmIdleSummary idle = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        idle.setVm(stopped);
+        idle.setIdle(true);
+        idle.setIdleDurationMinutes(30);
+        when(vmIdleSummaryRepository.findByVmVmIdIn(anyList())).thenReturn(List.of(idle));
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(service.getSummary().idleWasteMonthlyCost()));
+        assertEquals(0, service.getIdleWaste(PageRequest.of(0, 25)).getTotalElements());
     }
 
     @Test
