@@ -81,6 +81,25 @@ test.describe('Savings page', () => {
     await expect(page.locator('.cost-panel-error')).toHaveCount(0);
   });
 
+  test('Still on the table shows the parts it adds up from, and no AWS median (U23-T06)', async ({ page }) => {
+    await page.route(/\/api\/v1\/savings\/summary/, async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.potentialSavings = 1051.25;
+      body.potentialParts = { idle: 612.4, rightsizing: 390.85, waste: 48 };
+      await route.fulfill({ response, body: JSON.stringify(body) });
+    });
+    await page.route(/\/api\/v1\/savings\/efficiency\/trend/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify([{ date: '2026-10-01', efficiencyPercent: 70 }, { date: '2026-10-02', efficiencyPercent: 71 }]) }));
+    await openSavings(page);
+
+    const table = page.locator('[data-kpi="table"]');
+    await expect(table.locator('.savings-tile-value')).toHaveText('$1,051', { timeout: 15_000 });
+    await expect(table.locator('.cost-kpi-note')).toHaveText('Idle VMs $612 · Rightsizing $391 · Waste $48');
+    await expect(page.locator('#savings-trend-svg')).toBeVisible();
+    await expect(page.getByText(/median/i)).toHaveCount(0);
+  });
+
   test('the covered-hours note follows the summary', async ({ page }) => {
     await page.route(/\/api\/v1\/savings\/summary/, async route => {
       const response = await route.fetch();

@@ -18,10 +18,12 @@ class EfficiencySnapshotIntegrationTest extends AbstractIntegrationTest {
     @Autowired private PotentialSavingsService potentialSavingsService;
     @Autowired private EfficiencySnapshotRepository snapshots;
     @Autowired private CostDayBoundary dayBoundary;
+    @Autowired private CostEstimationService costs;
 
     @Test
     void capturingTodayTwiceKeepsOneFleetRow() {
         newEnvironment("Efficiency");
+        costs.invalidateBundles(); // bundles cached by an earlier test may name environments since deleted
         potentialSavingsService.captureSnapshot();
         potentialSavingsService.captureSnapshot();
         LocalDate today = dayBoundary.today();

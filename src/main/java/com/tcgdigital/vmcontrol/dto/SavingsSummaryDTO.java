@@ -20,11 +20,19 @@ public record SavingsSummaryDTO(
         BigDecimal potentialSavings,
         BigDecimal optimisableSpend,
         BigDecimal efficiencyPercent,
-        BigDecimal offHoursShare,
+        /** What "Still on the table" is made of (U23-T06), this month only; null for a past month. */
+        PotentialParts potentialParts,
         ActualsCheck actualsCheck,
         /** Entries whose compute was fully covered by Savings Plans/RIs (the page explains them). */
         int fullyCoveredEntries
 ) {
+    /**
+     * The parts of the potential savings; they add up to it. {@code waste} is null while the waste
+     * checks are off.
+     */
+    public record PotentialParts(BigDecimal idle, BigDecimal rightsizing, BigDecimal waste) {
+    }
+
     /**
      * Estimate quality: estimated vs actual cost over the days that have actuals; the target is
      * within 15 %. Null fields when no day of the month has an actual cost.

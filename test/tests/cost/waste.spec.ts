@@ -36,9 +36,28 @@ test.describe('Waste page', () => {
     const sweep = page.getByRole('button', { name: 'Check again now' });
     await expect(sweep).toBeDisabled();
     await expect(sweep).toHaveAttribute('title', 'Waste checks are switched off');
+    await expect(sweep).toHaveAttribute('aria-describedby', 'waste-off-note'); // U23-T07
     await expect(page.locator('.waste-card .waste-card-name')).toHaveText(['Everything', 'Unattached volumes', 'Unused public IPs',
       'gp2 → gp3', 'Stopped over 30 days', 'Old snapshots', 'Idle VMs']); // Idle VMs moved here in U18-T04
-    await expect(page.locator('#waste-intro')).toContainText('Things in AWS that cost money and do nothing. Checked daily at 04:00 UTC;');
+    // U23-T07: the checks do not run, so the header promises no schedule.
+    await expect(page.locator('#waste-intro')).toHaveText('Things in AWS that cost money and do nothing.');
+  });
+
+  test('with sweeps off Everything adds the idle VMs and the empty list points to them (U23-T07)', async ({ page }) => {
+    await page.route(/\/api\/v1\/cost-management\/summary$/, r => r.fulfill({ json: { idleVmCount: 29, idleWasteMonthlyCost: 1903.18 } }));
+    await page.route(/\/api\/v1\/waste\/summary$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ sweepEnabled: false, openCount: 0, monthlyTotal: 0, checked: 'Daily 04:00', lastSweepAt: null, byType: [] }) }));
+    await page.route(/\/api\/v1\/waste\/findings\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ content: [], page: { size: 10, number: 0, totalElements: 0, totalPages: 0 } }) }));
+    await open(page);
+
+    const all = page.locator('.waste-card', { hasText: 'Everything' });
+    await expect(all).toContainText('$1,903', { timeout: 15_000 });
+    await expect(all).toContainText('29 open');
+    await expect(page.locator('#waste-findings')).toContainText(
+      'Disks, addresses and snapshots are not checked while waste checks are off. 29 idle VMs are under Idle VMs.');
+    await expect(page.locator('#waste-intro')).not.toContainText('Checked daily');
+    await expect(page.getByRole('button', { name: 'Check again now' })).toBeDisabled();
   });
 
   test('the total, a type card filter and a dismiss with a reason (U15-T07)', async ({ page }) => {

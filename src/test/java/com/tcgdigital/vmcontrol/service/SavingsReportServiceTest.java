@@ -32,6 +32,7 @@ class SavingsReportServiceTest extends AbstractIntegrationTest {
     @Autowired private SavingsReportService reports;
     @Autowired private SavingsLedgerEntryRepository ledger;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private CostEstimationService costs;
 
     private Environment env;
     private Vm vm;
@@ -71,6 +72,23 @@ class SavingsReportServiceTest extends AbstractIntegrationTest {
         assertThat(row.key()).isEqualTo(env.getEnvironmentId());
         assertThat(row.team()).isEqualTo("Payments");
         assertThat(reports.byTeam(MONTH).get(0).team()).isNull();
+    }
+
+    @Test
+    void thisMonthsStillOnTheTableComesWithPartsThatAddUpToIt() {
+        // U23-T06: idle VMs + rightsizing (+ waste while its checks are on), each VM counted once.
+        costs.invalidateBundles();
+        SavingsSummaryDTO s;
+        try {
+            s = reports.summary(YearMonth.now(), null);
+        } finally {
+            costs.invalidateBundles(); // the cached bundles name this test's environment, gone after it
+        }
+        assertThat(s.potentialParts()).isNotNull();
+        BigDecimal waste = s.potentialParts().waste() == null ? BigDecimal.ZERO : s.potentialParts().waste();
+        assertThat(s.potentialParts().idle().add(s.potentialParts().rightsizing()).add(waste))
+                .isEqualByComparingTo(s.potentialSavings());
+        assertThat(reports.summary(MONTH, null).potentialParts()).isNull(); // a past month has only its snapshot
     }
 
     @Test

@@ -92,6 +92,7 @@ public class VmMetricsService {
      * @return how many samples were saved
      */
     public int syncRunningVmMetrics() {
+        clearIdleOfVmsNotRunning();
         List<Vm> runningVms = vmRepository.findByStatus(VmStatus.RUNNING);
         Map<String, List<Vm>> groups = runningVms.stream()
                 .filter(vm -> vm.getProviderVmId() != null && !vm.getProviderVmId().isBlank())
@@ -255,6 +256,28 @@ public class VmMetricsService {
         }
     }
 
+    /**
+     * A VM that is not running is never idle (U23-T03). The idle summary is only recomputed for VMs
+     * that get new samples, so a VM stopped while idle kept "idle" forever and its monthly rate was
+     * counted as idle waste. Clears those summaries; called at the start of each metrics run.
+     *
+     * @return how many summaries were cleared
+     */
+    public int clearIdleOfVmsNotRunning() {
+        Integer cleared = transactions.execute(status -> {
+            List<VmIdleSummary> stale = idleSummaryRepository.findIdleOfVmsNotRunning();
+            for (VmIdleSummary summary : stale) {
+                summary.setIdle(false);
+                summary.setIdleSince(null);
+                summary.setIdleDurationMinutes(0);
+                summary.setReason("Not running");
+            }
+            idleSummaryRepository.saveAll(stale);
+            return stale.size();
+        });
+        return cleared == null ? 0 : cleared;
+    }
+
     private void updateIdleSummary(Vm vm) {
         int sampleCount = Math.max(1, (live("vm.metrics.idle.minimum-duration-minutes", idleMinimumDurationMinutes) * 60 + periodSeconds - 1) / periodSeconds);
         List<VmMetricSample> recent = sampleRepository.findByVmVmIdOrderBySampleTimeDesc(
@@ -278,9 +301,13 @@ public class VmMetricsService {
         summary.setLatestDiskReadBytes(latest.getDiskReadBytes());
         summary.setLatestDiskWriteBytes(latest.getDiskWriteBytes());
         summary.setLatestSampleTime(latest.getSampleTime());
+        boolean wasIdle = Boolean.TRUE.equals(summary.getIdle()) && summary.getIdleSince() != null;
         summary.setIdle(allIdle);
         if (allIdle) {
-            Timestamp idleSince = recent.stream()
+            // Keep the real start (U23-T03): only a VM that becomes idle gets a new idle-since, the
+            // oldest sample of the check window; before, every run reset it, so the duration was
+            // always the window ("idle 30 min" on 27 of 29 VMs).
+            Timestamp idleSince = wasIdle ? summary.getIdleSince() : recent.stream()
                     .min(Comparator.comparing(VmMetricSample::getSampleTime))
                     .map(VmMetricSample::getSampleTime)
                     .orElse(latest.getSampleTime());

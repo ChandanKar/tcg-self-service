@@ -51,9 +51,13 @@ const Waste = (function() {
         }
     }
 
-    /** "Checked daily at 04:00 UTC; last check today." from the sweep's schedule and last run. */
+    /**
+     * "Checked daily at 04:00 UTC; last check today." from the sweep's schedule and last run; nothing
+     * while the checks are switched off (U23-T07: they do not run, so no schedule to promise).
+     */
     function scheduleText(summary, now) {
         const s = summary || {};
+        if (s.sweepEnabled === false) return '';
         const checked = s.checked ? (/^Daily \d\d:\d\d$/.test(s.checked) ? `Checked daily at ${s.checked.slice(6)} UTC`
             : `Checked ${s.checked.charAt(0).toLowerCase()}${s.checked.slice(1)}`) : '';
         let last = '';
@@ -64,6 +68,25 @@ const Waste = (function() {
             last = 'not checked yet';
         }
         return [checked, last].filter(Boolean).join('; ') + '.';
+    }
+
+    /**
+     * The Everything card (U23-T07): the open findings and the idle VMs card's amount and count, so it
+     * is everything the cards beside it show.
+     */
+    function everything(summary, idleTotals) {
+        const s = summary || {};
+        const idle = idleTotals || { count: 0, monthly: 0 };
+        return { monthly: Number(s.monthlyTotal || 0) + Number(idle.monthly || 0), count: (s.openCount || 0) + (idle.count || 0) };
+    }
+
+    /** The findings table with nothing in it: why, and where the idle VMs are (U23-T07). */
+    function emptyText(summary, filters, idleTotals) {
+        if (filters.status === 'DISMISSED') return 'Nothing dismissed.';
+        const n = !filters.type && idleTotals ? idleTotals.count || 0 : 0;
+        const idle = n ? ` ${n} idle ${n === 1 ? 'VM is' : 'VMs are'} under Idle VMs.` : '';
+        const checked = !summary || summary.sweepEnabled !== false;
+        return (checked ? 'No waste found.' : 'Disks, addresses and snapshots are not checked while waste checks are off.') + idle;
     }
 
     let pageToken = null;
@@ -156,9 +179,10 @@ const Waste = (function() {
         if (state.errors.summary) {
             $('#waste-summary').html(error('the waste totals', state.errors.summary));
         } else if (s) {
-            $('#waste-intro').text(`Things in AWS that cost money and do nothing. ${scheduleText(s)}`);
+            const schedule = scheduleText(s);
+            $('#waste-intro').text(`Things in AWS that cost money and do nothing.${schedule ? ' ' + schedule : ''}`);
             // U22-T07: switched off reads as off, not as "$0 a month across 0 open findings".
-            const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" role="status">Waste checks are switched off, so
+            const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" id="waste-off-note" role="status">Waste checks are switched off, so
                 unused disks, addresses and snapshots are not looked for. An administrator can switch it on in the server settings.</p>`;
             const total = s.sweepEnabled || s.openCount > 0
                 ? `<span class="cost-mono waste-total-value">${Utils.escapeHtml(money0(s.monthlyTotal))}</span>
@@ -168,6 +192,9 @@ const Waste = (function() {
                 <span id="waste-dismissed-slot"></span></div>`);
             $('#waste-sweep-btn').prop('disabled', !s.sweepEnabled)
                 .attr('title', s.sweepEnabled ? 'Run the sweep now' : 'Waste checks are switched off');
+            // U23-T07: the reason is read out with the disabled button too.
+            if (s.sweepEnabled) $('#waste-sweep-btn').removeAttr('aria-describedby');
+            else $('#waste-sweep-btn').attr('aria-describedby', 'waste-off-note');
         }
         drawFilters();
         drawTable();
@@ -184,7 +211,8 @@ const Waste = (function() {
                 <span class="cost-mono waste-card-cost">${money0(monthly)}</span><span class="waste-card-name">${label}</span>
                 <span class="cost-note">${String(count)} open</span></button>`;
         const idle = state.idleTotals;
-        const cards = [card('', 'Everything', s.monthlyTotal, s.openCount)].concat(Object.entries(TYPES).map(([type, meta]) => {
+        const all = everything(s, idle);
+        const cards = [card('', 'Everything', all.monthly, all.count)].concat(Object.entries(TYPES).map(([type, meta]) => {
             const t = byType[type] || { count: 0, monthly: 0 };
             return card(type, meta.label, t.monthly, t.count);
         })).concat(idle ? [Utils.html`<button type="button" class="waste-card waste-card-idle" data-action="waste-type"
@@ -289,8 +317,8 @@ const Waste = (function() {
                 <td class="cost-num cost-mono">${money2(f.estMonthlyCost)}</td>
                 <td class="waste-actions-cell">${Utils.raw(actions)}</td>
             </tr>`;
-        }).join('') : `<tr><td colspan="6" class="text-muted text-center py-3">${state.filters.status === 'DISMISSED'
-            ? 'Nothing dismissed.' : 'No waste found.'}</td></tr>`;
+        }).join('') : `<tr><td colspan="6" class="text-muted text-center py-3">${Utils.escapeHtml(
+            emptyText(state.summary, state.filters, state.idleTotals))}</td></tr>`;
         const meta = page.page || { number: 0, totalPages: 1, totalElements: 0 };
         $('#waste-table').html(`<section class="list-panel rs-table-card waste-table-card" aria-label="Findings">
             <div class="cost-scroll list-panel-body"><table class="cost-table waste-table" id="waste-findings">
@@ -363,7 +391,7 @@ const Waste = (function() {
         propose,
         filterType: type => { state.filters.type = type || ''; state.page = 0; refresh(); },
         page: p => { state.page = Math.max(0, p); refresh(); },
-        model: { kindText, scheduleText }
+        model: { kindText, scheduleText, everything, emptyText }
     };
 })();
 
