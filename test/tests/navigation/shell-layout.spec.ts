@@ -415,7 +415,7 @@ test.describe('Everyday pages on the page frame', () => {
     const forms: [string, string, string][] = [
       ['#/automation-rules/new', '#ar-form', '#ar-save-btn'],
       ['#/access-management/grant', '#ga-env-list', '#ga-grant'],
-      ['#/user-management/add', '#adp-people', '#adp-submit'],
+      ['#/user-management/add', '#adp-paste', '#adp-submit'],
     ];
     await openAs(page, 1366, 657, '#/help', '#help-search');
     for (const [hash, ready, button] of forms) {

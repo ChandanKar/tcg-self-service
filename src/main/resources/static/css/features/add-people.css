@@ -1,21 +1,30 @@
 /**
- * Add people (U13-T05, AddUsers.dc.html): Who on the left (the list scrolls inside its card), Role,
- * Access and the confirm bar on the right; fits 1440x900.
+ * Add people (U13-T05, U25-T01 addpeople-mock Main.dc.html / Phone.dc.html): 1 Who on the left (wider),
+ * 2 Role over 3 Access on the right, a summary bar at the foot. On the page frame (1366x657 and up) the
+ * columns scroll inside and the bar stays in view; on a phone one column, the bar fixed above the
+ * bottom menu.
  */
 
 .adp-page {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
 
 .adp-page .content-header {
     margin-bottom: 0;
 }
 
+.adp-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
 .adp-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
     gap: 16px;
     align-items: start;
 }
@@ -24,12 +33,14 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
 }
 
 .adp-card {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-width: 0;
     padding: 14px 16px;
     background: #fff;
     border: 1px solid var(--line);
@@ -37,43 +48,68 @@
 }
 
 .adp-card h2 {
+    display: flex;
+    align-items: center;
     margin: 0;
     font-size: 15px;
     font-weight: 600;
 }
 
-.adp-card h2 span {
+.adp-step {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--brand-navy);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.adp-optional {
+    margin-left: 6px;
     font-size: var(--fs-small);
     font-weight: 400;
     color: var(--text-secondary);
 }
 
-.adp-who-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+.adp-label,
+.adp-field {
+    display: block;
+    margin: 0;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    color: var(--ink);
 }
+
+.adp-label {
+    margin-bottom: 4px;
+}
+
+.adp-field .form-control,
+.adp-field .form-select {
+    margin-top: 4px;
+    font-weight: 400;
+}
+
+.adp-note {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.adp-note[hidden] {
+    display: none;
+}
+
+/* 1 · Who */
 
 .adp-search {
     position: relative;
-    flex: 1 1 320px;
-    max-width: 440px;
-    margin: 0;
-}
-
-.adp-search svg {
-    position: absolute;
-    top: 50%;
-    left: 11px;
-    transform: translateY(-50%);
-    color: var(--text-secondary);
-    pointer-events: none;
-}
-
-.adp-search .form-control {
-    padding-left: 34px;
 }
 
 .adp-results {
@@ -82,8 +118,10 @@
     left: 0;
     right: 0;
     z-index: 5;
+    max-height: 220px;
     margin: 4px 0 0;
     padding: 4px 0;
+    overflow-y: auto;
     list-style: none;
     background: #fff;
     border: 1px solid var(--line);
@@ -98,6 +136,9 @@
 }
 
 .adp-option {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
     cursor: pointer;
 }
 
@@ -112,154 +153,177 @@
 }
 
 .adp-option:hover,
-.adp-option:focus {
+.adp-option:focus,
+.adp-option[aria-selected="true"] {
     background: var(--brand-navy-tint);
     outline: none;
 }
 
-.adp-table-wrap {
-    max-height: calc(100vh - var(--topnav-height, 56px) - 430px);
-    min-height: 120px;
-    overflow: auto;
-    border: 1px solid var(--line-soft);
-    border-radius: 8px;
-}
-
-.adp-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--fs-body);
-}
-
-.adp-table th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    padding: 8px 10px;
-    background: var(--surface-subtle);
-    font-size: var(--fs-small);
-    font-weight: 500;
-    color: var(--text-secondary);
-    text-align: left;
-    white-space: nowrap;
-}
-
-.adp-table td {
-    padding: 6px 10px;
-    border-top: 1px solid var(--line-soft);
-    vertical-align: middle;
-}
-
-.adp-table td:first-child {
-    min-width: 180px;
-}
-
-.adp-name {
-    font-weight: 500;
-}
-
-.adp-email,
-.adp-note {
-    font-size: var(--fs-small);
-    color: var(--text-secondary);
-}
-
-.adp-note {
-    margin: 0;
-}
-
-.adp-skip {
-    font-size: var(--fs-small);
-    color: var(--brand-gold-text);
-}
-
-.adp-row-skip td {
-    background: var(--brand-gold-tint);
-}
-
-.adp-empty td {
-    padding: 18px 12px;
-    font-size: var(--fs-small);
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.adp-source {
+.adp-paste-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.adp-paste-row textarea {
+    flex: 1;
+    min-width: 0;
+    min-height: 58px;
+    resize: vertical;
+}
+
+.adp-chips {
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.adp-chips[hidden] {
+    display: none;
 }
 
 .adp-chip {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: var(--fs-caption);
-    font-weight: 500;
-    white-space: nowrap;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    max-width: 100%;
+    min-height: 30px;
+    padding: 2px 4px 2px 10px;
+    border: 1px solid transparent;
+    border-radius: 15px;
+    font-size: var(--fs-small);
+    overflow-wrap: anywhere;
 }
 
-.adp-chip-directory {
-    background: var(--brand-green-tint);
-    color: var(--brand-green-text);
+.adp-chip b {
+    font-weight: 600;
 }
 
-.adp-chip-manual {
-    background: var(--brand-gold-tint);
-    color: var(--brand-gold-text);
+.adp-chip-new,
+.adp-chip-grant {
+    background: var(--brand-navy-tint);
+    border-color: var(--brand-navy-line);
+    color: var(--brand-navy);
 }
 
-.adp-chip-existing {
+.adp-chip-existing,
+.adp-chip-skipped {
     background: var(--surface-muted);
+    border-color: var(--line);
     color: var(--text-secondary);
 }
 
-.adp-remove {
-    width: 24px;
-    height: 24px;
+.adp-chip-typo {
+    background: var(--brand-gold-tint);
+    border-color: var(--brand-gold-line);
+    color: var(--brand-gold-text);
+}
+
+.adp-chip-invalid {
+    background: var(--brand-red-tint);
+    border-color: var(--brand-red-line);
+    color: var(--brand-red-text);
+}
+
+.adp-chip-note {
+    font-size: var(--fs-caption);
+}
+
+/* A chip's address opens the person's own details (U25-T01). */
+.adp-chip-edit {
+    display: inline;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.adp-chip-edit:hover .adp-chip-email,
+.adp-chip-edit[aria-expanded="true"] .adp-chip-email {
+    text-decoration: underline;
+}
+
+.adp-chip-edit:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.adp-person {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-subtle);
+}
+
+.adp-person[hidden] {
+    display: none;
+}
+
+.adp-person h3 {
+    margin: 0;
+    font-size: var(--fs-body);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.adp-person-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+}
+
+.adp-person-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.adp-details-error {
+    grid-column: 1 / -1;
+}
+
+.adp-fix {
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.adp-x {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
     padding: 0;
     border: 0;
     border-radius: 50%;
     background: none;
-    line-height: 1;
-    color: var(--text-secondary);
+    color: inherit;
     cursor: pointer;
 }
 
-.adp-remove:hover,
-.adp-remove:focus-visible {
-    background: var(--surface-muted);
-    color: var(--brand-red-text);
-}
-
-.adp-manual {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-top: 10px;
-    border-top: 1px solid var(--line-soft);
-}
-
-.adp-manual h3 {
-    margin: 0;
-    font-size: var(--fs-body);
-    font-weight: 600;
-}
-
-.adp-manual-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 8px;
-    align-items: end;
-}
-
-.adp-manual-grid .ap-field {
-    font-size: var(--fs-small);
-}
-
-/* U20-T07: who, then details, then how they sign in. */
-.adp-manual-who {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+.adp-x:hover,
+.adp-x:focus-visible {
+    background: rgba(20, 36, 92, 0.08);
 }
 
 .adp-signin {
@@ -281,67 +345,61 @@
     font-weight: 600;
 }
 
-.adp-password {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 6px 8px;
+.adp-signin .re-check {
+    color: var(--ink);
 }
 
-.adp-password[hidden] {
+.adp-signin-note {
+    color: var(--ink);
+}
+
+.adp-link {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    color: var(--brand-navy);
+    text-align: left;
+    cursor: pointer;
+}
+
+.adp-link:hover {
+    text-decoration: underline;
+}
+
+.adp-details {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.adp-details[hidden] {
     display: none;
 }
 
-.adp-password .ap-field {
-    font-size: var(--fs-small);
-}
-
-.adp-password .adp-note {
+.adp-details .adp-note {
     grid-column: 1 / -1;
-    margin: 0;
 }
 
-.adp-mono {
-    font-family: var(--font-mono);
-}
-
-.adp-manual-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.adp-signin-cell {
-    font-size: var(--fs-small);
-    white-space: nowrap;
-}
-
-.adp-pass-table {
-    width: 100%;
-    margin: 8px 0;
-    border-collapse: collapse;
-    font-size: var(--fs-small);
-}
-
-.adp-pass-table th,
-.adp-pass-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--line-soft);
-    text-align: left;
-}
+/* 2 · Role */
 
 .adp-roles {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .adp-role {
     display: flex;
+    flex: 1;
     flex-direction: column;
-    gap: 1px;
-    padding: 8px 12px;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 10px;
     border: 1px solid var(--line-strong);
-    border-radius: 9px;
+    border-radius: 10px;
     background: #fff;
     font: inherit;
     text-align: left;
@@ -350,12 +408,14 @@
 }
 
 .adp-role[aria-checked="true"] {
-    border: 1.5px solid var(--brand-navy);
-    box-shadow: 0 0 0 3px var(--brand-navy-tint);
+    border-color: var(--brand-navy);
+    box-shadow: 0 0 0 1px var(--brand-navy);
+    background: var(--brand-navy-tint);
 }
 
 .adp-role b {
-    font-weight: 500;
+    font-size: var(--fs-body);
+    font-weight: 600;
 }
 
 .adp-role span {
@@ -368,43 +428,24 @@
     outline-offset: 2px;
 }
 
-.adp-access-head {
+/* 3 · Access */
+
+.adp-access-body {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
 }
 
-.adp-link {
-    padding: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    font-size: var(--fs-small);
-    font-weight: 500;
-    color: var(--brand-navy);
-    cursor: pointer;
-}
-
-.adp-link:hover {
-    text-decoration: underline;
-}
-
-.adp-link.adp-danger {
-    color: var(--brand-red-text);
-}
-
-.adp-picker {
-    display: flex;
-    flex-direction: column;
+.adp-grant-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 120px 100px auto;
     gap: 8px;
-    padding: 10px;
-    border-radius: 9px;
-    background: var(--surface-subtle);
+    align-items: end;
 }
 
-.adp-picker[hidden] {
-    display: none;
+.adp-env-field {
+    position: relative;
+    min-width: 0;
 }
 
 .adp-groups {
@@ -412,8 +453,10 @@
     flex-direction: column;
     gap: 4px;
     margin: 0;
-    padding: 0;
+    padding: 8px 10px;
     border: 0;
+    border-radius: 9px;
+    background: var(--surface-subtle);
     font-size: var(--fs-small);
 }
 
@@ -423,109 +466,132 @@
     margin: 0 0 2px;
     padding: 0;
     font-size: var(--fs-small);
-    font-weight: 500;
+    font-weight: 600;
 }
 
-.adp-picker-actions {
+.adp-warn {
     display: flex;
+    align-items: flex-start;
     gap: 8px;
-}
-
-.adp-access {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.adp-access-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
     padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
-}
-
-.adp-access-name {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 8px;
-    font-size: var(--fs-body);
-}
-
-.adp-access-name b {
-    font-weight: 500;
-}
-
-.adp-access-name span span {
-    font-size: var(--fs-small);
-    color: var(--text-secondary);
-}
-
-.adp-access-sets {
-    display: flex;
-    gap: 8px;
-}
-
-.adp-access-sets select {
-    flex: 1;
-}
-
-.adp-confirm #adp-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: var(--fs-body);
-}
-
-.adp-skips {
-    font-size: var(--fs-small);
+    border: 1px solid var(--brand-gold-line);
+    border-radius: 8px;
+    background: var(--brand-gold-tint);
     color: var(--brand-gold-text);
+    font-size: var(--fs-small);
+    line-height: 1.4;
+}
+
+.adp-warn svg {
+    flex: none;
+    margin-top: 1px;
+}
+
+.adp-warn[hidden] {
+    display: none;
+}
+
+/* The summary bar */
+
+.adp-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 -4px 12px -8px rgba(20, 36, 92, 0.25);
+}
+
+.adp-bar-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.adp-summary {
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.adp-bar-text .adp-note {
+    margin-top: 2px;
+}
+
+.adp-bar-actions {
+    display: flex;
+    flex: none;
+    gap: 8px;
 }
 
 .adp-problem {
     color: var(--brand-red-text);
 }
 
-.adp-confirm-actions {
+/* The result, once */
+
+.adp-done {
+    max-width: 720px;
+}
+
+.adp-done h2 {
+    font-size: 18px;
+}
+
+.adp-done p {
+    margin: 0;
+    font-size: var(--fs-body);
+}
+
+.adp-done .adp-note {
+    font-size: var(--fs-small);
+}
+
+.adp-pass-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+}
+
+.adp-pass-table th,
+.adp-pass-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.adp-pass-table th {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.adp-mono {
+    font-family: var(--font-mono);
+}
+
+.adp-done .adp-once {
+    font-size: var(--fs-small);
+    color: var(--brand-gold-text);
+}
+
+.adp-done-actions {
     display: flex;
-    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
-/* Below 1400 px the side column goes under the list, so the list keeps room for its fields. */
-@media (max-width: 1399.98px) {
-    .adp-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .adp-side {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        align-items: start;
-    }
-
-    .adp-table-wrap {
-        max-height: 320px;
-    }
-}
-
-@media (max-width: 575.98px) {
-    .adp-manual-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .adp-side {
-        display: flex;
-    }
-}
-
-/* Add people on the page frame (U18-T05): both columns take the height left. The people table scrolls
-   inside its card, with sticky headings; the right column scrolls inside, with Cancel and Add people
-   pinned at its foot. */
+/* Laptops: on the page frame the two columns take the height left and scroll inside; the bar keeps its place. */
 @media (min-width: 1280px) and (min-height: 600px) {
-    .adp-page.page-frame > .adp-grid {
+    .adp-page.page-frame > .adp-body {
+        flex: 1 1 0;
+    }
+
+    .adp-page.page-frame .adp-grid {
         flex: 1 1 0;
         min-height: 0;
         grid-template-rows: minmax(0, 1fr);
@@ -537,41 +603,129 @@
         overflow-y: auto;
     }
 
-    .adp-page.page-frame .adp-table-wrap {
-        flex: 1 1 auto;
-        min-height: 96px;
-        max-height: none;
-    }
-
-    .adp-page.page-frame .adp-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: #fff;
-    }
-
     .adp-page.page-frame .adp-side {
         min-height: 0;
-        overflow-y: auto;
     }
 
     .adp-page.page-frame .adp-side > .adp-card {
         flex: none;
     }
 
-    .adp-page.page-frame .adp-confirm {
-        position: sticky;
-        bottom: 0;
-        z-index: 2;
+    .adp-page.page-frame .adp-side > .adp-access-card {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .adp-page.page-frame .adp-bar {
+        position: static;
+        flex: none;
+    }
+
+    .adp-page.page-frame .adp-done {
+        min-height: 0;
+        overflow-y: auto;
     }
 }
 
-.adp-side.has-more-below > .adp-confirm {
-    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+.adp-who.has-more-below,
+.adp-access-card.has-more-below {
+    box-shadow: inset 0 -8px 8px -8px rgba(20, 36, 92, 0.22);
 }
 
-.adp-side:focus-visible,
-.adp-table-wrap:focus-visible {
+.adp-who:focus-visible,
+.adp-access-card:focus-visible {
     outline: 2px solid var(--brand-navy);
     outline-offset: -2px;
+}
+
+@media (max-width: 991.98px) {
+    .adp-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Phones (Phone.dc.html): one column; the bar sits above the bottom menu; 44 px targets. */
+@media (max-width: 768px) {
+    .adp-page {
+        padding-bottom: 180px;
+    }
+
+    .adp-details,
+    .adp-person-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .adp-chip-edit {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 4px;
+        min-height: 44px;
+    }
+
+    .adp-roles {
+        gap: 6px;
+    }
+
+    .adp-role {
+        justify-content: center;
+        min-height: 44px;
+        text-align: center;
+    }
+
+    .adp-role span {
+        display: none;
+    }
+
+    .adp-grant-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .adp-env-field,
+    .adp-grant-row .btn {
+        grid-column: 1 / -1;
+    }
+
+    .adp-chip {
+        min-height: 44px;
+        padding-right: 0;
+        border-radius: 22px;
+    }
+
+    .adp-x,
+    .adp-fix {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .adp-x {
+        width: 44px;
+        height: 44px;
+    }
+
+    .adp-link,
+    .adp-signin .re-check {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .adp-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+        z-index: 1000;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 16px;
+        border-width: 1px 0 0;
+        border-radius: 0;
+    }
+
+    .adp-bar-actions .btn {
+        flex: 1;
+    }
 }
