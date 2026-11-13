@@ -107,7 +107,7 @@ test.describe('System Health', () => {
     await expect(table.locator('tbody tr.sh-change-outside')).toHaveCount(4);
   });
 
-  test('U23-T09: the list covers the 24 hours its count does; Home's link opens only the changes outside', async ({ page }) => {
+  test("U23-T09: the list covers the 24 hours its count does; Home's link opens only the changes outside", async ({ page }) => {
     const at = (min: number) => new Date(Date.now() - min * 60000).toISOString();
     const asked: string[] = [];
     await page.route(/\/api\/v1\/monitoring\/state-changes\?/, route => {
