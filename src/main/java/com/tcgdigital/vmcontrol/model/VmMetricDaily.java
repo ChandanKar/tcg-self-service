@@ -28,6 +28,13 @@ public class VmMetricDaily {
     @Column(name = "max_cpu_utilization", precision = 7, scale = 3)
     private BigDecimal maxCpuUtilization;
 
+    /**
+     * The day's highest CloudWatch Maximum of CPU (U26-T05, V104), the real peak; max_cpu_utilization is
+     * the highest 5-minute average. Null for days collected before the Maximum was kept.
+     */
+    @Column(name = "max_cpu_maximum", precision = 7, scale = 3)
+    private BigDecimal maxCpuMaximum;
+
     @Column(name = "sum_network_in_bytes")
     private Long sumNetworkInBytes;
 
@@ -73,6 +80,8 @@ public class VmMetricDaily {
     public void setAvgCpuUtilization(BigDecimal avgCpuUtilization) { this.avgCpuUtilization = avgCpuUtilization; }
     public BigDecimal getMaxCpuUtilization() { return maxCpuUtilization; }
     public void setMaxCpuUtilization(BigDecimal maxCpuUtilization) { this.maxCpuUtilization = maxCpuUtilization; }
+    public BigDecimal getMaxCpuMaximum() { return maxCpuMaximum; }
+    public void setMaxCpuMaximum(BigDecimal maxCpuMaximum) { this.maxCpuMaximum = maxCpuMaximum; }
     public Long getSumNetworkInBytes() { return sumNetworkInBytes; }
     public void setSumNetworkInBytes(Long sumNetworkInBytes) { this.sumNetworkInBytes = sumNetworkInBytes; }
     public Long getSumNetworkOutBytes() { return sumNetworkOutBytes; }

@@ -29,7 +29,9 @@ import java.math.BigDecimal;
  * @param applicable whether Apply may change the VM to the suggested type ({@code applicableReason}
  *                   says why not: an EKS node group, another CPU architecture, no suggestion).
  * @param reasons why the VM is a candidate: CPU_LOW, CPU_HIGH, MEMORY_LOW, MEMORY_HIGH,
- *                MEMORY_UNKNOWN, MEMORY_WOULD_NOT_FIT.
+ *                MEMORY_UNKNOWN, MEMORY_WOULD_NOT_FIT; and CPU_PEAK_FROM_AVERAGES (U26-T05) when
+ *                {@code peakCpuUtilization} is, on some or all days, the busiest 5-minute average because
+ *                no CloudWatch Maximum was kept for them (without it, the peak is the highest Maximum).
  * @param vmStatus the VM's current {@code VmStatus} (e.g. {@code "STOPPED"}) — the Apply action
  *                 that actually changes the instance type is only permitted when this is
  *                 {@code "STOPPED"}; carried here so the UI can gate the button without a second

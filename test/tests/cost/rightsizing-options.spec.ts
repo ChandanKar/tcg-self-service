@@ -81,7 +81,7 @@ test.describe('Rightsizing suggestions (U15-T03)', () => {
     await expect(quiet.locator('.rs-change')).toContainText('t3.xlarge → t3.large');
     await expect(quiet.locator('.rs-change')).toContainText('Smaller · AWS disagrees');
     await expect(quiet.locator('[data-agreement="DISAGREE"]')).toHaveText('AWS disagrees');
-    await expect(quiet.locator('.rs-peak')).toHaveText('9% / —');
+    await expect(quiet.locator('.rs-peak-figures')).toHaveText('9% / —');
     await expect(quiet.locator('.rs-saves')).toHaveText('↓ saves $60');
     await expect(quiet.getByRole('button', { name: 'Resize safely…' })).toBeEnabled();
     await expect(quiet.getByRole('link', { name: 'quiet' })).toHaveAttribute('href', '#/environments/e?vm=vm-d');

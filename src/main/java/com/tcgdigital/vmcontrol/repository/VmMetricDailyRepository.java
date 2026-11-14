@@ -27,10 +27,13 @@ public interface VmMetricDailyRepository extends JpaRepository<VmMetricDaily, St
      * Note: this averages each day's already-averaged value, not sample-weighted across days
      * (a day with 3 samples counts the same as a day with 288) — an accepted approximation given
      * only daily rollups are queried here, not raw samples. Memory is null for VMs without the
-     * CloudWatch agent (AVG/MAX ignore the null days).
+     * CloudWatch agent (AVG/MAX ignore the null days). U26-T05: also the highest CloudWatch Maximum
+     * of CPU and how many days with CPU data have no Maximum (collected before it was kept).
      */
     @Query("SELECT m.vm.vmId AS vmId, AVG(m.avgCpuUtilization) AS avgCpu, MAX(m.maxCpuUtilization) AS maxCpu, " +
-           "AVG(m.avgMemoryUtilization) AS avgMemory, MAX(m.maxMemoryUtilization) AS maxMemory " +
+           "AVG(m.avgMemoryUtilization) AS avgMemory, MAX(m.maxMemoryUtilization) AS maxMemory, " +
+           "MAX(m.maxCpuMaximum) AS maxCpuMaximum, " +
+           "SUM(CASE WHEN m.maxCpuUtilization IS NOT NULL AND m.maxCpuMaximum IS NULL THEN 1 ELSE 0 END) AS cpuDaysWithoutMaximum " +
            "FROM VmMetricDaily m WHERE m.vm.vmId IN :vmIds AND m.bucketDate >= :sinceDate " +
            "GROUP BY m.vm.vmId")
     List<UtilizationStats> findUtilizationStatsSince(@Param("vmIds") List<String> vmIds, @Param("sinceDate") Date sinceDate);
@@ -49,5 +52,9 @@ public interface VmMetricDailyRepository extends JpaRepository<VmMetricDaily, St
         BigDecimal getMaxCpu();
         BigDecimal getAvgMemory();
         BigDecimal getMaxMemory();
+        /** The highest CloudWatch Maximum of CPU (U26-T05); null when no day has one. */
+        BigDecimal getMaxCpuMaximum();
+        /** Days with CPU data but no Maximum; the peak on those days is only the busiest 5-minute average. */
+        Number getCpuDaysWithoutMaximum();
     }
 }

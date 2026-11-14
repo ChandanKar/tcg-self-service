@@ -183,6 +183,24 @@ class VmMetricsServiceTest {
     }
 
     @Test
+    void theCpuMaximumIsStoredWithTheSample() {
+        // U26-T05: the period's busiest moment, which rightsizing judges the peak on.
+        Instant latest = Instant.now().minus(Duration.ofMinutes(10));
+        latestStored(latest);
+        List<CloudMetricsProviderService.VmMetricData> pts = points(latest.plus(Duration.ofMinutes(5)), 1);
+        pts.get(0).setCpuMaximum(new BigDecimal("68.450"));
+        when(provider.fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt()))
+                .thenReturn(Map.of("i-1", pts));
+
+        assertThat(service.syncRunningVmMetrics()).isEqualTo(1);
+
+        ArgumentCaptor<VmMetricSample> saved = ArgumentCaptor.forClass(VmMetricSample.class);
+        verify(sampleRepository).save(saved.capture());
+        assertThat(saved.getValue().getCpuUtilization()).isEqualByComparingTo("10");
+        assertThat(saved.getValue().getCpuMaximum()).isEqualByComparingTo("68.45");
+    }
+
+    @Test
     void theIdleSummaryOfADatabaseLooksAtConnectionsNotNetwork() {
         // E33-T06: idle waste lists idle databases.
         vm.setProvider(CloudProvider.AWS_RDS);

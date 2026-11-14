@@ -240,6 +240,7 @@ public class VmMetricsService {
         sample.setSampleTime(sampleTime);
         sample.setPeriodSeconds(samplePeriod);
         sample.setCpuUtilization(data.getCpuUtilization());
+        sample.setCpuMaximum(data.getCpuMaximum()); // U26-T05: the period's busiest moment, for rightsizing
         sample.setMemoryUtilization(data.getMemoryUtilization());
         sample.setNetworkInBytes(data.getNetworkInBytes());
         sample.setNetworkOutBytes(data.getNetworkOutBytes());

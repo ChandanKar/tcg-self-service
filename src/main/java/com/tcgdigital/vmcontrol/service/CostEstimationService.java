@@ -471,6 +471,7 @@ public class CostEstimationService {
     /**
      * U23-T05: the CPU peak on a smaller type, peak x current vCPUs / new vCPUs, reaches
      * rightsizing.scale-down.cpu-peak-max. False when the peak or either vCPU count is unknown.
+     * The peak is the highest CloudWatch Maximum since U26-T05 (see {@link #cpuPeak}).
      */
     private boolean projectedPeakTooHigh(VmCostBundle b, String targetType) {
         Integer now = vcpusOf(b.instanceType());
@@ -612,6 +613,7 @@ public class CostEstimationService {
             CostDataProvider.VmCostEstimate estimate = estimates.get(vmId);
             VmMetricDailyRepository.UtilizationStats cpuStats = cpuStatsByVmId.get(vmId);
             VmIdleSummary idleSummary = idleByVmId.get(vmId);
+            CpuPeak cpuPeak = cpuPeak(cpuStats);
 
             // An EKS node group has no inventory snapshot: its node type comes from its metadata (E26-T02).
             String instanceType = vm.getProvider() == CloudProvider.AWS_EKS
@@ -628,7 +630,7 @@ public class CostEstimationService {
                     estimate,
                     instanceType,
                     cpuStats == null ? null : cpuStats.getAvgCpu(),
-                    cpuStats == null ? null : cpuStats.getMaxCpu(),
+                    cpuPeak.value(),
                     cpuStats == null ? null : cpuStats.getAvgMemory(),
                     cpuStats == null ? null : cpuStats.getMaxMemory(),
                     // Idle means running and idle now: a stopped VM costs nothing to leave idle (U23-T03).
@@ -641,10 +643,36 @@ public class CostEstimationService {
                     typeChangedAtByVmId.get(vmId),
                     memoryMib,
                     down.candidate() ? down.reasons() : up.reasons(),
-                    architectureByVmId.get(vmId)
+                    architectureByVmId.get(vmId),
+                    cpuPeak.fromAverages()
             ));
         }
         return bundles;
+    }
+
+    /** The CPU peak rightsizing judges on, and whether it rests on 5-minute averages (U26-T05). */
+    private record CpuPeak(BigDecimal value, boolean fromAverages) {
+    }
+
+    /**
+     * U26-T05: the highest CloudWatch Maximum of CPU over the window, the real peak. The highest
+     * 5-minute average was about half of it on staging (V01 check C2: 32% against 68%), so an 8 to 4
+     * vCPU cut looked safe at 64% while the busiest minute would run at 137%. Days collected before
+     * the Maximum was kept have only the average: the peak is then the higher of the two, flagged
+     * as resting partly on averages. Without any Maximum it is the average-based peak, flagged.
+     */
+    private static CpuPeak cpuPeak(VmMetricDailyRepository.UtilizationStats stats) {
+        if (stats == null) {
+            return new CpuPeak(null, false);
+        }
+        BigDecimal averages = stats.getMaxCpu();
+        BigDecimal maximum = stats.getMaxCpuMaximum();
+        if (maximum == null) {
+            return new CpuPeak(averages, averages != null);
+        }
+        long daysWithout = stats.getCpuDaysWithoutMaximum() == null ? 0 : stats.getCpuDaysWithoutMaximum().longValue();
+        BigDecimal peak = averages != null && averages.compareTo(maximum) > 0 ? averages : maximum;
+        return new CpuPeak(peak, daysWithout > 0);
     }
 
     /**
@@ -844,6 +872,11 @@ public class CostEstimationService {
             if (wouldNotFit) {
                 reasons.add("MEMORY_WOULD_NOT_FIT");
                 suggestedType = null;
+            }
+            // U26-T05: the peak above is only the busiest 5-minute average on some or all days (no CloudWatch
+            // Maximum kept yet for them): say so, the real peak may be higher.
+            if (b.cpuPeakFromAverages()) {
+                reasons.add("CPU_PEAK_FROM_AVERAGES");
             }
 
             BigDecimal currentCost = b.estimate().cost();
@@ -1192,6 +1225,8 @@ public class CostEstimationService {
             /** Reason codes of the direction the VM qualifies for (E30-T03). */
             List<String> reasons,
             /** x86_64 or arm64 from inventory (E30-T05); null when not recorded. */
-            String architecture
+            String architecture,
+            /** peakCpu is, on some or all days, the busiest 5-minute average, not CloudWatch's Maximum (U26-T05). */
+            boolean cpuPeakFromAverages
     ) {}
 }

@@ -1689,11 +1689,27 @@ const CostManagement = (function() {
         return v == null ? null : `${Math.round(Number(v))}%`;
     }
 
-    /** "22% / 38%": peak CPU and memory, memory a dash with why when the CloudWatch agent is missing. */
+    /**
+     * U26-T05: what the CPU peak is. The busiest minute (CloudWatch's maximum) unless some days in the
+     * window have none kept yet (CPU_PEAK_FROM_AVERAGES): then on those days it is the busiest 5-minute
+     * average, which can be half the real peak. Null when there is no CPU peak.
+     */
+    function cpuPeakBasis(row) {
+        if (!row || row.peakCpuUtilization == null) return null;
+        return (row.reasons || []).includes('CPU_PEAK_FROM_AVERAGES')
+            ? { key: 'average', label: 'CPU: 5-minute averages',
+                title: 'Some days have no busiest-minute figure yet, so CPU on those days is the busiest 5-minute average. The real peak may be higher.' }
+            : { key: 'maximum', label: 'CPU: busiest minute',
+                title: 'CPU at its busiest minute in the last 30 days, not an average' };
+    }
+
+    /** "22% / 38%": peak CPU and memory, memory a dash with why when the CloudWatch agent is missing; under it, what the CPU peak is. */
     function peakCell(row) {
         const mem = row.memoryDataAvailable && row.peakMemoryUtilization != null ? wholePct(row.peakMemoryUtilization)
             : '<span class="text-muted rightsizing-mem-unknown" title="CloudWatch agent not reporting memory">—</span>';
-        return `${wholePct(row.peakCpuUtilization) || '—'} / ${mem}`;
+        const basis = cpuPeakBasis(row);
+        return `<span class="rs-peak-figures">${wholePct(row.peakCpuUtilization) || '—'} / ${mem}</span>`
+            + (basis ? `<span class="rs-sub rs-peak-basis" data-peak-basis="${basis.key}" title="${basis.title}">${basis.label}</span>` : '');
     }
 
     function savesCell(row) {
@@ -2214,7 +2230,7 @@ const CostManagement = (function() {
         watchReport,
         idleRowsHtml: rows => buildIdleRows(rows || []),
         model: { monthToDate, monthEnd, fromMonth, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars, savingHtml,
-            unregisteredCount, unregisteredHtml }
+            unregisteredCount, unregisteredHtml, cpuPeakBasis }
     };
 })();
 
