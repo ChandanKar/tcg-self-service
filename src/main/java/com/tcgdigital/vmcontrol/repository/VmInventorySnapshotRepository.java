@@ -19,7 +19,7 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
      * dereferencing) full snapshot entities just to read one field.
      */
     @Query("SELECT s.vm.vmId AS vmId, s.instanceType AS instanceType, s.instanceTypeChangedAt AS instanceTypeChangedAt, " +
-           "s.memoryMib AS memoryMib, s.architecture AS architecture " +
+           "s.memoryMib AS memoryMib, s.architecture AS architecture, s.usageOperation AS usageOperation " +
            "FROM VmInventorySnapshot s WHERE s.vm.vmId IN :vmIds")
     List<InstanceTypeProjection> findInstanceTypesByVmIds(@Param("vmIds") List<String> vmIds);
 
@@ -37,5 +37,7 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
         Integer getMemoryMib();
         /** x86_64 or arm64, as EC2 reports it (E30-T05); null when not recorded. */
         String getArchitecture();
+        /** EC2's billing code of the operating system ("RunInstances:0010" = RHEL, U26-T02); null = Linux/UNIX. */
+        String getUsageOperation();
     }
 }

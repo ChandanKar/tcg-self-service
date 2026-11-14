@@ -156,6 +156,7 @@ class FocusExportServiceTest {
             public Timestamp getInstanceTypeChangedAt() { return null; }
             public Integer getMemoryMib() { return null; }
             public String getArchitecture() { return null; }
+            public String getUsageOperation() { return null; }
         };
         when(inventoryRepository.findInstanceTypesByVmIds(anyList())).thenReturn(List.of(type));
         AwsAccount account = new AwsAccount();

@@ -116,8 +116,12 @@ public class ScheduleSuggestionService {
         Map<String, List<VmStateHistory>> byVm = transitions.stream()
                 .collect(Collectors.groupingBy(h -> h.getVm().getVmId()));
         Map<String, String> types = new HashMap<>();
+        Map<String, String> operations = new HashMap<>();
         inventoryRepository.findInstanceTypesByVmIds(ids).stream().filter(p -> p.getInstanceType() != null)
-                .forEach(p -> types.putIfAbsent(p.getVmId(), p.getInstanceType()));
+                .forEach(p -> {
+                    types.putIfAbsent(p.getVmId(), p.getInstanceType());
+                    operations.putIfAbsent(p.getVmId(), p.getUsageOperation());
+                });
         BigDecimal windowHours = BigDecimal.valueOf(proposal.hoursPerWeek());
         BigDecimal current = BigDecimal.ZERO;
         BigDecimal suggested = BigDecimal.ZERO;
@@ -132,7 +136,8 @@ public class ScheduleSuggestionService {
             suggested = suggested.add(kept);
             String type = types.get(vm.getVmId());
             PricingReferenceService.PriceLookupResult price = type == null ? PricingReferenceService.PriceLookupResult.unknown()
-                    : pricingReferenceService.lookupHourlyRate(vm.getProvider().name(), type, vm.getRegion());
+                    : pricingReferenceService.lookupHourlyRate(vm.getProvider().name(), type, vm.getRegion(),
+                            operations.get(vm.getVmId()));
             if (price.priceKnown()) {
                 saving = saving.add(price.hourlyRate().multiply(hours.subtract(kept)));
             } else if (hours.compareTo(kept) > 0) {

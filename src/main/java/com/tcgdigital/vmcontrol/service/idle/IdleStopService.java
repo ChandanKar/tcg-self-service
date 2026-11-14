@@ -273,16 +273,18 @@ public class IdleStopService {
         if (running.isEmpty()) {
             return new Saving(BigDecimal.ZERO, List.of());
         }
-        Map<String, String> types = inventoryRepository.findInstanceTypesByVmIds(running.stream().map(Vm::getVmId).toList())
+        Map<String, VmInventorySnapshotRepository.InstanceTypeProjection> types =
+                inventoryRepository.findInstanceTypesByVmIds(running.stream().map(Vm::getVmId).toList())
                 .stream().filter(p -> p.getInstanceType() != null)
-                .collect(Collectors.toMap(VmInventorySnapshotRepository.InstanceTypeProjection::getVmId,
-                        VmInventorySnapshotRepository.InstanceTypeProjection::getInstanceType, (a, b) -> a));
+                .collect(Collectors.toMap(VmInventorySnapshotRepository.InstanceTypeProjection::getVmId, p -> p, (a, b) -> a));
         BigDecimal total = BigDecimal.ZERO;
         List<String> unpriced = new java.util.ArrayList<>();
         for (Vm vm : running) {
-            String type = types.get(vm.getVmId());
+            VmInventorySnapshotRepository.InstanceTypeProjection type = types.get(vm.getVmId());
+            // The VM's operating system's rate: RHEL or Windows cost more than Linux (U26-T02).
             PricingReferenceService.PriceLookupResult price = type == null ? PricingReferenceService.PriceLookupResult.unknown()
-                    : pricingReferenceService.lookupHourlyRate(vm.getProvider().name(), type, vm.getRegion());
+                    : pricingReferenceService.lookupHourlyRate(vm.getProvider().name(), type.getInstanceType(), vm.getRegion(),
+                            type.getUsageOperation());
             if (price.priceKnown()) {
                 total = total.add(price.hourlyRate());
             } else {

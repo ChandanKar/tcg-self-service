@@ -86,11 +86,60 @@ class PricingReferenceServiceTest {
 
     @Test
     void existingLookupsAreUnchanged() {
-        assertThat(pricing.lookupHourlyRate("AWS", "m5.large", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.104");
-        assertThat(pricing.lookupHourlyRate("AWS", "t3.large", "eu-west-1").hourlyRate()).isEqualByComparingTo("0.0928");
+        // U26-T03: ap-south-1 and eu-west-1 regenerated from the public offer files (were 0.104 and 0.0928).
+        assertThat(pricing.lookupHourlyRate("AWS", "m5.large", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.101");
+        assertThat(pricing.lookupHourlyRate("AWS", "t3.large", "eu-west-1").hourlyRate()).isEqualByComparingTo("0.0912");
+        assertThat(pricing.lookupHourlyRate("AWS", "t3.large", "us-east-1").hourlyRate()).isEqualByComparingTo("0.0832");
         assertThat(pricing.suggestSmallerType("AWS", "m5.xlarge")).contains("m5.large");
         assertThat(pricing.suggestSmallerType("AWS", "m7g.xlarge")).contains("m7g.large");
         assertThat(pricing.suggestLargerType("AWS", "t3.medium")).contains("t3.large");
+    }
+
+    @Test
+    void theBundledListMatchesThePublicPriceList() {
+        // U26-T03: AWS's public EC2 offer file for ap-south-1, version 20261114012926 (Linux, shared, on demand).
+        // The old list had t3a.xlarge 0.1648, m6a.4xlarge 0.8064 and m6a.xlarge 0.2016.
+        assertThat(pricing.lookupHourlyRate("AWS", "t3a.xlarge", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.0986");
+        assertThat(pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.4444");
+        assertThat(pricing.lookupHourlyRate("AWS", "m6a.xlarge", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.1111");
+        // Every type now has its own rate in every region of the list: none borrowed from another region.
+        for (String region : java.util.List.of("us-east-1", "us-west-2", "ap-south-1", "eu-west-1")) {
+            assertThat(pricing.lookupHourlyRate("AWS", "m7i.xlarge", region).approximate()).as(region).isFalse();
+        }
+    }
+
+    @Test
+    void theBundledListRecordsWhenAndFromWhatItWasGenerated() throws Exception {
+        com.fasterxml.jackson.databind.JsonNode source;
+        try (java.io.InputStream in = new org.springframework.core.io.ClassPathResource("pricing/instance-pricing.json").getInputStream()) {
+            source = new com.fasterxml.jackson.databind.ObjectMapper().readTree(in).path("instancePricingSource");
+        }
+        assertThat(source.path("generatedAt").asText()).matches("\\d{4}-\\d{2}-\\d{2}");
+        assertThat(source.path("priceListVersion").asText()).isNotBlank();
+        assertThat(source.path("source").asText()).contains("pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2");
+    }
+
+    @Test
+    void rhelAndWindowsHaveTheirOwnBundledRates() {
+        // U26-T02/T03, public offer file: m6a.4xlarge in ap-south-1 is 0.4444 Linux, 0.6172 RHEL, 1.1804 Windows.
+        PricingReferenceService.PriceLookupResult rhel = pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "ap-south-1", "RunInstances:0010");
+        assertThat(rhel.hourlyRate()).isEqualByComparingTo("0.6172");
+        assertThat(rhel.approximate()).isFalse();
+        assertThat(pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "ap-south-1", "RunInstances:0002").hourlyRate())
+                .isEqualByComparingTo("1.1804");
+        assertThat(pricing.lookupHourlyRate("AWS", "t3a.xlarge", "ap-south-1", "RunInstances:0010").hourlyRate())
+                .isEqualByComparingTo("0.1562");
+        // No usage operation, or RunInstances, is Linux.
+        assertThat(pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "ap-south-1", null).hourlyRate()).isEqualByComparingTo("0.4444");
+        assertThat(pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "ap-south-1", "RunInstances").hourlyRate()).isEqualByComparingTo("0.4444");
+        // A region outside the list: another region's RHEL rate, approximate.
+        PricingReferenceService.PriceLookupResult far = pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "sa-east-1", "RunInstances:0010");
+        assertThat(far.approximate()).isTrue();
+        assertThat(far.hourlyRate()).isGreaterThan(pricing.lookupHourlyRate("AWS", "m6a.4xlarge", "sa-east-1").hourlyRate());
+        // Windows is not sold on Graviton; a system the list lacks falls back to Linux, approximate.
+        PricingReferenceService.PriceLookupResult noWindows = pricing.lookupHourlyRate("AWS", "m7g.large", "us-east-1", "RunInstances:0002");
+        assertThat(noWindows.approximate()).isTrue();
+        assertThat(noWindows.hourlyRate()).isEqualByComparingTo(pricing.lookupHourlyRate("AWS", "m7g.large", "us-east-1").hourlyRate());
     }
 
     @Test

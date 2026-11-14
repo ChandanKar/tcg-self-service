@@ -608,7 +608,7 @@ public class DashboardSummaryService {
             return null;
         }
         PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(
-                vm.getProvider().name(), inventory.getInstanceType(), vm.getRegion());
+                vm.getProvider().name(), inventory.getInstanceType(), vm.getRegion(), inventory.getUsageOperation());
         return rate.priceKnown() ? rate.hourlyRate() : null;
     }
 

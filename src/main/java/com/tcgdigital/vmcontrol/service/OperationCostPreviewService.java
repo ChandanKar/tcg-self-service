@@ -108,9 +108,13 @@ public class OperationCostPreviewService {
     /** Prices the given VMs for the hours (no scoping or visibility checks). */
     public CostPreviewDTO price(List<Vm> vms, int hours, int alreadyRunning) {
         Map<String, String> instanceTypes = new HashMap<>();
+        Map<String, String> operations = new HashMap<>();
         if (!vms.isEmpty()) {
             inventoryRepository.findInstanceTypesByVmIds(vms.stream().map(Vm::getVmId).toList())
-                    .forEach(p -> instanceTypes.put(p.getVmId(), p.getInstanceType()));
+                    .forEach(p -> {
+                        instanceTypes.put(p.getVmId(), p.getInstanceType());
+                        operations.put(p.getVmId(), p.getUsageOperation());
+                    });
         }
         BigDecimal hourly = BigDecimal.ZERO;
         BigDecimal total = BigDecimal.ZERO;
@@ -124,7 +128,8 @@ public class OperationCostPreviewService {
             int nodeCount = eks ? nodes.nodeCount() : 1;
             PricingReferenceService.PriceLookupResult rate = type == null
                     ? new PricingReferenceService.PriceLookupResult(false, null)
-                    : pricingReferenceService.lookupHourlyRate(eks ? "AWS" : vm.getProvider().name(), type, vm.getRegion());
+                    : pricingReferenceService.lookupHourlyRate(eks ? "AWS" : vm.getProvider().name(), type, vm.getRegion(),
+                            eks ? null : operations.get(vm.getVmId()));
             String name = vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName();
             if (rate.priceKnown() && rate.hourlyRate() != null) {
                 BigDecimal vmRate = rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount));

@@ -38,7 +38,8 @@ import java.util.function.Supplier;
  * price, not only the regions of the bundled list. A lookup never waits for AWS: it answers from
  * memory (loaded from price_cache), and a price not known yet, or over a day old, is fetched in the
  * background and is there for the next estimate. "Not sold in that region" is remembered too (a day).
- * Linux, shared tenancy, no pre-installed software, as the bundled list.
+ * Shared tenancy; by default Linux with no pre-installed software, as the bundled list, or for another
+ * operating system the product of its EC2 usage operation ("RunInstances:0010" = RHEL, U26-T02).
  */
 @Service
 public class AwsPriceListService {
@@ -46,6 +47,22 @@ public class AwsPriceListService {
     private static final Logger log = LoggerFactory.getLogger(AwsPriceListService.class);
     static final String EC2 = "AmazonEC2";
     static final Duration MAX_AGE = Duration.ofDays(1);
+    /** EC2's usage operation of Linux/UNIX; a VM whose operation is not known is priced as this. */
+    public static final String LINUX = "RunInstances";
+
+    /** The usage operation to price by: blank is Linux/UNIX. */
+    public static String operationOrLinux(String usageOperation) {
+        return usageOperation == null || usageOperation.isBlank() ? LINUX : usageOperation.trim();
+    }
+
+    public static boolean isLinux(String usageOperation) {
+        return LINUX.equals(operationOrLinux(usageOperation));
+    }
+
+    /** price_cache key: the type for Linux (as stored before U26-T02), "type|operation" for another system. */
+    static String priceKey(String instanceType, String usageOperation) {
+        return isLinux(usageOperation) ? instanceType : instanceType + "|" + operationOrLinux(usageOperation);
+    }
 
     /** A price as known now: the hourly rate (null: not sold there) and when it was read. */
     record Known(BigDecimal rate, Instant fetchedAt) { }
@@ -108,25 +125,33 @@ public class AwsPriceListService {
      * one; empty when not known yet (a fetch is started) or not sold there.
      */
     public Optional<BigDecimal> ec2Hourly(String region, String instanceType) {
+        return ec2Hourly(region, instanceType, LINUX);
+    }
+
+    /**
+     * The on-demand hourly rate of an EC2 instance type running the operating system of that usage
+     * operation (null or blank: Linux/UNIX) in a region (U26-T02); empty as {@link #ec2Hourly(String, String)}.
+     */
+    public Optional<BigDecimal> ec2Hourly(String region, String instanceType, String usageOperation) {
         if (!enabled || region == null || region.isBlank() || instanceType == null || instanceType.isBlank()) {
             return Optional.empty();
         }
-        String k = key(EC2, region, instanceType);
+        String k = key(EC2, region, priceKey(instanceType, usageOperation));
         Known now = known.get(k);
         if (now == null || now.fetchedAt().plus(MAX_AGE).isBefore(clock.instant())) {
-            refreshLater(region, instanceType);
+            refreshLater(region, instanceType, usageOperation);
         }
         return now == null ? Optional.empty() : Optional.ofNullable(now.rate());
     }
 
-    private void refreshLater(String region, String instanceType) {
-        String k = key(EC2, region, instanceType);
+    private void refreshLater(String region, String instanceType, String usageOperation) {
+        String k = key(EC2, region, priceKey(instanceType, usageOperation));
         if (!configured.getAsBoolean() || !inFlight.add(k)) {
             return;
         }
         Runnable job = () -> {
             try {
-                fetch(region, instanceType);
+                fetch(region, instanceType, usageOperation);
             } catch (Exception e) {
                 // Unreachable: the bundled list (approximate) stays in use; tried again on a later lookup.
                 log.info("Price list: {} in {} not read ({}); the bundled list is used", instanceType, region, e.getMessage());
@@ -140,18 +165,31 @@ public class AwsPriceListService {
 
     /** Reads the price from AWS now and stores it (null when AWS lists no such product there). */
     BigDecimal fetch(String region, String instanceType) {
-        GetProductsResponse response = client.get().getProducts(GetProductsRequest.builder()
-                .serviceCode(EC2)
-                .filters(term("instanceType", instanceType), term("regionCode", region), term("operatingSystem", "Linux"),
+        return fetch(region, instanceType, LINUX);
+    }
+
+    /**
+     * Another operating system is the product of its usage operation ("RunInstances:0010" = RHEL,
+     * ":0002" = Windows), which also fixes the license model and pre-installed software (U26-T02).
+     */
+    BigDecimal fetch(String region, String instanceType, String usageOperation) {
+        List<Filter> filters = isLinux(usageOperation)
+                ? List.of(term("instanceType", instanceType), term("regionCode", region), term("operatingSystem", "Linux"),
                         term("tenancy", "Shared"), term("preInstalledSw", "NA"), term("capacitystatus", "Used"),
                         term("licenseModel", "No License required"))
+                : List.of(term("instanceType", instanceType), term("regionCode", region),
+                        term("operation", operationOrLinux(usageOperation)), term("tenancy", "Shared"),
+                        term("capacitystatus", "Used"));
+        GetProductsResponse response = client.get().getProducts(GetProductsRequest.builder()
+                .serviceCode(EC2)
+                .filters(filters)
                 .maxResults(10).build());
         BigDecimal rate = null;
         for (String product : response.priceList()) {
             rate = onDemandHourly(product);
             if (rate != null && rate.signum() > 0) break;
         }
-        store(region, instanceType, rate);
+        store(region, priceKey(instanceType, usageOperation), rate);
         return rate;
     }
 
@@ -175,15 +213,15 @@ public class AwsPriceListService {
         return null;
     }
 
-    private void store(String region, String instanceType, BigDecimal rate) {
+    private void store(String region, String priceKey, BigDecimal rate) {
         Instant now = clock.instant();
-        known.put(key(EC2, region, instanceType), new Known(rate, now));
+        known.put(key(EC2, region, priceKey), new Known(rate, now));
         try {
-            PriceCacheEntry row = repository.findByServiceCodeAndRegionCodeAndPriceKey(EC2, region, instanceType).orElseGet(() -> {
+            PriceCacheEntry row = repository.findByServiceCodeAndRegionCodeAndPriceKey(EC2, region, priceKey).orElseGet(() -> {
                 PriceCacheEntry e = new PriceCacheEntry();
                 e.setServiceCode(EC2);
                 e.setRegionCode(region);
-                e.setPriceKey(instanceType);
+                e.setPriceKey(priceKey);
                 return e;
             });
             row.setUnitPrice(rate);
@@ -191,7 +229,7 @@ public class AwsPriceListService {
             row.setFetchedAt(Timestamp.from(now));
             repository.save(row);
         } catch (Exception e) {
-            log.warn("Price list: {} in {} not stored: {}", instanceType, region, e.getMessage());
+            log.warn("Price list: {} in {} not stored: {}", priceKey, region, e.getMessage());
         }
     }
 

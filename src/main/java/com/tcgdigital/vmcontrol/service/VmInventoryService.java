@@ -145,6 +145,11 @@ public class VmInventoryService {
         snapshot.setPublicIp(data.getPublicIp());
         snapshot.setAvailabilityZone(data.getAvailabilityZone());
         snapshot.setAvailabilityZoneId(data.getAvailabilityZoneId());
+        if (data.getUsageOperation() != null) {
+            // Kept when a provider does not report it (RDS), so a read without it does not reprice as Linux.
+            snapshot.setPlatformDetails(data.getPlatformDetails());
+            snapshot.setUsageOperation(data.getUsageOperation());
+        }
         snapshot.setLaunchTime(data.getLaunchTime());
         snapshot.setTotalStorageGib(data.getTotalStorageGib());
         snapshot.setEngine(data.getEngine());

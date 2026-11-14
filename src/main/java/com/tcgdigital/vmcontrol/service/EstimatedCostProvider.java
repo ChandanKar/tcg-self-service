@@ -76,9 +76,12 @@ public class EstimatedCostProvider implements CostDataProvider {
         }
 
         Map<String, String> instanceTypeByVmId = new LinkedHashMap<>();
+        Map<String, String> operationByVmId = new LinkedHashMap<>();
         for (VmInventorySnapshotRepository.InstanceTypeProjection projection
                 : vmInventorySnapshotRepository.findInstanceTypesByVmIds(vmIds)) {
             instanceTypeByVmId.put(projection.getVmId(), projection.getInstanceType());
+            // RHEL or Windows: priced as that system, not as Linux (U26-T02).
+            operationByVmId.put(projection.getVmId(), projection.getUsageOperation());
         }
 
         Map<String, List<VmStateHistory>> transitionsByVmId = new LinkedHashMap<>();
@@ -157,7 +160,8 @@ public class EstimatedCostProvider implements CostDataProvider {
                 rate = pricingReferenceService.lookupRdsHourlyRate(inv != null ? inv.getEngine() : null, instanceType,
                         vm.getRegion(), multiAz);
             } else {
-                rate = pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion());
+                rate = pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion(),
+                        isEks ? null : operationByVmId.get(vmId));
             }
             BigDecimal spotRate = vm.getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT && spotPriceService != null
                     ? spotPriceService.lookupSpotRate(instanceType, vm.getRegion(), zoneByVmId.get(vmId)).orElse(null) : null;

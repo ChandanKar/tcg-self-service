@@ -145,7 +145,12 @@ public class SavingsLedgerService {
             }
         }
         Map<String, String> instanceTypes = new HashMap<>();
-        inventoryRepository.findInstanceTypesByVmIds(vmIds).forEach(p -> instanceTypes.put(p.getVmId(), p.getInstanceType()));
+        Map<String, String> operations = new HashMap<>();
+        inventoryRepository.findInstanceTypesByVmIds(vmIds).forEach(p -> {
+            instanceTypes.put(p.getVmId(), p.getInstanceType());
+            // Credited at the rate of the VM's operating system, as its estimate (U26-T02/T04).
+            operations.put(p.getVmId(), p.getUsageOperation());
+        });
         Set<String> withPublicIp = new HashSet<>(inventoryRepository.findVmIdsWithPublicIp(vmIds));
         Map<String, Long> storage = new HashMap<>();
         volumeRepository.sumSizeGibByVmIds(vmIds).forEach(t -> storage.put(t.getVmId(), t.getTotalSizeGib()));
@@ -162,7 +167,8 @@ public class SavingsLedgerService {
         int unpriced = 0;
         for (Vm vm : vms) {
             PricingReferenceService.PriceLookupResult rate =
-                    pricing.lookupHourlyRate(vm.getProvider().name(), instanceTypes.get(vm.getVmId()), vm.getRegion());
+                    pricing.lookupHourlyRate(vm.getProvider().name(), instanceTypes.get(vm.getVmId()), vm.getRegion(),
+                            operations.get(vm.getVmId()));
             if (!rate.priceKnown()) {
                 unpriced++;
                 continue;
@@ -209,7 +215,7 @@ public class SavingsLedgerService {
                 rows++;
             }
             if (writeRightsizing(vm, date, env, team, seed, dayTransitions, windowStart, windowEnd,
-                    resizes.get(vm.getVmId()), coverage)) {
+                    resizes.get(vm.getVmId()), coverage, operations.get(vm.getVmId()))) {
                 rows++;
             }
         }
@@ -224,13 +230,14 @@ public class SavingsLedgerService {
      */
     private boolean writeRightsizing(Vm vm, LocalDate date, Environment env, String team, VmStatus seed,
                                      List<VmStateHistory> dayTransitions, Timestamp windowStart, Timestamp windowEnd,
-                                     com.tcgdigital.vmcontrol.model.VmResizeEvent resize, BigDecimal coverage) {
+                                     com.tcgdigital.vmcontrol.model.VmResizeEvent resize, BigDecimal coverage,
+                                     String usageOperation) {
         if (resize == null) return false;
         String provider = vm.getProvider().name();
         PricingReferenceService.PriceLookupResult oldRate =
-                pricing.lookupHourlyRate(provider, resize.getOldInstanceType(), vm.getRegion());
+                pricing.lookupHourlyRate(provider, resize.getOldInstanceType(), vm.getRegion(), usageOperation);
         PricingReferenceService.PriceLookupResult newRate =
-                pricing.lookupHourlyRate(provider, resize.getNewInstanceType(), vm.getRegion());
+                pricing.lookupHourlyRate(provider, resize.getNewInstanceType(), vm.getRegion(), usageOperation);
         if (!oldRate.priceKnown() || !newRate.priceKnown()
                 || oldRate.hourlyRate().compareTo(newRate.hourlyRate()) <= 0) {
             return false;

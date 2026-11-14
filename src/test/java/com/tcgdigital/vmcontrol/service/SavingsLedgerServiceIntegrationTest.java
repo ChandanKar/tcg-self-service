@@ -118,6 +118,23 @@ class SavingsLedgerServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aStoppedRhelVmIsCreditedAtTheRhelRateItsEstimateUses() {
+        // U26-T04: the ledger asks the same pricing reference as the estimates, with the VM's operating system.
+        Vm vm = pricedVm("rhel", VmStatus.STOPPED);
+        jdbcTemplate.update("UPDATE vm_inventory_snapshot SET platform_details = 'Red Hat Enterprise Linux', "
+                + "usage_operation = 'RunInstances:0010' WHERE vm_id = ?", vm.getVmId());
+        history(vm, VmStatus.RUNNING, VmStatus.STOPPED, DAY.minusDays(1), 19, operation(OperationTriggerSource.SCHEDULE));
+
+        assertThat(ledgerService.captureForDate(DAY)).isEqualTo(1);
+        SavingsLedgerEntry row = ledger.findByLedgerDateBetweenOrderByLedgerDateAsc(DAY, DAY).get(0);
+        BigDecimal rhel = pricing.lookupHourlyRate("AWS", "t3.medium", "ap-south-1", "RunInstances:0010").hourlyRate();
+        assertThat(row.getHourlyRate()).isEqualByComparingTo(rhel);
+        assertThat(rhel).isGreaterThan(rate()); // not the Linux rate
+        assertThat(row.getGrossSaving()).isEqualByComparingTo(rhel.multiply(new BigDecimal("24")).setScale(2,
+                java.math.RoundingMode.HALF_UP));
+    }
+
+    @Test
     void aScheduledStopOfAnRdsDatabaseIsCreditedAtItsClassRate() {
         // E33-T05: the ledger prices RDS through the pricing reference (the class rate, approximate).
         Vm db = pricedVm("orders-db", VmStatus.STOPPED);

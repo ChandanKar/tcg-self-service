@@ -457,7 +457,7 @@ public class CostEstimationService {
             return null;
         }
         for (String type : recommendation.optionTypesByRank()) {
-            PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, region);
+            PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, region, b.usageOperation());
             // U23-T05: an option that would run the CPU peak past the max, or cut memory nobody has
             // measured, is not offered (staging: m6a.xlarge peaking at 67% -> r6a.large, about 134%).
             if (rate.priceKnown() && rate.hourlyRate().compareTo(currentHourlyRate) < 0
@@ -590,9 +590,11 @@ public class CostEstimationService {
         Map<String, Integer> memoryMibByVmId = new LinkedHashMap<>();
         Map<String, String> architectureByVmId = new LinkedHashMap<>();
         Map<String, Timestamp> typeChangedAtByVmId = new LinkedHashMap<>();
+        Map<String, String> operationByVmId = new LinkedHashMap<>();
         for (VmInventorySnapshotRepository.InstanceTypeProjection projection
                 : vmInventorySnapshotRepository.findInstanceTypesByVmIds(vmIds)) {
             instanceTypeByVmId.put(projection.getVmId(), projection.getInstanceType());
+            operationByVmId.put(projection.getVmId(), projection.getUsageOperation());
             if (projection.getArchitecture() != null) {
                 architectureByVmId.put(projection.getVmId(), projection.getArchitecture());
             }
@@ -644,7 +646,8 @@ public class CostEstimationService {
                     memoryMib,
                     down.candidate() ? down.reasons() : up.reasons(),
                     architectureByVmId.get(vmId),
-                    cpuPeak.fromAverages()
+                    cpuPeak.fromAverages(),
+                    vm.getProvider() == CloudProvider.AWS_EKS ? null : operationByVmId.get(vmId)
             ));
         }
         return bundles;
@@ -939,7 +942,8 @@ public class CostEstimationService {
         if (type == null || !b.estimate().costKnown()) {
             return null;
         }
-        PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, b.vm().getRegion());
+        PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, b.vm().getRegion(),
+                b.usageOperation());
         if (!rate.priceKnown()) {
             return null;
         }
@@ -960,7 +964,8 @@ public class CostEstimationService {
         if (b.instanceType() == null) {
             return null;
         }
-        PricingReferenceService.PriceLookupResult now = pricingReferenceService.lookupHourlyRate(provider, b.instanceType(), b.vm().getRegion());
+        PricingReferenceService.PriceLookupResult now = pricingReferenceService.lookupHourlyRate(provider, b.instanceType(), b.vm().getRegion(),
+                b.usageOperation());
         if (!now.priceKnown()) {
             return null;
         }
@@ -972,7 +977,8 @@ public class CostEstimationService {
             if (best != null && generation < bestGeneration) {
                 break; // newest generation first: an older one is never preferred
             }
-            PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, b.vm().getRegion());
+            PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, b.vm().getRegion(),
+                    b.usageOperation());
             if (rate.priceKnown() && rate.hourlyRate().compareTo(now.hourlyRate()) <= 0
                     && (bestRate == null || rate.hourlyRate().compareTo(bestRate) < 0)) {
                 best = type;
@@ -1227,6 +1233,8 @@ public class CostEstimationService {
             /** x86_64 or arm64 from inventory (E30-T05); null when not recorded. */
             String architecture,
             /** peakCpu is, on some or all days, the busiest 5-minute average, not CloudWatch's Maximum (U26-T05). */
-            boolean cpuPeakFromAverages
+            boolean cpuPeakFromAverages,
+            /** EC2 usage operation of the operating system (U26-T02); null = Linux/UNIX. */
+            String usageOperation
     ) {}
 }
