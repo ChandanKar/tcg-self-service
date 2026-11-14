@@ -116,6 +116,7 @@ public class VmMetricRollupService {
             daily.setBucketDate(bucketDate);
             daily.setAvgCpuUtilization(agg.getAvgCpu());
             daily.setMaxCpuUtilization(agg.getMaxCpu());
+            daily.setMaxCpuMaximum(agg.getMaxCpuMaximum());
             daily.setSumNetworkInBytes(agg.getSumNetworkIn());
             daily.setSumNetworkOutBytes(agg.getSumNetworkOut());
             daily.setSumDiskReadBytes(agg.getSumDiskRead());
@@ -145,6 +146,7 @@ public class VmMetricRollupService {
             daily.setBucketDate(bucketDate);
             daily.setAvgCpuUtilization(null);
             daily.setMaxCpuUtilization(null);
+            daily.setMaxCpuMaximum(null);
             daily.setSumNetworkInBytes(0L);
             daily.setSumNetworkOutBytes(0L);
             daily.setSumDiskReadBytes(0L);

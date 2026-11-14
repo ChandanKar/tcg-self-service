@@ -27,6 +27,11 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
      * stays null, same graceful-degradation behavior as every other missing-data case here.
      */
     private static final String CWAGENT_NAMESPACE = "CWAgent";
+    /**
+     * Instances per GetMetricData call: one query per metric each, and a call takes at most 500
+     * queries (71 x 7 = 497; it was 80 x 6 before the CPU Maximum was added, U26-T05).
+     */
+    static final int CHUNK_SIZE = 500 / MetricSpec.values().length;
 
     private final AwsClientFactory awsClientFactory;
 
@@ -59,7 +64,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
 
     /**
      * Every datapoint per VM in the window (E12-T03): values are aligned by their own timestamp,
-     * every page (NextToken) is read, and a failing chunk of 80 instances is logged and skipped
+     * every page (NextToken) is read, and a failing chunk of instances is logged and skipped
      * without losing the other chunks.
      */
     @Override
@@ -72,8 +77,8 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
         CloudWatchClient cloudWatch = getCloudWatchClient(cloudTarget);
         Map<String, java.util.TreeMap<Instant, VmMetricData>> byInstance = new HashMap<>();
         int queryCounter = 0;
-        for (int offset = 0; offset < providerVmIds.size(); offset += 80) {
-            List<String> chunk = providerVmIds.subList(offset, Math.min(offset + 80, providerVmIds.size()));
+        for (int offset = 0; offset < providerVmIds.size(); offset += CHUNK_SIZE) {
+            List<String> chunk = providerVmIds.subList(offset, Math.min(offset + CHUNK_SIZE, providerVmIds.size()));
             Map<String, QueryTarget> targets = new HashMap<>();
             List<MetricDataQuery> queries = new ArrayList<>();
             for (String instanceId : chunk) {
@@ -142,6 +147,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
         if (value == null) return;
         switch (spec) {
             case CPU -> data.setCpuUtilization(BigDecimal.valueOf(value).setScale(3, RoundingMode.HALF_UP));
+            case CPU_MAX -> data.setCpuMaximum(BigDecimal.valueOf(value).setScale(3, RoundingMode.HALF_UP));
             case MEMORY -> data.setMemoryUtilization(BigDecimal.valueOf(value).setScale(3, RoundingMode.HALF_UP));
             case NETWORK_IN -> data.setNetworkInBytes(Math.round(value));
             case NETWORK_OUT -> data.setNetworkOutBytes(Math.round(value));
@@ -161,7 +167,12 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
         NETWORK_IN(NAMESPACE, "NetworkIn", "Sum"),
         NETWORK_OUT(NAMESPACE, "NetworkOut", "Sum"),
         DISK_READ(NAMESPACE, "DiskReadBytes", "Sum"),
-        DISK_WRITE(NAMESPACE, "DiskWriteBytes", "Sum");
+        DISK_WRITE(NAMESPACE, "DiskWriteBytes", "Sum"),
+        /**
+         * The busiest moment of the period (U26-T05): rightsizing judges the peak on this, not on the
+         * highest 5-minute average, which was about half the real peak on staging (V01 check C2).
+         */
+        CPU_MAX(NAMESPACE, "CPUUtilization", "Maximum");
 
         private final String namespace;
         private final String metricName;

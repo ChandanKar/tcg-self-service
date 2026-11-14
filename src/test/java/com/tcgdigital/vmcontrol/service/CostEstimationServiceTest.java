@@ -82,6 +82,9 @@ class CostEstimationServiceTest {
         when(cpuStats.getVmId()).thenReturn(VM_ID);
         when(cpuStats.getAvgCpu()).thenReturn(BigDecimal.valueOf(2));
         when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(10));
+        // U26-T05: every day has a CloudWatch Maximum, here the same as the stubbed peak, so the tests
+        // below keep judging on getMaxCpu; the peak tests further down set the two apart.
+        org.mockito.Mockito.lenient().when(cpuStats.getMaxCpuMaximum()).thenAnswer(i -> cpuStats.getMaxCpu());
         when(vmMetricDailyRepository.findUtilizationStatsSince(anyList(), any())).thenReturn(List.of(cpuStats));
 
         // Scale-down candidacy: 3 consecutive daily rows (matching scaleDownConsecutiveDays),
@@ -585,6 +588,94 @@ class CostEstimationServiceTest {
         assertEquals(false, row.applicable());
         assertEquals("Requires an ARM64 image", row.applicableReason());
         assertEquals(false, row.canApply("t4g.large"));
+    }
+
+    // ---- The CPU peak is CloudWatch's Maximum, not the busiest 5-minute average (U26-T05, V01 check C2) ----
+
+    /** The VM as a t3.2xlarge (8 vCPU), which the rule shrinks to t3.xlarge (4 vCPU). */
+    private void eightVcpus() {
+        when(instanceTypeProjection.getInstanceType()).thenReturn("t3.2xlarge");
+        when(costDataProvider.estimateCosts(anyList(), any(), any())).thenReturn(Map.of(VM_ID, new CostDataProvider.VmCostEstimate(
+                true, BigDecimal.valueOf(0.3328), BigDecimal.valueOf(720), 0, BigDecimal.valueOf(239.62))));
+        org.mockito.Mockito.lenient().when(computeOptimizerService.getAllRecommendations(
+                org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(Map.of());
+    }
+
+    private void cpuPeaks(double busiest5MinuteAverage, Double maximum, long daysWithoutMaximum) {
+        when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(busiest5MinuteAverage));
+        // doReturn: when(...) would run setUp's answer, whose own getMaxCpu() call would take the stub.
+        org.mockito.Mockito.doReturn(maximum == null ? null : BigDecimal.valueOf(maximum)).when(cpuStats).getMaxCpuMaximum();
+        org.mockito.Mockito.lenient().when(cpuStats.getCpuDaysWithoutMaximum()).thenReturn(daysWithoutMaximum);
+    }
+
+    @Test
+    void aVmWhoseBusiestMinuteWouldOverloadTheHalfSizeIsNotShrunk() {
+        // Staging Morphex2: t3a.2xlarge -> t3a.xlarge, busiest 5-minute average 34% (68% on 4 vCPU, looked
+        // fine), but CloudWatch's Maximum 68%: 136% on 4 vCPU.
+        eightVcpus();
+        cpuPeaks(34, null, 0);
+        assertEquals("t3.xlarge", onlyCandidate().suggestedInstanceType(), "on averages alone it looked safe");
+
+        cpuPeaks(34, 68.0, 0);
+        service.invalidateBundles();
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(0, service.getSummary().rightsizingCandidateCount());
+    }
+
+    @Test
+    void aVmWhoseBusiestMinuteKeepsHeadroomOnTheSmallerSizeIsSuggested() {
+        // t3.xlarge (4 vCPU) -> t3.large (2 vCPU): a 38% Maximum becomes about 76%, below the 80% max.
+        // (40% would project to exactly 80%, which the kept rule "reaches the max" blocks.)
+        cpuPeaks(19, 38.0, 0);
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals(0, BigDecimal.valueOf(38).compareTo(row.peakCpuUtilization()), "the peak shown is the one judged");
+        assertEquals(false, row.reasons().contains("CPU_PEAK_FROM_AVERAGES"));
+    }
+
+    @Test
+    void withoutAnyMaximumTheAveragePeakIsUsedAndTheReasonSaysSo() {
+        cpuPeaks(30, null, 0); // every day collected before the Maximum was kept
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals(0, BigDecimal.valueOf(30).compareTo(row.peakCpuUtilization()));
+        assertEquals(true, row.reasons().contains("CPU_LOW"));
+        assertEquals("CPU_PEAK_FROM_AVERAGES", row.reasons().get(row.reasons().size() - 1));
+    }
+
+    @Test
+    void whileSomeDaysHaveNoMaximumThePeakIsTheHigherOfTheTwoAndFlagged() {
+        cpuPeaks(36, 30.0, 12); // 12 older days have only averages, one of them busier
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals(0, BigDecimal.valueOf(36).compareTo(row.peakCpuUtilization()));
+        assertEquals(true, row.reasons().contains("CPU_PEAK_FROM_AVERAGES"));
+    }
+
+    @Test
+    void computeOptimizerIsNotFollowedWhenTheBusiestMinuteWouldPassTheMax() {
+        // AWS suggests r5.large (2 vCPU, same 16 GiB): a 30% average peak looked like 60%, the 45% Maximum is 90%.
+        onlyAwsSuggests("r5.large");
+        cpuPeaks(30, 45.0, 0);
+
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void aVmWhoseBusiestMinuteReachesThePeakMaxIsNotShrunk() {
+        // Staging tcg-devops-docker-registry: busiest 5-minute average 65%, Maximum 95% (cpu-peak-max 80).
+        onlyAwsSuggests("r5.large");
+        cpuPeaks(65, 95.3, 0);
+
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
     }
 
     private RightsizingCandidateDTO onlyCandidate() {

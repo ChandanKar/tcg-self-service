@@ -35,6 +35,10 @@ public class VmMetricSample {
     @Column(name = "cpu_utilization", precision = 7, scale = 3)
     private BigDecimal cpuUtilization;
 
+    /** CloudWatch's Maximum of CPUUtilization over the period (U26-T05, V104); null for older rows and non-EC2 providers. */
+    @Column(name = "cpu_maximum", precision = 7, scale = 3)
+    private BigDecimal cpuMaximum;
+
     @Column(name = "memory_utilization", precision = 7, scale = 3)
     private BigDecimal memoryUtilization;
 
@@ -82,6 +86,8 @@ public class VmMetricSample {
     public void setPeriodSeconds(Integer periodSeconds) { this.periodSeconds = periodSeconds; }
     public BigDecimal getCpuUtilization() { return cpuUtilization; }
     public void setCpuUtilization(BigDecimal cpuUtilization) { this.cpuUtilization = cpuUtilization; }
+    public BigDecimal getCpuMaximum() { return cpuMaximum; }
+    public void setCpuMaximum(BigDecimal cpuMaximum) { this.cpuMaximum = cpuMaximum; }
     public BigDecimal getMemoryUtilization() { return memoryUtilization; }
     public void setMemoryUtilization(BigDecimal memoryUtilization) { this.memoryUtilization = memoryUtilization; }
     public Long getNetworkInBytes() { return networkInBytes; }

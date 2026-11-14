@@ -24,7 +24,8 @@ test('the memory peak, the agent-missing dash and why there is no suggestion', a
         avgMemoryUtilization: 21.5, peakMemoryUtilization: 34.25, memoryDataAvailable: true, reasons: ['CPU_LOW', 'MEMORY_LOW'] },
       { ...BASE, vmId: 'vm-b', vmName: 'no-agent', currentInstanceType: 't3.xlarge', suggestedInstanceType: 't3.large',
         currentMonthlyCost: 120, estimatedMonthlyCostAfter: 60, estimatedMonthlySavings: 60, direction: 'SCALE_DOWN',
-        avgMemoryUtilization: null, peakMemoryUtilization: null, memoryDataAvailable: false, reasons: ['CPU_LOW', 'MEMORY_UNKNOWN'] },
+        avgMemoryUtilization: null, peakMemoryUtilization: null, memoryDataAvailable: false,
+        reasons: ['CPU_LOW', 'MEMORY_UNKNOWN', 'CPU_PEAK_FROM_AVERAGES'] },
       { ...BASE, vmId: 'vm-c', vmName: 'too-full', currentInstanceType: 'r5.xlarge', suggestedInstanceType: null,
         currentMonthlyCost: 180, estimatedMonthlyCostAfter: null, estimatedMonthlySavings: null, costKnown: false, direction: 'SCALE_DOWN',
         avgMemoryUtilization: 48, peakMemoryUtilization: 58, memoryDataAvailable: true,
@@ -39,10 +40,13 @@ test('the memory peak, the agent-missing dash and why there is no suggestion', a
   await expect(table.locator('thead')).toContainText('Peak CPU / memory', { timeout: 15_000 });
 
   const withAgent = page.locator('#cost-rightsizing-table-body tr', { hasText: 'with-agent' });
-  await expect(withAgent.locator('.rs-peak')).toHaveText('12% / 34%');
+  await expect(withAgent.locator('.rs-peak-figures')).toHaveText('12% / 34%');
+  // U26-T05: the CPU peak says what it is: the busiest minute, or 5-minute averages before that was kept.
+  await expect(withAgent.locator('[data-peak-basis="maximum"]')).toHaveText('CPU: busiest minute');
 
   const noAgent = page.locator('#cost-rightsizing-table-body tr', { hasText: 'no-agent' });
   await expect(noAgent.locator('.rightsizing-mem-unknown')).toHaveCount(1);
+  await expect(noAgent.locator('[data-peak-basis="average"]')).toHaveText('CPU: 5-minute averages');
   await expect(noAgent.locator('.rightsizing-mem-unknown')).toHaveAttribute('title', 'CloudWatch agent not reporting memory');
 
   const tooFull = page.locator('#cost-rightsizing-table-body tr', { hasText: 'too-full' });

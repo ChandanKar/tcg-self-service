@@ -29,6 +29,8 @@ public interface CloudMetricsProviderService {
         private Timestamp sampleTime;
         private Integer periodSeconds;
         private BigDecimal cpuUtilization;
+        /** CloudWatch's Maximum of CPU over the period (U26-T05); null where a provider does not read it. */
+        private BigDecimal cpuMaximum;
         private BigDecimal memoryUtilization;
         private Long networkInBytes;
         private Long networkOutBytes;
@@ -45,6 +47,8 @@ public interface CloudMetricsProviderService {
         public void setPeriodSeconds(Integer periodSeconds) { this.periodSeconds = periodSeconds; }
         public BigDecimal getCpuUtilization() { return cpuUtilization; }
         public void setCpuUtilization(BigDecimal cpuUtilization) { this.cpuUtilization = cpuUtilization; }
+        public BigDecimal getCpuMaximum() { return cpuMaximum; }
+        public void setCpuMaximum(BigDecimal cpuMaximum) { this.cpuMaximum = cpuMaximum; }
         public BigDecimal getMemoryUtilization() { return memoryUtilization; }
         public void setMemoryUtilization(BigDecimal memoryUtilization) { this.memoryUtilization = memoryUtilization; }
         public Long getNetworkInBytes() { return networkInBytes; }

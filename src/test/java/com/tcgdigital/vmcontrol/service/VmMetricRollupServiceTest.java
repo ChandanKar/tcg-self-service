@@ -140,4 +140,20 @@ class VmMetricRollupServiceTest {
         assertThat(all).filteredOn(d -> d.getSampleCount() == 0)
                 .allSatisfy(d -> assertThat(d.getMemorySampleCount()).isZero());
     }
+
+    @Test
+    void theDaysHighestCpuMaximumIsRolledUpNextToTheBusiestAverage() {
+        // U26-T05: rightsizing reads the day's real peak, not only the busiest 5-minute average.
+        VmMetricSampleRepository.DailyAggregate agg = aggregate(null, null, 0);
+        when(agg.getMaxCpu()).thenReturn(new BigDecimal("26.390"));
+        when(agg.getMaxCpuMaximum()).thenReturn(new BigDecimal("68.450"));
+
+        List<VmMetricDaily> all = rollUpToday(agg);
+
+        VmMetricDaily today = all.stream().filter(d -> d.getBucketDate().equals(Date.valueOf(LocalDate.now())))
+                .findFirst().orElseThrow();
+        assertThat(today.getMaxCpuUtilization()).isEqualByComparingTo("26.39");
+        assertThat(today.getMaxCpuMaximum()).isEqualByComparingTo("68.45");
+        assertThat(all).filteredOn(d -> d.getSampleCount() == 0).allSatisfy(d -> assertThat(d.getMaxCpuMaximum()).isNull());
+    }
 }

@@ -43,7 +43,7 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
            "SUM(s.networkInBytes) AS sumNetworkIn, SUM(s.networkOutBytes) AS sumNetworkOut, " +
            "SUM(s.diskReadBytes) AS sumDiskRead, SUM(s.diskWriteBytes) AS sumDiskWrite, " +
            "COUNT(s) AS sampleCount, AVG(s.memoryUtilization) AS avgMemory, MAX(s.memoryUtilization) AS maxMemory, " +
-           "COUNT(s.memoryUtilization) AS memorySampleCount " +
+           "COUNT(s.memoryUtilization) AS memorySampleCount, MAX(s.cpuMaximum) AS maxCpuMaximum " +
            "FROM VmMetricSample s WHERE s.sampleTime >= :dayStart AND s.sampleTime < :dayEnd " +
            "GROUP BY s.vm.vmId")
     List<DailyAggregate> aggregateByVmForPeriod(@Param("dayStart") Timestamp dayStart, @Param("dayEnd") Timestamp dayEnd);
@@ -92,5 +92,7 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
         java.math.BigDecimal getAvgMemory();
         java.math.BigDecimal getMaxMemory();
         Long getMemorySampleCount();
+        /** The highest CloudWatch Maximum of CPU (U26-T05); null when no sample carried one. */
+        java.math.BigDecimal getMaxCpuMaximum();
     }
 }
