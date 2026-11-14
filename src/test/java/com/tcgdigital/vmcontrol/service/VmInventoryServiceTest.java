@@ -103,6 +103,26 @@ class VmInventoryServiceTest {
     }
 
     @Test
+    void theOperatingSystemIsRecordedForPricingAndKeptWhenAReadLacksIt() {
+        // U26-T02: RHEL and Windows are priced by EC2's usage operation.
+        CloudInventoryProviderService.VmInventoryData data = new CloudInventoryProviderService.VmInventoryData();
+        data.setProviderVmId("i-1");
+        data.setInstanceType("m5.xlarge");
+        data.setPlatformDetails("Red Hat Enterprise Linux");
+        data.setUsageOperation("RunInstances:0010");
+        when(provider.fetchInventory(anyList(), any())).thenReturn(Map.of("i-1", data));
+
+        service.syncAllInventory();
+
+        assertThat(stored.getPlatformDetails()).isEqualTo("Red Hat Enterprise Linux");
+        assertThat(stored.getUsageOperation()).isEqualTo("RunInstances:0010");
+
+        awsReports("m5.xlarge"); // a provider that reports no system
+        service.syncAllInventory();
+        assertThat(stored.getUsageOperation()).isEqualTo("RunInstances:0010");
+    }
+
+    @Test
     void anOnDemandInstanceChangesNothingOnTheVm() {
         awsReports("m5.xlarge");
 

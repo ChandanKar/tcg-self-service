@@ -51,6 +51,14 @@ public class VmInventorySnapshot {
     @Column(name = "availability_zone_id", length = 32)
     private String availabilityZoneId;
 
+    /** EC2's operating system ("Red Hat Enterprise Linux", "Windows", ...) (U26-T02, V103); null until read. */
+    @Column(name = "platform_details", length = 100)
+    private String platformDetails;
+
+    /** EC2's billing code for that system ("RunInstances:0010"); prices are looked up by it; null = Linux/UNIX. */
+    @Column(name = "usage_operation", length = 32)
+    private String usageOperation;
+
     /** On demand or Spot (E31-T01). */
     @Enumerated(EnumType.STRING)
     @Column(name = "purchase_option", nullable = false, length = 20)
@@ -117,6 +125,10 @@ public class VmInventorySnapshot {
     public void setAvailabilityZone(String availabilityZone) { this.availabilityZone = availabilityZone; }
     public String getAvailabilityZoneId() { return availabilityZoneId; }
     public void setAvailabilityZoneId(String availabilityZoneId) { this.availabilityZoneId = availabilityZoneId; }
+    public String getPlatformDetails() { return platformDetails; }
+    public void setPlatformDetails(String platformDetails) { this.platformDetails = platformDetails; }
+    public String getUsageOperation() { return usageOperation; }
+    public void setUsageOperation(String usageOperation) { this.usageOperation = usageOperation; }
     public Timestamp getLaunchTime() { return launchTime; }
     public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
     public Integer getTotalStorageGib() { return totalStorageGib; }

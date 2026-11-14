@@ -172,7 +172,11 @@ public class CommitmentInsightService {
         }
         List<String> ids = vms.stream().map(Vm::getVmId).toList();
         Map<String, String> typeByVm = new HashMap<>();
-        inventoryRepository.findInstanceTypesByVmIds(ids).forEach(p -> typeByVm.put(p.getVmId(), p.getInstanceType()));
+        Map<String, String> operationByVm = new HashMap<>();
+        inventoryRepository.findInstanceTypesByVmIds(ids).forEach(p -> {
+            typeByVm.put(p.getVmId(), p.getInstanceType());
+            operationByVm.put(p.getVmId(), p.getUsageOperation()); // RHEL or Windows rate (U26-T02)
+        });
         Timestamp from = Timestamp.from(start);
         Timestamp to = Timestamp.from(end);
         Map<String, List<VmStateHistory>> transitions = new HashMap<>();
@@ -184,7 +188,8 @@ public class CommitmentInsightService {
         List<RunningVm> priced = new ArrayList<>();
         for (Vm vm : vms) {
             PricingReferenceService.PriceLookupResult rate =
-                    pricingReferenceService.lookupHourlyRate(CloudProvider.AWS.name(), typeByVm.get(vm.getVmId()), vm.getRegion());
+                    pricingReferenceService.lookupHourlyRate(CloudProvider.AWS.name(), typeByVm.get(vm.getVmId()), vm.getRegion(),
+                            operationByVm.get(vm.getVmId()));
             if (!rate.priceKnown()) {
                 continue;
             }

@@ -233,14 +233,51 @@ class EstimatedCostProviderTest {
     }
 
     private void instanceType(String vmId, String type) {
+        instanceType(vmId, type, null);
+    }
+
+    private void instanceType(String vmId, String type, String usageOperation) {
         VmInventorySnapshotRepository.InstanceTypeProjection p = new VmInventorySnapshotRepository.InstanceTypeProjection() {
             public String getVmId() { return vmId; }
             public String getInstanceType() { return type; }
             public Timestamp getInstanceTypeChangedAt() { return null; }
             public Integer getMemoryMib() { return null; }
             public String getArchitecture() { return null; }
+            public String getUsageOperation() { return usageOperation; }
         };
         when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of(p));
+    }
+
+    // --- The VM's operating system sets its rate (U26-T02) ---
+
+    @Test
+    void aRhelVmIsEstimatedAtTheRhelRate() {
+        com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService priceList =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService.class);
+        when(priceList.ec2Hourly("us-east-1", "t3.large", "RunInstances:0010")).thenReturn(Optional.of(new BigDecimal("0.1120")));
+        pricing.setPriceList(priceList);
+        Vm vm = ec2Vm("vm-rhel", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        vm.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.RUNNING);
+        instanceType("vm-rhel", "t3.large", "RunInstances:0010");
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-rhel");
+
+        // RHEL t3.large, not the Linux 0.0832: 10 h x 0.1120 = 1.12
+        assertEquals(0, new BigDecimal("0.1120").compareTo(estimate.hourlyRate()));
+        assertEquals(0, new BigDecimal("1.12").compareTo(estimate.cost()));
+        assertFalse(estimate.priceApproximate());
+    }
+
+    @Test
+    void aVmWhoseSystemIsNotReadYetIsEstimatedAsLinux() {
+        Vm vm = ec2Vm("vm-linux", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        vm.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.RUNNING);
+        instanceType("vm-linux", "t3.large", null);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-linux");
+
+        assertEquals(0, new BigDecimal("0.0832").compareTo(estimate.hourlyRate()));
+        assertFalse(estimate.priceApproximate());
     }
 
     /** Cost of {@code gib} GiB of storage for {@code days} days, rounded as the provider rounds it. */

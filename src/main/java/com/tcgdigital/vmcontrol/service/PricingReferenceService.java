@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +30,9 @@ public class PricingReferenceService {
 
     private final Map<String, BigDecimal> ratesByTypeAndRegion = new HashMap<>();
     private final Map<String, BigDecimal> ratesByTypeAnyRegion = new HashMap<>();
+    /** Other operating systems (U26-T02): the same keys plus "|" and the EC2 usage operation ("RunInstances:0010"). */
+    private final Map<String, BigDecimal> osRatesByTypeAndRegion = new HashMap<>();
+    private final Map<String, BigDecimal> osRatesByTypeAnyRegion = new HashMap<>();
     private final Map<String, String> downsizeMap = new HashMap<>();
     private final Map<String, String> upsizeMap = new HashMap<>();
     private final Map<String, InstanceSpec> specsByType = new HashMap<>();
@@ -60,6 +64,13 @@ public class PricingReferenceService {
                 String instanceType = entry.get("instanceType").asText();
                 String region = entry.get("region").asText();
                 BigDecimal hourlyRate = new BigDecimal(entry.get("hourlyRate").asText());
+                // No "operation" (or RunInstances) is Linux/UNIX; another is that operating system's rate (U26-T02).
+                String operation = entry.path("operation").asText("");
+                if (!AwsPriceListService.isLinux(operation)) {
+                    osRatesByTypeAndRegion.put(typeAndRegionKey(provider, instanceType, region) + "|" + operation, hourlyRate);
+                    osRatesByTypeAnyRegion.putIfAbsent(typeKey(provider, instanceType) + "|" + operation, hourlyRate);
+                    continue;
+                }
 
                 ratesByTypeAndRegion.put(typeAndRegionKey(provider, instanceType, region), hourlyRate);
                 ratesByTypeAnyRegion.putIfAbsent(typeKey(provider, instanceType), hourlyRate);
@@ -137,6 +148,41 @@ public class PricingReferenceService {
      * then unresolvable.
      */
     public PriceLookupResult lookupHourlyRate(String provider, String instanceType, String region) {
+        return lookupHourlyRate(provider, instanceType, region, null);
+    }
+
+    /**
+     * The rate for the operating system of an EC2 usage operation (U26-T02): "RunInstances:0010" is
+     * RHEL, ":0002" Windows, null or "RunInstances" Linux/UNIX (as the three-argument lookup). For
+     * another system the tiers are the same with that system's rates; when neither the Price List nor
+     * the bundled list has one, the Linux rate is used, flagged approximate (it is too low, not wrong
+     * by a guess). Spot, RDS and EKS ignore the operation.
+     */
+    public PriceLookupResult lookupHourlyRate(String provider, String instanceType, String region, String usageOperation) {
+        if (provider != null && instanceType != null && !AwsPriceListService.isLinux(usageOperation)
+                && com.tcgdigital.vmcontrol.model.CloudProvider.AWS.name().equals(provider)) {
+            String operation = AwsPriceListService.operationOrLinux(usageOperation);
+            if (priceList != null) {
+                Optional<BigDecimal> live = priceList.ec2Hourly(region, instanceType, operation);
+                if (live.isPresent()) {
+                    return new PriceLookupResult(true, live.get(), false);
+                }
+            }
+            BigDecimal rate = osRatesByTypeAndRegion.get(typeAndRegionKey(provider, instanceType, region) + "|" + operation);
+            if (rate != null) {
+                return new PriceLookupResult(true, rate, false);
+            }
+            rate = osRatesByTypeAnyRegion.get(typeKey(provider, instanceType) + "|" + operation);
+            if (rate != null) {
+                return new PriceLookupResult(true, rate, true);
+            }
+            PriceLookupResult linux = lookupLinuxHourlyRate(provider, instanceType, region);
+            return linux.priceKnown() ? new PriceLookupResult(true, linux.hourlyRate(), true) : linux;
+        }
+        return lookupLinuxHourlyRate(provider, instanceType, region);
+    }
+
+    private PriceLookupResult lookupLinuxHourlyRate(String provider, String instanceType, String region) {
         if (provider == null || instanceType == null) {
             return PriceLookupResult.unknown();
         }

@@ -90,6 +90,9 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
                 data.setAvailabilityZone(instance.placement() != null ? instance.placement().availabilityZone() : null);
                 data.setAvailabilityZoneId(data.getAvailabilityZone() == null ? null : zoneIds.get(data.getAvailabilityZone()));
                 data.setLaunchTime(instance.launchTime() != null ? Timestamp.from(instance.launchTime()) : null);
+                // The operating system sets the price: RHEL or Windows cost more than Linux (U26-T02).
+                data.setPlatformDetails(instance.platformDetails());
+                data.setUsageOperation(instance.usageOperation());
 
                 InstanceTypeInfo info = typeInfo.get(instance.instanceTypeAsString());
                 if (info != null) {

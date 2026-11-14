@@ -27,6 +27,9 @@ public interface CloudInventoryProviderService {
         private String publicIp;
         private String availabilityZone;
         private String availabilityZoneId;
+        /** Operating system and its billing code, as EC2 reports them (U26-T02). */
+        private String platformDetails;
+        private String usageOperation;
         private Timestamp launchTime;
         private List<VmVolumeData> volumes = List.of();
         /** Database engine and Multi-AZ (AWS_RDS, E33-T03). */
@@ -63,6 +66,10 @@ public interface CloudInventoryProviderService {
         public void setAvailabilityZone(String availabilityZone) { this.availabilityZone = availabilityZone; }
         public String getAvailabilityZoneId() { return availabilityZoneId; }
         public void setAvailabilityZoneId(String availabilityZoneId) { this.availabilityZoneId = availabilityZoneId; }
+        public String getPlatformDetails() { return platformDetails; }
+        public void setPlatformDetails(String platformDetails) { this.platformDetails = platformDetails; }
+        public String getUsageOperation() { return usageOperation; }
+        public void setUsageOperation(String usageOperation) { this.usageOperation = usageOperation; }
         public Timestamp getLaunchTime() { return launchTime; }
         public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
         public List<VmVolumeData> getVolumes() { return volumes; }

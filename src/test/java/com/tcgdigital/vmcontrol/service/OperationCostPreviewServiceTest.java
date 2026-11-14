@@ -61,9 +61,11 @@ class OperationCostPreviewServiceTest {
         when(environments.findById(ENV)).thenReturn(Optional.of(environment));
         when(groups.findById(GROUP)).thenReturn(Optional.of(group));
         when(security.getVisibleGroupIds(ENV)).thenReturn(List.of(GROUP));
-        when(pricing.lookupHourlyRate(eq("AWS"), eq("m5.large"), any()))
+        when(pricing.lookupHourlyRate(eq("AWS"), eq("m5.large"), any(), any()))
                 .thenReturn(new PricingReferenceService.PriceLookupResult(true, new BigDecimal("0.096"), false));
-        when(pricing.lookupHourlyRate(eq("AWS"), eq("x9.huge"), any()))
+        when(pricing.lookupHourlyRate(eq("AWS"), eq("m5.large"), any(), eq("RunInstances:0010")))
+                .thenReturn(new PricingReferenceService.PriceLookupResult(true, new BigDecimal("0.156"), false));
+        when(pricing.lookupHourlyRate(eq("AWS"), eq("x9.huge"), any(), any()))
                 .thenReturn(new PricingReferenceService.PriceLookupResult(false, null, false));
         service = new OperationCostPreviewService(environments, groups, vms, inventory, pricing, eks, security, leaseProvider);
     }
@@ -87,16 +89,29 @@ class OperationCostPreviewServiceTest {
         List<VmInventorySnapshotRepository.InstanceTypeProjection> projections = new java.util.ArrayList<>();
         for (int i = 0; i < pairs.length; i += 2) {
             String id = pairs[i];
-            String type = pairs[i + 1];
+            // "m5.large/RunInstances:0010": the type and the operating system's usage operation (U26-T02).
+            String[] typeAndOs = pairs[i + 1].split("/", 2);
             projections.add(new VmInventorySnapshotRepository.InstanceTypeProjection() {
                 public String getVmId() { return id; }
-                public String getInstanceType() { return type; }
+                public String getInstanceType() { return typeAndOs[0]; }
                 public Timestamp getInstanceTypeChangedAt() { return null; }
                 public Integer getMemoryMib() { return null; }
                 public String getArchitecture() { return null; }
+                public String getUsageOperation() { return typeAndOs.length > 1 ? typeAndOs[1] : null; }
             });
         }
         when(inventory.findInstanceTypesByVmIds(anyList())).thenReturn(projections);
+    }
+
+    @Test
+    void aRhelVmIsPreviewedAtTheRhelRate() {
+        inGroup(vm("a", VmStatus.STOPPED, CloudProvider.AWS), vm("b", VmStatus.STOPPED, CloudProvider.AWS));
+        types("a", "m5.large", "b", "m5.large/RunInstances:0010");
+
+        CostPreviewDTO preview = service.preview(ENV, GROUP, null, 10);
+        assertThat(preview.vms()).extracting(CostPreviewDTO.VmLine::estimatedCost)
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(new BigDecimal("0.96"), new BigDecimal("1.56"));
     }
 
     @Test

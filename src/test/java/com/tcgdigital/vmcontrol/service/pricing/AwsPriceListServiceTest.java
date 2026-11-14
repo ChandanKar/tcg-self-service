@@ -84,6 +84,66 @@ class AwsPriceListServiceTest {
         });
     }
 
+    /** A GetProducts answer that depends on the operation asked for, as AWS's does (U26-T02). */
+    private void awsSaysPerOperation() {
+        when(pricing.getProducts(any(GetProductsRequest.class))).thenAnswer(inv -> {
+            GetProductsRequest r = inv.getArgument(0);
+            String op = r.filters().stream().filter(f -> f.field().equals("operation")).map(f -> f.value()).findFirst().orElse("Linux");
+            String usd = switch (op) {
+                case "RunInstances:0010" -> "0.1687000000"; // RHEL m6a.xlarge in ap-south-1 (public offer file 2026-11-14)
+                case "RunInstances:0002" -> "0.2951000000"; // Windows
+                default -> "0.1111000000";                  // Linux
+            };
+            return GetProductsResponse.builder().priceList(product(usd)).build();
+        });
+    }
+
+    @Test
+    void rhelAndWindowsAreAskedForByTheirUsageOperationAndKeptApartFromLinux() {
+        awsSaysPerOperation();
+
+        service.ec2Hourly("ap-south-1", "m6a.xlarge", "RunInstances:0010");
+        service.ec2Hourly("ap-south-1", "m6a.xlarge", "RunInstances:0002");
+        service.ec2Hourly("ap-south-1", "m6a.xlarge", null);
+
+        assertThat(service.ec2Hourly("ap-south-1", "m6a.xlarge", "RunInstances:0010")).contains(new BigDecimal("0.1687000000"));
+        assertThat(service.ec2Hourly("ap-south-1", "m6a.xlarge", "RunInstances:0002")).contains(new BigDecimal("0.2951000000"));
+        assertThat(service.ec2Hourly("ap-south-1", "m6a.xlarge")).contains(new BigDecimal("0.1111000000"));
+        assertThat(service.ec2Hourly("ap-south-1", "m6a.xlarge", "RunInstances")).contains(new BigDecimal("0.1111000000"));
+        // RHEL: by operation, shared tenancy, used capacity; no Linux operatingSystem filter.
+        verify(pricing).getProducts(org.mockito.ArgumentMatchers.<GetProductsRequest>argThat(r ->
+                r.filters().stream().anyMatch(f -> f.field().equals("operation") && f.value().equals("RunInstances:0010"))
+                        && r.filters().stream().anyMatch(f -> f.field().equals("tenancy") && f.value().equals("Shared"))
+                        && r.filters().stream().anyMatch(f -> f.field().equals("capacitystatus") && f.value().equals("Used"))
+                        && r.filters().stream().noneMatch(f -> f.field().equals("operatingSystem"))));
+        verify(pricing, times(3)).getProducts(any(GetProductsRequest.class));
+        // Linux stays stored under the bare type, as before; other systems under "type|operation".
+        assertThat(saved).extracting(PriceCacheEntry::getPriceKey)
+                .containsExactlyInAnyOrder("m6a.xlarge|RunInstances:0010", "m6a.xlarge|RunInstances:0002", "m6a.xlarge");
+    }
+
+    @Test
+    void aRhelVmIsPricedAtTheRhelRateAndAnUnknownSystemAtLinuxMarkedApproximate() {
+        PricingReferenceService reference = new PricingReferenceService();
+        ReflectionTestUtils.invokeMethod(reference, "loadPricing");
+        awsSaysPerOperation();
+        ReflectionTestUtils.invokeMethod(reference, "setPriceList", service);
+        reference.lookupHourlyRate("AWS", "m6a.xlarge", "ap-south-1", "RunInstances:0010");
+        reference.lookupHourlyRate("AWS", "m6a.xlarge", "ap-south-1", null);
+
+        PricingReferenceService.PriceLookupResult rhel = reference.lookupHourlyRate("AWS", "m6a.xlarge", "ap-south-1", "RunInstances:0010");
+        assertThat(rhel.hourlyRate()).isEqualByComparingTo("0.1687");
+        assertThat(rhel.approximate()).isFalse();
+        assertThat(reference.lookupHourlyRate("AWS", "m6a.xlarge", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.1111");
+
+        // A system neither the Price List nor the bundled list prices: the Linux rate, flagged approximate.
+        when(pricing.getProducts(any(GetProductsRequest.class))).thenReturn(GetProductsResponse.builder().build());
+        PricingReferenceService.PriceLookupResult other = reference.lookupHourlyRate("AWS", "m6a.xlarge", "ap-south-1", "RunInstances:9999");
+        assertThat(other.priceKnown()).isTrue();
+        assertThat(other.approximate()).isTrue();
+        assertThat(other.hourlyRate()).isEqualByComparingTo("0.1111");
+    }
+
     @Test
     void aKnownPriceIsUsedForADayThenReadAgain() {
         awsSays(product("0.10"));
