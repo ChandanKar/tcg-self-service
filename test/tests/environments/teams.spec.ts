@@ -361,15 +361,18 @@ test.describe('Team page', () => {
     // One page at a time for this team only, never the whole fleet.
     const last = () => calls.envPages[calls.envPages.length - 1];
     expect(calls.envPages.every(p => p.teamId === 'tp1' && Number(p.size) <= 25)).toBe(true);
+    // The table asks once with a first guess, then again once it has measured how many rows fit: read the size after that.
+    await page.waitForLoadState('networkidle');
     const size = last().size;
     expect(last().page).toBe('0');
-    await expect(rows).toHaveCount(Number(size));
+    await expect.poll(async () => (await rows.count()) === Math.min(Number(last().size), 31)).toBe(true);
     await page.locator('#td-env-pager .pager-btn', { hasText: 'Next' }).click();
     await expect.poll(() => last().page).toBe('1');
-    expect(last()).toMatchObject({ size, teamId: 'tp1' });
+    expect(last()).toMatchObject({ teamId: 'tp1' });
+    await expect.poll(async () => (await rows.count()) === Math.min(Number(last().size), 31 - Number(last().size))).toBe(true);
     await page.locator('#td-env-search').fill('env 07');
     await expect.poll(() => last().search).toBe('env 07');
-    expect(last()).toMatchObject({ page: '0', size, teamId: 'tp1' });
+    expect(last()).toMatchObject({ page: '0', teamId: 'tp1' });
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Env 07');
     await page.locator('#td-env-search').fill('nothing like it');
@@ -387,6 +390,8 @@ test.describe('Team page', () => {
       ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'boom', ref: 'abcd1234' }) })
       : route.fallback());
     await page.locator('#td-env-search').fill('pay');
+    // The search waits 250 ms after typing; the refit request can fail first, so let the search go out too.
+    await page.waitForTimeout(600);
     await expect(page.locator('#td-env-body')).toContainText("The team's environments didn't load");
     fail = false;
     await page.locator('#td-env-body').getByRole('button', { name: 'Try again' }).click();
