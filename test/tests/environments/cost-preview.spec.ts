@@ -73,6 +73,12 @@ test.describe('Cost preview in dialogs', () => {
       { group: { groupId: 'g-web', name: 'web', displayName: 'Web', sequencePosition: 2 }, vms: [
         { vmId: 'w1', name: 'web-01', provider: 'AWS', status: 'STOPPED', instanceType: 't3.medium', sequencePosition: 1, lastStateSyncAt: iso(-1) },
         { vmId: 'w2', name: 'web-02', provider: 'AWS', status: 'STOPPED', instanceType: 't3.medium', sequencePosition: 2, lastStateSyncAt: iso(-1) }] }] }));
+    // The lengths are offered only while leases are on (lease.enabled): the environment says so with
+    // leaseEnabled (null while the platform switch is off), and only then is its lease policy loaded.
+    await page.route(new RegExp(`/api/v1/environments/${envId}(\\?.*)?$`), async route => {
+      const res = await route.fetch();
+      return route.fulfill({ response: res, json: { ...(await res.json()), leaseEnabled: true } });
+    });
     await page.route(/\/api\/v1\/environments\/[^/]+\/lease$/, route => route.fulfill({ status: 404, body: '' }));
     await page.route(/\/api\/v1\/environments\/[^/]+\/lease-policy$/, route => route.fulfill({ json: {
       enabled: true, effectiveDefaultMinutes: 480, effectiveMaxMinutes: 1440, platformMaxMinutes: 1440, canEdit: false } }));
