@@ -14,6 +14,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "cost_daily_snapshot")
+@EntityListeners(CostInputsVersion.class) // U26-T01: a new snapshot refreshes the fleet cost days
 public class CostDailySnapshot {
 
     @Id

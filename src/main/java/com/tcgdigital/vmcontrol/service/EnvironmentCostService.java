@@ -149,10 +149,17 @@ public class EnvironmentCostService {
                 }
             }
         }
-        BigDecimal todayPartial = envVms.isEmpty() ? BigDecimal.ZERO
-                : costDataProvider.estimateCosts(envVms, Timestamp.from(todayStart), Timestamp.from(now)).values().stream()
-                        .map(CostDataProvider.VmCostEstimate::cost).filter(Objects::nonNull)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Today as the lists count it (U26-T01: from the shared fleet cost days, so the page and the lists agree).
+        FleetDays fleet = fleetDays(now, today);
+        BigDecimal todayPartial;
+        if (fleet != null && fleet.ids().contains(environmentId)) {
+            todayPartial = fleet.daily().getOrDefault(environmentId, Map.of()).getOrDefault(today, BigDecimal.ZERO);
+        } else {
+            todayPartial = envVms.isEmpty() ? BigDecimal.ZERO
+                    : costDataProvider.estimateCosts(envVms, Timestamp.from(todayStart), Timestamp.from(now)).values().stream()
+                            .map(CostDataProvider.VmCostEstimate::cost).filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
         BigDecimal mtd = completeEstimated.add(todayPartial);
 
         // Last month over the same complete days (1st .. yesterday's day of month).
@@ -290,14 +297,7 @@ public class EnvironmentCostService {
         LocalDate previousMonthStart = monthStart.minusMonths(1);
         LocalDate sparkStart = today.minusDays(SPARKLINE_DAYS - 1);
         List<String> ids = List.copyOf(envs.keySet());
-        LocalDate from = previousMonthStart.isBefore(sparkStart) ? previousMonthStart : sparkStart;
-        Map<String, Map<LocalDate, BigDecimal>> daily = new java.util.HashMap<>();
-        for (CostDailySnapshotRepository.EnvironmentDailyCost row
-                : snapshotRepository.findDailyByEnvironmentIdsBetween(ids, Date.valueOf(from), Date.valueOf(today))) {
-            daily.computeIfAbsent(row.getEnvironmentId(), k -> new java.util.HashMap<>())
-                    .merge(row.getSnapshotDate().toLocalDate(), nz(row.getEstimatedCost()), BigDecimal::add);
-        }
-        addTodaysLiveEstimate(daily, ids, now, today);
+        Map<String, Map<LocalDate, BigDecimal>> daily = costDays(ids, now, today);
         Map<String, VmRepository.EnvironmentVmCounts> counts = vmRepository
                 .countVmsGroupedByEnvironment(ids, com.tcgdigital.vmcontrol.model.VmStatus.RUNNING).stream()
                 .collect(java.util.stream.Collectors.toMap(VmRepository.EnvironmentVmCounts::getEnvironmentId, c -> c));
@@ -336,6 +336,127 @@ public class EnvironmentCostService {
                     next == null ? null : next.partialStop(), next == null ? null : next.partialStart()));
         }
         return rows;
+    }
+
+    // ---- U26-T01: the fleet's cost days, built once and reused for a few seconds ----
+
+    /**
+     * How long the fleet's cost days are reused (U26-T01); 0 builds them on every call. On staging one
+     * admin opening Home, Cost management and the environment list built them about eight times at once
+     * (every environment's snapshots and a live estimate of every VM each time), and the app was killed.
+     */
+    @org.springframework.beans.factory.annotation.Value("${cost.fleet-cache-seconds:30}")
+    private long fleetCacheSeconds = 30;
+
+    /** The active environments' cost days and when they were built (today's live estimate is as of then). */
+    record FleetDays(LocalDate today, ZoneId zone, Instant builtAt, long inputsVersion, Set<String> ids,
+                     Map<String, Map<LocalDate, BigDecimal>> daily) {
+    }
+
+    private volatile FleetDays fleetDays;
+    private final Object fleetDaysLock = new Object();
+
+    /**
+     * Per environment, its snapshot estimates by day from the previous month's 1st (or 14 days back) to
+     * yesterday and today's live estimate, as the cost rows count them. Environments of the active fleet
+     * come from the shared cost days; others are read for this call.
+     */
+    private Map<String, Map<LocalDate, BigDecimal>> costDays(List<String> ids, Instant now, LocalDate today) {
+        FleetDays fleet = fleetDays(now, today);
+        if (fleet != null && fleet.ids().containsAll(ids)) {
+            Map<String, Map<LocalDate, BigDecimal>> view = new java.util.HashMap<>();
+            for (String id : ids) {
+                Map<LocalDate, BigDecimal> days = fleet.daily().get(id);
+                if (days != null) {
+                    view.put(id, days);
+                }
+            }
+            return view;
+        }
+        return loadCostDays(ids, now, today);
+    }
+
+    /** Today's live estimate per environment, only those with one (as {@link #addTodaysLiveEstimate} leaves them). */
+    private Map<String, Map<LocalDate, BigDecimal>> liveDays(List<String> ids, Instant now, LocalDate today, ZoneId zone) {
+        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
+        if (ids.isEmpty()) {
+            return live;
+        }
+        FleetDays fleet = zone.equals(clock.getZone()) ? fleetDays(now, today) : null;
+        if (fleet != null && fleet.ids().containsAll(ids)) {
+            for (String id : ids) {
+                Map<LocalDate, BigDecimal> days = fleet.daily().get(id);
+                BigDecimal soFar = days == null ? null : days.get(today);
+                if (soFar != null) {
+                    live.put(id, Map.of(today, soFar));
+                }
+            }
+            return live;
+        }
+        addTodaysLiveEstimate(live, ids, now, today, zone);
+        return live;
+    }
+
+    private Map<String, Map<LocalDate, BigDecimal>> loadCostDays(List<String> ids, Instant now, LocalDate today) {
+        Map<String, Map<LocalDate, BigDecimal>> daily = new java.util.HashMap<>();
+        if (ids.isEmpty()) {
+            return daily;
+        }
+        LocalDate previousMonthStart = today.withDayOfMonth(1).minusMonths(1);
+        LocalDate sparkStart = today.minusDays(SPARKLINE_DAYS - 1);
+        LocalDate from = previousMonthStart.isBefore(sparkStart) ? previousMonthStart : sparkStart;
+        for (CostDailySnapshotRepository.EnvironmentDailyCost row
+                : snapshotRepository.findDailyByEnvironmentIdsBetween(ids, Date.valueOf(from), Date.valueOf(today))) {
+            daily.computeIfAbsent(row.getEnvironmentId(), k -> new java.util.HashMap<>())
+                    .merge(row.getSnapshotDate().toLocalDate(), nz(row.getEstimatedCost()), BigDecimal::add);
+        }
+        addTodaysLiveEstimate(daily, ids, now, today);
+        return daily;
+    }
+
+    /**
+     * The shared cost days of the active environments, or null when reuse is off. Built by one caller at
+     * a time: callers that arrive while it is being built wait for it instead of building their own.
+     */
+    private FleetDays fleetDays(Instant now, LocalDate today) {
+        if (fleetCacheSeconds <= 0) {
+            return null;
+        }
+        ZoneId zone = clock.getZone();
+        long version = com.tcgdigital.vmcontrol.model.CostInputsVersion.current();
+        FleetDays fleet = fleetDays;
+        if (fresh(fleet, now, today, zone, version)) {
+            return fleet;
+        }
+        synchronized (fleetDaysLock) {
+            fleet = fleetDays;
+            if (fresh(fleet, now, today, zone, version)) {
+                return fleet;
+            }
+            List<String> active = environmentRepository.findByIsActiveTrue().stream()
+                    .map(com.tcgdigital.vmcontrol.model.Environment::getEnvironmentId).toList();
+            Map<String, Map<LocalDate, BigDecimal>> daily = new java.util.HashMap<>();
+            loadCostDays(active, now, today).forEach((id, days) -> daily.put(id, java.util.Collections.unmodifiableMap(days)));
+            fleet = new FleetDays(today, zone, now, version, Set.copyOf(active), java.util.Collections.unmodifiableMap(daily));
+            fleetDays = fleet;
+            return fleet;
+        }
+    }
+
+    private boolean fresh(FleetDays fleet, Instant now, LocalDate today, ZoneId zone, long version) {
+        return fleet != null && fleet.today().equals(today) && fleet.zone().equals(zone)
+                && fleet.inputsVersion() == version && !now.isBefore(fleet.builtAt())
+                && java.time.Duration.between(fleet.builtAt(), now).getSeconds() < fleetCacheSeconds;
+    }
+
+    /** Builds the fleet's cost days again on the next call (an operation finished, a snapshot was written). */
+    public void refreshFleetCostDays() {
+        fleetDays = null;
+    }
+
+    void setFleetCacheSeconds(long seconds) {
+        this.fleetCacheSeconds = seconds;
+        refreshFleetCostDays();
     }
 
     /**
@@ -417,8 +538,7 @@ public class EnvironmentCostService {
 
         List<String> activeIds = environmentRepository.findByIsActiveTrue().stream()
                 .map(com.tcgdigital.vmcontrol.model.Environment::getEnvironmentId).toList();
-        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
-        addTodaysLiveEstimate(live, activeIds, now, today);
+        Map<String, Map<LocalDate, BigDecimal>> live = liveDays(activeIds, now, today, clock.getZone());
         BigDecimal todaySoFar = live.values().stream().map(days -> days.getOrDefault(today, BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -444,9 +564,8 @@ public class EnvironmentCostService {
     @Transactional(readOnly = true)
     public LiveToday liveToday(java.util.Collection<String> environmentIds, Clock at) {
         LocalDate today = LocalDate.now(at);
-        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
-        addTodaysLiveEstimate(live, environmentIds == null ? List.of() : List.copyOf(environmentIds), at.instant(), today,
-                at.getZone());
+        Map<String, Map<LocalDate, BigDecimal>> live = liveDays(environmentIds == null ? List.of() : List.copyOf(environmentIds),
+                at.instant(), today, at.getZone());
         BigDecimal soFar = live.values().stream().map(days -> days.getOrDefault(today, BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new LiveToday(today, soFar);
@@ -476,8 +595,7 @@ public class EnvironmentCostService {
         }
         List<String> activeIds = environmentRepository.findByIsActiveTrue().stream()
                 .map(com.tcgdigital.vmcontrol.model.Environment::getEnvironmentId).toList();
-        Map<String, Map<LocalDate, BigDecimal>> live = new java.util.HashMap<>();
-        addTodaysLiveEstimate(live, activeIds, now, today);
+        Map<String, Map<LocalDate, BigDecimal>> live = liveDays(activeIds, now, today, clock.getZone());
         live.forEach((id, days) -> byEnvironment.merge(id, days.getOrDefault(today, BigDecimal.ZERO), BigDecimal::add));
 
         Map<String, BigDecimal> byTeam = new java.util.HashMap<>();
@@ -512,5 +630,6 @@ public class EnvironmentCostService {
 
     void setClock(Clock clock) {
         this.clock = clock;
+        refreshFleetCostDays();
     }
 }

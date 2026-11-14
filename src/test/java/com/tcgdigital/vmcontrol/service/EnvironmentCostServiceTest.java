@@ -390,4 +390,151 @@ class EnvironmentCostServiceTest {
         assertThat(live.soFar()).isEqualByComparingTo("3.00"); // 2 VMs x 1.50
         assertThat(service.liveToday(List.of(), Clock.fixed(NOW, ZoneOffset.UTC)).soFar()).isEqualByComparingTo("0");
     }
+
+    // ---- U26-T01: the fleet's cost days, built once and reused ----
+
+    /** A clock the test moves forward. */
+    private static final class MovingClock extends Clock {
+        private Instant now;
+        MovingClock(Instant now) { this.now = now; }
+        void advance(long seconds) { now = now.plusSeconds(seconds); }
+        @Override public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public Instant instant() { return now; }
+    }
+
+    /** An admin, env-1 active with Oct 1-6 at 10/day and its two VMs at 1.50 each so far today. */
+    private void fleetOfOne() {
+        user.setUserId("admin-1");
+        user.setAdmin(true);
+        Environment env = vms.get(0).getGroup().getEnvironment();
+        env.setName("env-1");
+        env.setIsActive(true);
+        when(environmentRepository.findByIsActiveTrue()).thenReturn(List.of(env));
+        when(environmentRepository.findAllById(any())).thenReturn(List.of(env));
+        List<CostDailySnapshotRepository.EnvironmentDailyCost> rows = new ArrayList<>();
+        List<CostDailySnapshotRepository.DailySpend> days = new ArrayList<>();
+        for (int d = 1; d <= 6; d++) {
+            rows.add(row("env-1", LocalDate.of(2026, 10, d), "10"));
+            snapshot(LocalDate.of(2026, 10, d), "10", null); // the environment page reads these
+            LocalDate day = LocalDate.of(2026, 10, d);
+            days.add(new CostDailySnapshotRepository.DailySpend() {
+                public Date getSnapshotDate() { return Date.valueOf(day); }
+                public BigDecimal getSpend() { return new BigDecimal("10"); }
+                public Long getRowCount() { return 1L; }
+                public Long getBilledCount() { return 0L; }
+            });
+        }
+        when(snapshots.findDailyByEnvironmentIdsBetween(anyList(), any(), any())).thenReturn(rows);
+        when(snapshots.findDailySpendBetween(any(), any())).thenReturn(days);
+        when(snapshots.findSpendByEnvironmentBetween(any(), any())).thenReturn(List.of(new CostDailySnapshotRepository.EnvironmentSpend() {
+            public String getEnvironmentId() { return "env-1"; }
+            public BigDecimal getSpend() { return new BigDecimal("60"); }
+        }));
+        when(vmRepository.findActiveByEnvironmentIdsFetchGroupAndEnvironment(anyList())).thenReturn(vms);
+        when(vmRepository.countVmsGroupedByEnvironment(anyList(), any())).thenReturn(List.of());
+        when(automationRuleService.nextScheduledFiringsByEnvironment(anyList(), any())).thenReturn(Map.of());
+    }
+
+    private void verifyBuilds(int times) {
+        org.mockito.Mockito.verify(snapshots, org.mockito.Mockito.times(times)).findDailyByEnvironmentIdsBetween(anyList(), any(), any());
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.times(times)).findActiveByEnvironmentIdsFetchGroupAndEnvironment(anyList());
+    }
+
+    @Test
+    void everyCostListSharesOneBuildOfTheFleetsCostDaysAndShowsTheSameFigures() {
+        fleetOfOne();
+
+        var myAccount = service.getMyEnvironmentsCost(user);
+        var fleet = service.fleetMonth();
+        var team = service.teamMonth();
+        var rows = service.getCostRowsFor(user, List.of(vms.get(0).getGroup().getEnvironment()));
+        var page = service.getCost("env-1", user);
+        var live = service.liveToday(List.of("env-1"), Clock.fixed(NOW, ZoneOffset.UTC));
+
+        verifyBuilds(1);
+        assertThat(fleet.monthToDate()).isEqualByComparingTo("63.00");           // 6 x 10 + today's 2 x 1.50
+        assertThat(myAccount.monthToDateTotal()).isEqualByComparingTo(fleet.monthToDate());
+        assertThat(myAccount.environments().get(0).monthToDateEstimated()).isEqualByComparingTo(fleet.monthToDate());
+        assertThat(team).singleElement().satisfies(t -> assertThat(t.cost()).isEqualByComparingTo(fleet.monthToDate()));
+        assertThat(rows.get("env-1").monthToDateEstimated()).isEqualByComparingTo(fleet.monthToDate());
+        assertThat(page.monthToDateEstimated()).isEqualByComparingTo(fleet.monthToDate());
+        assertThat(live.soFar()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
+    void theFleetsCostDaysAreBuiltAgainAfterTheWindowAChangeOrARefresh() {
+        fleetOfOne();
+        MovingClock clock = new MovingClock(NOW);
+        service.setClock(clock);
+
+        service.fleetMonth();
+        clock.advance(29);
+        service.fleetMonth();
+        verifyBuilds(1);                     // within 30 seconds: reused
+
+        clock.advance(2);
+        service.fleetMonth();
+        verifyBuilds(2);                     // 31 seconds after the build: built again
+
+        com.tcgdigital.vmcontrol.model.CostInputsVersion.bump(); // a state change or snapshot was written
+        service.fleetMonth();
+        verifyBuilds(3);
+
+        service.refreshFleetCostDays();
+        service.fleetMonth();
+        verifyBuilds(4);
+
+        clock.advance(24 * 3600);            // a new day never reuses yesterday's
+        service.fleetMonth();
+        verifyBuilds(5);
+    }
+
+    @Test
+    void withReuseOffEveryCallBuildsItsOwn() {
+        fleetOfOne();
+        service.setFleetCacheSeconds(0);
+
+        service.fleetMonth();
+        service.fleetMonth();
+
+        org.mockito.Mockito.verify(snapshots, org.mockito.Mockito.never()).findDailyByEnvironmentIdsBetween(anyList(), any(), any());
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.times(2)).findActiveByEnvironmentIdsFetchGroupAndEnvironment(anyList());
+    }
+
+    @Test
+    void callersArrivingTogetherWaitForOneBuild() throws Exception {
+        fleetOfOne();
+        when(vmRepository.findActiveByEnvironmentIdsFetchGroupAndEnvironment(anyList())).thenAnswer(inv -> {
+            Thread.sleep(300); // a slow build: the other callers arrive while it runs
+            return vms;
+        });
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(6);
+        try {
+            List<java.util.concurrent.Future<BigDecimal>> results = new ArrayList<>();
+            for (int i = 0; i < 6; i++) {
+                results.add(pool.submit(() -> service.fleetMonth().monthToDate()));
+            }
+            for (java.util.concurrent.Future<BigDecimal> r : results) {
+                assertThat(r.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualByComparingTo("63.00");
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        verifyBuilds(1);
+    }
+
+    @Test
+    void anEnvironmentOutsideTheActiveFleetIsReadForTheCall() {
+        fleetOfOne();
+        Environment retired = environment("env-old");
+        retired.setIsActive(false);
+
+        var rows = service.getCostRowsFor(user, List.of(retired));
+
+        assertThat(rows).containsKey("env-old");
+        // One build of the active fleet and one read for the retired environment.
+        org.mockito.Mockito.verify(snapshots).findDailyByEnvironmentIdsBetween(eq(List.of("env-1")), any(), any());
+        org.mockito.Mockito.verify(snapshots).findDailyByEnvironmentIdsBetween(eq(List.of("env-old")), any(), any());
+    }
 }

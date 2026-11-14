@@ -491,8 +491,39 @@ public class UserService {
      * as signed out everywhere; getCurrentUserId then throws UnauthorizedException).
      */
     public User getCurrentUser() {
-        User user = resolveCurrentUser();
+        User user = currentUserOfRequest();
         return user != null && user.isActive() ? user : null;
+    }
+
+    private static final String CURRENT_USER_MEMO = UserService.class.getName() + ".currentUser";
+
+    /** The user resolved for one sign-in within one request. */
+    private record CurrentUserMemo(Authentication authentication, User user) {
+    }
+
+    /**
+     * The current user, looked up once per GET request (U26-T01): a page of 100 environments asked for it
+     * about 460 times (each row's permission flags), one database query each. Other methods, and work
+     * outside a request, look it up every time.
+     */
+    private User currentUserOfRequest() {
+        org.springframework.web.context.request.RequestAttributes attributes =
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null
+                || !(attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servlet)
+                || !("GET".equals(servlet.getRequest().getMethod()) || "HEAD".equals(servlet.getRequest().getMethod()))) {
+            return resolveCurrentUser();
+        }
+        Object memo = attributes.getAttribute(CURRENT_USER_MEMO,
+                org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+        if (memo instanceof CurrentUserMemo m && m.authentication() == authentication) {
+            return m.user();
+        }
+        User user = resolveCurrentUser();
+        attributes.setAttribute(CURRENT_USER_MEMO, new CurrentUserMemo(authentication, user),
+                org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+        return user;
     }
 
     private User resolveCurrentUser() {

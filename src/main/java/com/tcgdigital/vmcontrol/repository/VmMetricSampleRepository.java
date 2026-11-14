@@ -16,6 +16,32 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
     boolean existsByVmVmIdAndSampleTimeAndPeriodSeconds(String vmId, Timestamp sampleTime, Integer periodSeconds);
     List<VmMetricSample> findByVmVmIdAndSampleTimeBetweenOrderBySampleTimeAsc(String vmId, Timestamp start, Timestamp end);
     List<VmMetricSample> findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(List<String> vmIds, Timestamp start, Timestamp end);
+
+    /**
+     * The samples of many VMs in a window, summed per sample time (U26-T01): the fleet utilization and
+     * its trend on Home need only sums and counts, and loading every sample (180 VMs x 288 a day) cost
+     * about 130 MB of heap per call. Counts are of non-null values, as the averages count them.
+     */
+    @Query("SELECT s.sampleTime AS sampleTime, SUM(s.cpuUtilization) AS cpuSum, COUNT(s.cpuUtilization) AS cpuCount, "
+            + "SUM(s.memoryUtilization) AS memorySum, COUNT(s.memoryUtilization) AS memoryCount, "
+            + "SUM(s.networkInBytes) AS networkInBytes, SUM(s.networkOutBytes) AS networkOutBytes, "
+            + "SUM(s.diskReadBytes) AS diskReadBytes, SUM(s.diskWriteBytes) AS diskWriteBytes "
+            + "FROM VmMetricSample s WHERE s.vm.vmId IN :vmIds AND s.sampleTime BETWEEN :start AND :end "
+            + "GROUP BY s.sampleTime ORDER BY s.sampleTime ASC")
+    List<SampleTimeTotals> sumBySampleTime(@Param("vmIds") List<String> vmIds, @Param("start") Timestamp start,
+                                           @Param("end") Timestamp end);
+
+    interface SampleTimeTotals {
+        Timestamp getSampleTime();
+        java.math.BigDecimal getCpuSum();
+        Long getCpuCount();
+        java.math.BigDecimal getMemorySum();
+        Long getMemoryCount();
+        Long getNetworkInBytes();
+        Long getNetworkOutBytes();
+        Long getDiskReadBytes();
+        Long getDiskWriteBytes();
+    }
     List<VmMetricSample> findByVmVmIdOrderBySampleTimeDesc(String vmId, Pageable pageable);
     Optional<VmMetricSample> findTopByVmVmIdOrderBySampleTimeDesc(String vmId);
 
