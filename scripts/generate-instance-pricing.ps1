@@ -11,6 +11,9 @@
     With -Rds (E33-T05) it also reads AmazonRDS on-demand rates per engine, DB class, region and
     deployment (Single-AZ / Multi-AZ) into rdsPricing; rdsStorageGbMonthRate is kept from the file.
     The app reads the file once at startup and never calls the Price List API itself.
+    U26-T03: this script writes Linux rates only and drops instancePricingSource; run
+    scripts/generate-instance-pricing-public.mjs afterwards (no credentials) to write the RHEL, Windows and
+    SUSE rates and the generation date back.
 
 .EXAMPLE
     ./scripts/generate-instance-pricing.ps1
