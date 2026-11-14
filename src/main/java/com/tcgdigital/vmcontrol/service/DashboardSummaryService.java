@@ -145,9 +145,11 @@ public class DashboardSummaryService {
         List<VmVolumeSnapshot> volumes = vmIds.isEmpty() ? List.of() : volumeRepository.findByVmVmIdIn(vmIds);
         Timestamp start = Timestamp.from(Instant.now().minus(24, ChronoUnit.HOURS));
         Timestamp end = Timestamp.from(Instant.now());
-        List<VmMetricSample> samples = vmIds.isEmpty()
+        // Summed per sample time in the database (U26-T01): the figures are those of every sample, without
+        // loading 180 VMs x 288 samples per call.
+        List<VmMetricSampleRepository.SampleTimeTotals> samples = vmIds.isEmpty()
                 ? List.of()
-                : metricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(vmIds, start, end);
+                : metricSampleRepository.sumBySampleTime(vmIds, start, end);
 
         int totalVms = vms.size();
         int runningVms = countStatus(vms, VmStatus.RUNNING);
@@ -182,11 +184,11 @@ public class DashboardSummaryService {
 
         DashboardSummaryDTO.UtilizationDTO utilization = new DashboardSummaryDTO.UtilizationDTO(
                 averageCpu(samples),
-                sumLong(samples, VmMetricSample::getNetworkInBytes),
-                sumLong(samples, VmMetricSample::getNetworkOutBytes),
-                sumLong(samples, VmMetricSample::getDiskReadBytes),
-                sumLong(samples, VmMetricSample::getDiskWriteBytes),
-                samples.stream().map(VmMetricSample::getSampleTime).max(Timestamp::compareTo).orElse(null)
+                sumLong(samples, VmMetricSampleRepository.SampleTimeTotals::getNetworkInBytes),
+                sumLong(samples, VmMetricSampleRepository.SampleTimeTotals::getNetworkOutBytes),
+                sumLong(samples, VmMetricSampleRepository.SampleTimeTotals::getDiskReadBytes),
+                sumLong(samples, VmMetricSampleRepository.SampleTimeTotals::getDiskWriteBytes),
+                samples.stream().map(VmMetricSampleRepository.SampleTimeTotals::getSampleTime).max(Timestamp::compareTo).orElse(null)
         );
 
         int totalStorage = inventories.stream()
@@ -398,18 +400,29 @@ public class DashboardSummaryService {
         return (int) vms.stream().filter(vm -> vm.getStatus() == status).count();
     }
 
-    private BigDecimal averageCpu(List<VmMetricSample> samples) {
-        return average(samples.stream()
-                .map(VmMetricSample::getCpuUtilization)
-                .filter(Objects::nonNull)
-                .toList());
+    private BigDecimal averageCpu(List<VmMetricSampleRepository.SampleTimeTotals> samples) {
+        return average(samples, VmMetricSampleRepository.SampleTimeTotals::getCpuSum,
+                VmMetricSampleRepository.SampleTimeTotals::getCpuCount);
     }
 
-    private BigDecimal averageMemory(List<VmMetricSample> samples) {
-        return average(samples.stream()
-                .map(VmMetricSample::getMemoryUtilization)
-                .filter(Objects::nonNull)
-                .toList());
+    private BigDecimal averageMemory(List<VmMetricSampleRepository.SampleTimeTotals> samples) {
+        return average(samples, VmMetricSampleRepository.SampleTimeTotals::getMemorySum,
+                VmMetricSampleRepository.SampleTimeTotals::getMemoryCount);
+    }
+
+    /** The average of the samples' non-null values, from per-time sums and counts (U26-T01); null when there are none. */
+    private BigDecimal average(List<VmMetricSampleRepository.SampleTimeTotals> samples,
+                               Function<VmMetricSampleRepository.SampleTimeTotals, BigDecimal> sum,
+                               Function<VmMetricSampleRepository.SampleTimeTotals, Long> count) {
+        long values = 0;
+        BigDecimal total = BigDecimal.ZERO;
+        for (VmMetricSampleRepository.SampleTimeTotals sample : samples) {
+            Long n = count.apply(sample);
+            if (n == null || n == 0) continue;
+            values += n;
+            total = total.add(sum.apply(sample));
+        }
+        return values == 0 ? null : total.divide(BigDecimal.valueOf(values), 1, RoundingMode.HALF_UP);
     }
 
     private BigDecimal average(List<BigDecimal> values) {
@@ -418,7 +431,8 @@ public class DashboardSummaryService {
         return sum.divide(BigDecimal.valueOf(values.size()), 1, RoundingMode.HALF_UP);
     }
 
-    private long sumLong(List<VmMetricSample> samples, Function<VmMetricSample, Long> mapper) {
+    private long sumLong(List<VmMetricSampleRepository.SampleTimeTotals> samples,
+                         Function<VmMetricSampleRepository.SampleTimeTotals, Long> mapper) {
         return samples.stream()
                 .map(mapper)
                 .filter(Objects::nonNull)
@@ -463,16 +477,16 @@ public class DashboardSummaryService {
         ));
     }
 
-    private List<DashboardSummaryDTO.ChartPointDTO> buildTrend(List<VmMetricSample> samples) {
+    private List<DashboardSummaryDTO.ChartPointDTO> buildTrend(List<VmMetricSampleRepository.SampleTimeTotals> samples) {
         if (samples.isEmpty()) return List.of();
-        List<List<VmMetricSample>> buckets = new ArrayList<>();
+        List<List<VmMetricSampleRepository.SampleTimeTotals>> buckets = new ArrayList<>();
         for (int i = 0; i < TREND_BUCKETS; i++) buckets.add(new ArrayList<>());
-        Timestamp minTime = samples.stream().map(VmMetricSample::getSampleTime).min(Timestamp::compareTo).orElse(null);
-        Timestamp maxTime = samples.stream().map(VmMetricSample::getSampleTime).max(Timestamp::compareTo).orElse(null);
+        Timestamp minTime = samples.stream().map(VmMetricSampleRepository.SampleTimeTotals::getSampleTime).min(Timestamp::compareTo).orElse(null);
+        Timestamp maxTime = samples.stream().map(VmMetricSampleRepository.SampleTimeTotals::getSampleTime).max(Timestamp::compareTo).orElse(null);
         long min = minTime == null ? 0 : minTime.getTime();
         long max = maxTime == null ? min : maxTime.getTime();
         long span = Math.max(1, max - min);
-        for (VmMetricSample sample : samples) {
+        for (VmMetricSampleRepository.SampleTimeTotals sample : samples) {
             int index = (int) Math.min(TREND_BUCKETS - 1, ((sample.getSampleTime().getTime() - min) * TREND_BUCKETS) / span);
             buckets.get(index).add(sample);
         }
@@ -485,17 +499,17 @@ public class DashboardSummaryService {
         long bucketWidth = span / TREND_BUCKETS;
         List<DashboardSummaryDTO.ChartPointDTO> points = new ArrayList<>();
         for (int i = 0; i < buckets.size(); i++) {
-            List<VmMetricSample> bucket = buckets.get(i);
+            List<VmMetricSampleRepository.SampleTimeTotals> bucket = buckets.get(i);
             long bucketEnd = (i == buckets.size() - 1) ? max : min + (bucketWidth * (i + 1));
             String label = TREND_LABEL_FORMAT.format(Instant.ofEpochMilli(bucketEnd).atZone(TREND_LABEL_ZONE));
             points.add(new DashboardSummaryDTO.ChartPointDTO(
                     label,
                     averageCpu(bucket),
                     averageMemory(bucket),
-                    sumLong(bucket, VmMetricSample::getNetworkInBytes),
-                    sumLong(bucket, VmMetricSample::getNetworkOutBytes),
-                    sumLong(bucket, VmMetricSample::getDiskReadBytes),
-                    sumLong(bucket, VmMetricSample::getDiskWriteBytes)
+                    sumLong(bucket, VmMetricSampleRepository.SampleTimeTotals::getNetworkInBytes),
+                    sumLong(bucket, VmMetricSampleRepository.SampleTimeTotals::getNetworkOutBytes),
+                    sumLong(bucket, VmMetricSampleRepository.SampleTimeTotals::getDiskReadBytes),
+                    sumLong(bucket, VmMetricSampleRepository.SampleTimeTotals::getDiskWriteBytes)
             ));
         }
         return points;

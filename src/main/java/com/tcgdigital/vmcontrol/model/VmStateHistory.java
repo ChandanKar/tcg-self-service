@@ -11,6 +11,7 @@ import java.sql.Timestamp;
  */
 @Entity
 @Table(name = "vm_state_history")
+@EntityListeners(CostInputsVersion.class) // U26-T01: a state change refreshes the fleet cost days
 public class VmStateHistory {
 
     @Id

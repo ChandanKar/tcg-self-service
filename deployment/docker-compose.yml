@@ -45,8 +45,27 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    # Memory (U26-T01). Staging (-Xmx512m in a 768 MiB cap) was killed without a word when a burst of
+    # admin reads grew the heap to its maximum: the JVM also needs ~300 MB beyond the heap (metaspace
+    # ~130 MB, code cache ~65 MB, symbols, threads, GC, native buffers), so heap + the rest passed the
+    # cap and the kernel killed the container before Java could report anything. Keep the cap at least
+    # 300 MB above -Xmx (APP_HEAP_MAX); the flags below make a real out-of-memory exit at once, with a
+    # heap dump, an error file and a GC log in ./logs (the dump is as large as the heap: move it away
+    # after reading it, the JVM does not overwrite an existing one).
+    mem_limit: ${APP_MEM_LIMIT:-1g}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      JAVA_TOOL_OPTIONS: >-
+        -Xmx${APP_HEAP_MAX:-512m}
+        -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=192m
+        -XX:ReservedCodeCacheSize=96m
+        -XX:MaxDirectMemorySize=64m
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/app/logs/vmcontrol-oom.hprof
+        -XX:ErrorFile=/app/logs/hs_err_pid%p.log
+        -Xlog:gc,gc+heap+exit:file=/app/logs/gc.log:time,uptime:filecount=3,filesize=5m
       SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AZURE_REDIRECT_URI: https://selfservice-new.tcgdigital.com/login/oauth2/code/azure
     volumes:
       - ./app:/app
