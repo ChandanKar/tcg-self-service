@@ -54,6 +54,7 @@ test('every topic has sections with text, and related topics that exist', () => 
     assert.equal(ids.size, HelpContent.all().length, 'topic ids are unique');
     for (const t of HelpContent.all()) {
         assert.ok(t.sections.length, t.id);
+        assert.ok(t.summary && t.summary.trim(), `${t.id} has a summary`); // U28: every topic opens with who and what
         for (const s of t.sections) {
             assert.ok(s.heading, t.id);
             assert.ok((s.paragraphs || []).length + (s.steps || []).length + (s.terms || []).length > 0, `${t.id}: ${s.heading} is empty`);

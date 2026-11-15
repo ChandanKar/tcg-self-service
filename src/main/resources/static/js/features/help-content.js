@@ -387,6 +387,7 @@ const HelpContent = (function() {
             group: 'using',
             title: "Phones and keyboard shortcuts",
             roles: null,
+            summary: "Everything works on a phone, laid out for a small screen; on a computer, a few keys get you around faster.",
             keywords: ['phone', 'mobile', 'keyboard', 'shortcuts', 'keys'],
             sections: [
                 {
@@ -412,6 +413,7 @@ const HelpContent = (function() {
             group: 'using',
             title: "New environments from templates",
             roles: null,
+            summary: "Anyone can ask for a new environment built from a ready-made template; an administrator approves it before it is built.",
             optional: true,
             feature: 'templates',
             keywords: ['template', 'new environment', 'provision', 'create environment'],
@@ -598,6 +600,7 @@ const HelpContent = (function() {
             group: 'access',
             title: "Microsoft Teams actions and Jira tickets",
             roles: null,
+            summary: "Act on a notice straight from a Teams message, and turn a rightsizing suggestion into a Jira ticket.",
             optional: true,
             feature: 'chat',
             keywords: ['teams', 'chat', 'channel', 'button', 'jira', 'ticket', 'approve from teams', 'snooze'],
@@ -653,6 +656,7 @@ const HelpContent = (function() {
             group: 'cost',
             title: "Ask: questions about cost",
             roles: null,
+            summary: "Ask about cost, idle VMs and savings in plain words. It only reads what you can already see.",
             optional: true,
             feature: 'assistant',
             keywords: ['ask', 'assistant', 'question', 'chat', 'ai'],
