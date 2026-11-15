@@ -47,7 +47,7 @@
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 12px;
-    max-height: calc(100vh - 140px);
+    max-height: calc(100vh - 196px);
     overflow-y: auto;
 }
 
@@ -91,6 +91,7 @@
     color: var(--slate);
 }
 
+/* A long topic scrolls inside its panel, so the page itself never scrolls (shell-layout rule). */
 .help-topic {
     display: flex;
     flex-direction: column;
@@ -99,6 +100,61 @@
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 12px;
+    max-height: calc(100vh - 196px);
+    overflow-y: auto;
+}
+
+.help-summary {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--slate);
+}
+
+.help-terms {
+    display: grid;
+    gap: 8px;
+    margin: 4px 0 0;
+}
+
+.help-term {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--surface-subtle);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.help-term dt {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.help-term dd {
+    margin: 0;
+    color: #2a3245;
+}
+
+.help-related {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+}
+
+.help-related-title {
+    font-weight: 600;
+    color: var(--slate);
+}
+
+.help-related a {
+    color: var(--brand-navy);
 }
 
 .help-topic-title {
@@ -168,5 +224,18 @@
 
     .help-topic {
         padding: 20px;
+        max-height: none;
+        overflow-y: visible;
+    }
+
+    .help-term {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .help-related a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
     }
 }

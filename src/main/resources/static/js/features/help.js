@@ -22,8 +22,25 @@ const Help = (function() {
     }
 
     function text(topic) {
-        return [topic.title, ...(topic.keywords || []), ...topic.sections.flatMap(s =>
-            [s.heading, ...(s.paragraphs || []), ...(s.steps || [])])].join(' ').toLowerCase();
+        return [topic.title, topic.summary || '', ...(topic.keywords || []), ...topic.sections.flatMap(s =>
+            [s.heading, ...(s.paragraphs || []), ...(s.steps || []), ...(s.terms || []).flat()])].join(' ').toLowerCase();
+    }
+
+    /** The section's parts in order: paragraphs, numbered steps, then "what you see / what it means" pairs. */
+    function sectionHtml(s) {
+        const paragraphs = (s.paragraphs || []).map(p => Utils.html`<p>${p}</p>`).join('');
+        const steps = s.steps && s.steps.length ? Utils.html`<ol>${Utils.raw(s.steps.map(st => Utils.html`<li>${st}</li>`).join(''))}</ol>` : '';
+        const terms = s.terms && s.terms.length ? Utils.html`<dl class="help-terms">${Utils.raw(s.terms.map(([term, meaning]) =>
+            Utils.html`<div class="help-term"><dt>${term}</dt><dd>${meaning}</dd></div>`).join(''))}</dl>` : '';
+        return Utils.html`<section class="help-section"><h3>${s.heading}</h3>${Utils.raw(paragraphs + steps + terms)}</section>`;
+    }
+
+    /** "Related": links to the topics named in topic.related that this person may see. */
+    function relatedHtml(topic) {
+        const links = (topic.related || []).map(id => HelpContent.find(id)).filter(t => t && visible(t));
+        if (!links.length) return '';
+        return Utils.html`<nav class="help-related" aria-label="Related topics"><span class="help-related-title">Related</span>${Utils.raw(
+            links.map(t => Utils.html`<a href="#/help/${t.id}" data-topic="${t.id}">${t.title}</a>`).join(''))}</nav>`;
     }
 
     function topics() {
@@ -98,13 +115,12 @@ const Help = (function() {
         }
         $t.html(Utils.html`
             <h2 class="help-topic-title" id="help-topic-title">${current.title}</h2>
+            ${Utils.raw(current.summary ? Utils.html`<p class="help-summary">${current.summary}</p>` : '')}
             ${Utils.raw(current.optional ? '<p class="help-optional">This feature may be switched off in your organisation.</p>' : '')}
-            ${Utils.raw(current.sections.map(s => Utils.html`<section class="help-section">
-                <h3>${s.heading}</h3>
-                ${Utils.raw((s.paragraphs || []).map(p => Utils.html`<p>${p}</p>`).join(''))}
-                ${Utils.raw(s.steps && s.steps.length ? Utils.html`<ol>${Utils.raw(s.steps.map(st => Utils.html`<li>${st}</li>`).join(''))}</ol>` : '')}
-            </section>`).join(''))}
-            ${Utils.raw(current.legend ? legendHtml() : '')}`);
+            ${Utils.raw(current.sections.map(sectionHtml).join(''))}
+            ${Utils.raw(current.legend ? legendHtml() : '')}
+            ${Utils.raw(relatedHtml(current))}`);
+        $t.scrollTop(0);
     }
 
     function search(value) {
@@ -112,7 +128,7 @@ const Help = (function() {
         drawList();
     }
 
-    return { load, search, visible, model: { grouped }, LEGEND };
+    return { load, search, visible, model: { grouped, sectionHtml, text }, LEGEND };
 })();
 
 /** The '?' button in page headers (E29-T07). */

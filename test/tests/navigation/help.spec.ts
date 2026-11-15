@@ -20,8 +20,8 @@ test.describe('Help', () => {
   test('a deep link opens its topic and search narrows the list', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await go(page, 'user', '#/help/locks');
-    await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks', { timeout: 15_000 });
-    await expect(page.locator('.help-topic-link.active')).toHaveText('Starting, stopping and locks');
+    await expect(page.locator('#help-topic-title')).toHaveText('Starting and stopping', { timeout: 15_000 });
+    await expect(page.locator('.help-topic-link.active')).toHaveText('Starting and stopping');
 
     await page.locator('#help-search').fill('break');
     const links = page.locator('.help-topic-link');
@@ -36,18 +36,25 @@ test.describe('Help', () => {
   test('topics in groups, search in the header, the current topic marked and the legend (U09-T07)', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await go(page, 'user', '#/help/locks');
-    await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks', { timeout: 15_000 });
+    await expect(page.locator('#help-topic-title')).toHaveText('Starting and stopping', { timeout: 15_000 });
     await expect(page.locator('.content-header #help-search')).toBeVisible();
     await expect(page.getByRole('searchbox', { name: 'Search help' })).toBeVisible();
     const nav = page.getByRole('navigation', { name: 'Help topics' });
-    await expect(nav.locator('.help-group-title')).toHaveText(['Using environments', 'Access', 'Cost and more']);
+    await expect(nav.locator('.help-group-title')).toHaveText(['Using environments', 'Access and notifications', 'Cost', 'Problems and questions']);
     const using = nav.getByRole('group', { name: 'Using environments' });
     await expect(using.locator('.help-topic-link').first()).toHaveText('Getting started and roles');
-    await expect(nav.locator('[aria-current="page"]')).toHaveText('Starting, stopping and locks');
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Starting and stopping');
     await expect(page.locator('.help-legend')).toContainText("Green is running, gold is starting or stopping, hollow is stopped, striped means the state hasn't been read from AWS yet.");
     await expect(page.locator('.help-legend .pip')).toHaveCount(4);
 
-    await nav.getByRole('link', { name: 'Requesting and managing access' }).click();
+    // U27: a summary under the title, "what you see / what it means" pairs, and related topics at the end.
+    await expect(page.locator('.help-summary')).toContainText('Needs Operator access.');
+    await expect(page.locator('.help-term dt', { hasText: 'No approval needed' })).toBeVisible();
+    await page.locator('.help-related a', { hasText: 'Locking an environment' }).click();
+    await expect(page).toHaveURL(/#\/help\/locking$/);
+    await expect(page.locator('#help-topic-title')).toHaveText('Locking an environment');
+
+    await nav.getByRole('link', { name: 'Requesting access' }).click();
     await expect(page).toHaveURL(/#\/help\/access$/);
     await expect(page.locator('.help-legend')).toHaveCount(0);
   });
@@ -56,7 +63,7 @@ test.describe('Help', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await go(page, 'user', '#/help');
     await expect(page.locator('.help-topic-link').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('.help-topic-link', { hasText: 'Automation rules administration' })).toHaveCount(0);
+    await expect(page.locator('.help-topic-link', { hasText: 'Schedules and automation rules' })).toHaveCount(0);
     await page.evaluate(() => { location.hash = '#/help/automation-rules'; });
     await expect(page.locator('#help-topic')).toContainText('Topic not found');
   });
@@ -64,15 +71,15 @@ test.describe('Help', () => {
   test('admins see every topic and the Environments page help button opens its topic', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await go(page, 'admin', '#/help');
-    await expect(page.locator('.help-topic-link', { hasText: 'Automation rules administration' })).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.locator('.help-group-title')).toHaveText(['Using environments', 'Access', 'Cost and more', 'Manage', 'Administration']);
+    await expect(page.locator('.help-topic-link', { hasText: 'Schedules and automation rules' })).toHaveCount(1, { timeout: 15_000 });
+    await expect(page.locator('.help-group-title')).toHaveText(['Using environments', 'Access and notifications', 'Cost', 'Problems and questions', 'Manage', 'Administration']);
 
     await page.evaluate(() => { location.hash = '#/my-environments'; });
     const help = page.locator('.content-header .help-link').first();
     await expect(help).toHaveAttribute('aria-label', 'Help: Environments', { timeout: 15_000 });
     await help.click();
     // U02-T04: My Environments opens the Environments topic (it used to open Locks)
-    await expect(page.locator('#help-topic-title')).toHaveText('Environments and start order');
+    await expect(page.locator('#help-topic-title')).toHaveText('Reading an environment');
   });
 
   test('every page help link resolves to an existing topic', async ({ page }) => {
@@ -84,16 +91,32 @@ test.describe('Help', () => {
   });
 
   test('feature topics say when the feature may be switched off; core topics do not', async ({ page }) => {
-    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
-    // U23-T13: Leases and extensions is left out while leases are switched off, so another optional topic.
-    await go(page, 'user', '#/help/idle-stop');
-    await expect(page.locator('#help-topic-title')).toHaveText('Idle auto-stop and snooze', { timeout: 15_000 });
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    // U27: topics about a switch that is off are left out, so an optional topic without a switch (Chargeback).
+    await go(page, 'admin', '#/help/chargeback');
+    await expect(page.locator('#help-topic-title')).toHaveText('Chargeback', { timeout: 15_000 });
     await expect(page.locator('.help-optional')).toContainText('may be switched off');
     await page.evaluate(() => { location.hash = '#/help/locks'; });
-    await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks');
+    await expect(page.locator('#help-topic-title')).toHaveText('Starting and stopping');
     await expect(page.locator('.help-optional')).toHaveCount(0);
-    await page.locator('#help-search').fill('snooze');
-    await expect(page.locator('.help-topic-link', { hasText: 'Idle auto-stop and snooze' })).toBeVisible();
+    await page.locator('#help-search').fill('finalise');
+    await expect(page.locator('.help-topic-link', { hasText: 'Chargeback' })).toBeVisible();
+  });
+
+  test('U27: a long topic scrolls inside its panel, not the page', async ({ page }) => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await go(page, 'admin', '#/help/locks');
+    await expect(page.locator('#help-topic-title')).toHaveText('Starting and stopping', { timeout: 15_000 });
+    const sizes = await page.evaluate(() => {
+      const t = document.getElementById('help-topic')!;
+      const main = document.getElementById('mainContent');
+      return { page: document.scrollingElement!.scrollHeight - window.innerHeight,
+        main: main ? main.scrollHeight - main.clientHeight : 0, topic: t.scrollHeight - t.clientHeight };
+    });
+    expect(sizes.page).toBeLessThanOrEqual(1);
+    expect(sizes.main).toBeLessThanOrEqual(1);
+    expect(sizes.topic).toBeGreaterThan(0);
   });
 
   test('the top bar "?" offers help for this page, all topics and the shortcuts (U04-T01, U04-T04)', async ({ page }) => {
