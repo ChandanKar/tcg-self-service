@@ -47,4 +47,7 @@ test('items lead to their environment, request or report', () => {
     assert.deepEqual(plain(M.linkFor({ entityType: 'COST_ANOMALY' }, false)), ['my-environments']);
     assert.deepEqual(plain(M.linkFor({ type: 'WEEKLY_COST_REPORT' })), ['cost-management']);
     assert.equal(M.linkFor({ type: 'LOCK_RELEASED' }), null);
+    // U28: the VM registry is for environment admins; an Operator's VM notice opens nothing.
+    assert.deepEqual(plain(M.linkFor({ entityType: 'VM', entityId: 'v1' }, false, true)), ['vm-registry']);
+    assert.equal(M.linkFor({ entityType: 'VM', entityId: 'v1' }, false, false), null);
 });

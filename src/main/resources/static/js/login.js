@@ -43,7 +43,7 @@
 
     function showLogoutMessage() {
         if (!new URLSearchParams(window.location.search).has('logout')) return;
-        // "You are signed out." stays until the user edits a field or signs in again.
+        // "You've been signed out." stays until the user edits a field or signs in again.
         show(document.getElementById('logoutMessage'));
     }
 

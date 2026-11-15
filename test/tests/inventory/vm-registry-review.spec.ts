@@ -153,6 +153,17 @@ test.describe('VM registry review UI', () => {
     await expect(row(page, 'found-1').locator('.vr-note.vr-warn')).toHaveCount(0);
   });
 
+  test('the Drift list says the mark clears by itself; other lists do not (U28)', async ({ page }) => {
+    const fake = new FakeRegistry();
+    await openRegistry(page, fake);
+    await chip(page, 'Drift (1)').click();
+    await expect(page.locator('#vrReviewHint')).toContainText('clears by itself at the next state sync');
+    await expect(page.locator('#vrReviewList .vr-review-table')).toContainText(/web-1/i);
+    await chip(page, 'Pending review (2)').click();
+    await expect(page.locator('#vrReviewList .vr-review-table')).toBeVisible();
+    await expect(page.locator('#vrReviewHint')).toHaveCount(0);
+  });
+
   test('Move takes a pending VM out of Auto-Discovered without a page reload', async ({ page }) => {
     const fake = new FakeRegistry();
     await openRegistry(page, fake);

@@ -50,7 +50,7 @@ const HelpContent = (function() {
                         "Open Home: it shows your environments, what needs you, and your recent activity.",
                         "Open Environments to see every environment you can use, then open one to start, stop or lock it.",
                         "Missing one? Open Request access, pick it, choose Operator or View only, say why and press “Send request”.",
-                        "Your avatar (top right) › “My Account” shows your access, cost, notification choices and profile."
+                        "Your avatar (top right) › “My account” shows your access, cost, notification choices and profile."
                     ]
                 },
                 {
@@ -481,7 +481,7 @@ const HelpContent = (function() {
             group: 'access',
             title: "My account",
             roles: null,
-            summary: "Your access, your environments' cost, what reaches you, and your profile. Open it from your avatar (top right) › “My Account”.",
+            summary: "Your access, your environments' cost, what reaches you, and your profile. Open it from your avatar (top right) › “My account”.",
             keywords: ['my account', 'profile', 'access', 'grants', 'extension', 'cost', 'notifications', 'api tokens', 'sign out'],
             sections: [
                 {
@@ -766,7 +766,7 @@ const HelpContent = (function() {
             title: "VM registry",
             roles: ['ENV_ADMIN', 'ADMIN'],
             summary: "Set up environments: their groups, start order and the AWS VMs in them.",
-            keywords: ['registry', 'register', 'add vm', 'group', 'start order', 'move', 'remove', 'discovery', 'review', 'needs review', 'found in aws', 'deactivate'],
+            keywords: ['registry', 'register', 'add vm', 'group', 'start order', 'move', 'remove', 'discovery', 'review', 'needs review', 'found in aws', 'deactivate', 'drift', 'clear drift'],
             sections: [
                 {
                     heading: "Adding VMs",
@@ -787,7 +787,7 @@ const HelpContent = (function() {
                 {
                     heading: "Needs review",
                     terms: [
-                        ["State changed outside the platform", "Someone changed it in AWS directly."],
+                        ["State changed outside the platform (Drift)", "Someone started or stopped it in AWS directly. The platform already shows what AWS reports. There is nothing to press: the mark clears by itself at the next state sync, normally within 5 minutes. If it keeps coming back, someone keeps changing the VM in AWS; its details show when."],
                         ["Found by discovery", "Found in AWS and placed here; check it and press “Mark as reviewed”."],
                         ["Not found in AWS; inactive", "The instance is gone from AWS."]
                     ],

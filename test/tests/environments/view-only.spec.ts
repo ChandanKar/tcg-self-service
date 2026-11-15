@@ -268,6 +268,10 @@ test.describe('Environment alerts', () => {
       startedAt: iso(-60), endsAt: iso(12), permissions: { canExtend: true }, participants: [] } }));
     await page.route(/\/api\/v1\/environments\/[^/]+\/lease-policy$/, (route: any) => route.fulfill({ json: {
       enabled: true, effectiveDefaultMinutes: 120, effectiveMaxMinutes: 480, platformMaxMinutes: 720, canEdit: false } }));
+    await page.route(/\/api\/v1\/environments\/[^/?]+$/, async (route: any) => { // leases on (env.leaseEnabled)
+      const real = await route.fetch();
+      await route.fulfill({ response: real, json: { ...(await real.json()), leaseEnabled: true } });
+    });
     await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) => route.fulfill({ json: [
       { group: { groupId: 'g1', name: 'web', displayName: 'Web', sequencePosition: 1 }, vms: [
         { vmId: 'v1', name: 'crm-web-01', provider: 'AWS', status: 'RUNNING', sequencePosition: 1, stateDriftDetected: true, lastStateSyncAt: iso(-120) },
@@ -486,12 +490,12 @@ test.describe('Environment page per role and size at 1440 x 900', () => {
       featureEnabled: true, canOperate: true, canAdminister: false, production: false, minDryRunDays: 14, recentEvents: [],
       rules: [{ ruleId: 'r1', scopeType: 'ENVIRONMENT', enabled: true, mode: 'DRY_RUN', idleMinutes: 60, dryRunStartedAt: iso(-8 * 24 * 60) }] } }));
     await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) => route.fulfill({ json: groups }));
-    if (opts.eks) {
-      await page.route(/\/api\/v1\/environments\/[^/?]+$/, async (route: any) => {
-        const real = await route.fetch();
-        await route.fulfill({ response: real, json: { ...(await real.json()), serviceType: 'EKS', eksClusterName: 'partner-qa-eks' } });
-      });
-    }
+    // The lease shows only while leases are on (env.leaseEnabled set), so the test says so rather than relying on the database.
+    await page.route(/\/api\/v1\/environments\/[^/?]+$/, async (route: any) => {
+      const real = await route.fetch();
+      await route.fulfill({ response: real, json: { ...(await real.json()), leaseEnabled: true,
+        ...(opts.eks ? { serviceType: 'EKS', eksClusterName: 'partner-qa-eks' } : {}) } });
+    });
   }
 
   async function openAs(page: any, envId: string, userId?: string) {

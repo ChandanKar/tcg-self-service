@@ -520,17 +520,20 @@ public class NotificationService {
         }
     }
 
-    /** AWS took Spot capacity back: the environment's admins and the lock holder hear it (E31-T07). */
+    /**
+     * AWS took Spot capacity back: the environment's admins and the lock holder hear it (E31-T07). Admins' notices open
+     * the VM; a lock holder who is not one of them (an Operator, who cannot open the VM registry) gets the environment (U28).
+     */
     public void notifySpotInterrupted(String environmentId, String environmentName, String vmId, String vmName,
                                       String lockHolderUserId, String details) {
         String title = "Spot interruption: " + vmName;
         String message = "AWS took back the Spot capacity of " + vmName + " in " + environmentName + ". " + details;
-        java.util.Set<String> recipients = new java.util.LinkedHashSet<>();
-        resolveEnvironmentReviewers(environmentId).forEach(u -> recipients.add(u.getUserId()));
-        if (lockHolderUserId != null) {
-            recipients.add(lockHolderUserId);
+        java.util.Set<String> reviewers = new java.util.LinkedHashSet<>();
+        resolveEnvironmentReviewers(environmentId).forEach(u -> reviewers.add(u.getUserId()));
+        reviewers.forEach(id -> create(id, NotificationType.SPOT_INTERRUPTED, title, message, "VM", vmId));
+        if (lockHolderUserId != null && !reviewers.contains(lockHolderUserId)) {
+            create(lockHolderUserId, NotificationType.SPOT_INTERRUPTED, title, message, "ENVIRONMENT", environmentId);
         }
-        recipients.forEach(id -> create(id, NotificationType.SPOT_INTERRUPTED, title, message, "VM", vmId));
         toChat(environmentId, NotificationType.SPOT_INTERRUPTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
                 title, message);
     }

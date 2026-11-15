@@ -48,7 +48,7 @@ test.describe('Login page', () => {
     await page.goto('/login?expired');
     await expect(page.getByRole('alert')).toHaveText('Your session ended. Sign in again to carry on.');
     await page.goto('/login?logout');
-    const note = page.getByRole('status').filter({ hasText: 'You are signed out.' });
+    const note = page.getByRole('status').filter({ hasText: "You've been signed out." });
     await expect(note).toBeVisible();
     await page.waitForTimeout(5_500);                            // no 5-second timer any more
     await expect(note).toBeVisible();

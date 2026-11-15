@@ -52,8 +52,9 @@ const NotificationBell = (function () {
      * Where a notification leads (E11-T10): its environment's page, My Environments for access,
      * Pending Requests for a request, the registry for a VM, Cost Management for the cost report.
      * Returns [contentType, params] for ContentRouter.navigate, or null when there is nothing to open.
+     * The registry is for environment admins (U28): for anyone else a VM notice opens nothing.
      */
-    function linkFor(n, isAdmin) {
+    function linkFor(n, isAdmin, isEnvAdmin = isAdmin) {
         const entityType = (n.entityType || '').toUpperCase();
         if (entityType === 'ENVIRONMENT' && n.entityId) return ['environment-detail', { environmentId: n.entityId }];
         if (entityType === 'ACCESS') return ['my-environments'];
@@ -61,7 +62,7 @@ const NotificationBell = (function () {
         if (entityType === 'COST_ANOMALY') return isAdmin ? ['cost-management'] : ['my-environments']; // E21
         if (entityType === 'ACCESS_REQUEST') return ['pending-requests'];
         if (entityType === 'APPROVAL_REQUEST') return ['approvals']; // E25
-        if (entityType === 'VM') return ['vm-registry'];
+        if (entityType === 'VM') return isEnvAdmin ? ['vm-registry'] : null;
         if (n.type === 'WEEKLY_COST_REPORT') return ['cost-management'];
         return null;
     }
@@ -187,7 +188,8 @@ const NotificationBell = (function () {
     }
 
     function openItem(n) {
-        const link = linkFor(n, typeof Auth !== 'undefined' && Auth.isAdmin());
+        const auth = typeof Auth !== 'undefined' ? Auth : null;
+        const link = linkFor(n, !!auth && auth.isAdmin(), !!auth && auth.isEnvAdmin());
         if (!n.read) markOneRead(n);
         if (!link) return;
         closeDropdown(false);

@@ -11,7 +11,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.io.IOException;
 
 /**
- * After the app session is cleared, everyone goes to the sign-in page, "You are signed out"
+ * After the app session is cleared, everyone goes to the sign-in page, "You've been signed out"
  * (U20-T12, owner's choice): signing out of the app leaves the person signed in to Microsoft
  * (Outlook, Teams…), so "Sign in with Microsoft" may sign them straight back in.
  *

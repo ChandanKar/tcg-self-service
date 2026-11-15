@@ -91,8 +91,8 @@ test.describe('Cost preview in dialogs', () => {
       const body = route.request().postDataJSON();
       evaluated.push(body);
       return route.fulfill({ json: body.hours > 8
-        ? { requiresApproval: true, blocked: false, warnings: [], matches: [{ policyId: 'p', name: 'Runs over 8 hours need the owner',
-          approverMode: 'ENV_OWNER', reasons: ['24 h is longer than 8 h'], approverNames: ['Sanjay Rao'] }] }
+        ? { requiresApproval: true, blocked: false, warnings: [], matches: [{ policyId: 'p', name: 'Runs over 8 hours need an environment admin',
+          approverMode: 'ANY', reasons: ['24 h is longer than 8 h'], approverNames: ['Sanjay Rao'] }] }
         : { requiresApproval: false, blocked: false, warnings: [], matches: [] } });
     });
     let started: any = null;
@@ -120,7 +120,7 @@ test.describe('Cost preview in dialogs', () => {
     await chips.nth(2).click();
     await expect(dialog.locator('#op-confirm-cost')).toHaveText('$2.16');
     await expect(dialog.locator('#op-confirm-approval')).toHaveText('Needs Sanjay Rao');
-    await expect(dialog.locator('#op-confirm-approval-note')).toHaveText('Runs over 8 hours need the owner');
+    await expect(dialog.locator('#op-confirm-approval-note')).toHaveText('Runs over 8 hours need an environment admin');
     await expect(page.locator('#op-confirm-btn')).toHaveText('Send for approval');
     expect(evaluated.map(e => e.hours)).toEqual([8, 24]);
 

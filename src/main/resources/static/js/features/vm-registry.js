@@ -659,6 +659,11 @@ const VmRegistry = (function() {
         await loadReviewCounts();
     }
 
+    /** U28: drift has no button; it clears itself once a sync finds AWS and the platform agree. */
+    const DRIFT_HINT = 'Started or stopped in AWS, not here. The platform already shows what AWS reports, and the mark '
+        + 'clears by itself at the next state sync (normally within 5 minutes). A VM AWS cannot find stays here until it is '
+        + 'found again or marked inactive. If a VM keeps coming back, someone keeps changing it in AWS: its details show when.';
+
     async function loadReviewList(state, page) {
         const env = window.VmRegistryState.currentEnvironment;
         const $list = $('#vrReviewList');
@@ -676,7 +681,8 @@ const VmRegistry = (function() {
             const total = result.totalElements || vms.length;
             const pager = total > VM_PAGE_SIZE ? `<tr class="vr-page-row"><td colspan="5">${Pagination.buildPager({ page: page + 1,
                 pageSize: VM_PAGE_SIZE, totalItems: total, action: 'vr-review-page', key: state })}</td></tr>` : '';
-            $list.html(`<table class="vr-tree vr-review-table" data-cards="off">
+            const hint = state === 'DRIFT' ? Utils.html`<p class="vr-review-hint" id="vrReviewHint">${DRIFT_HINT}</p>` : '';
+            $list.html(`${hint}<table class="vr-tree vr-review-table" data-cards="off">
                     <tbody>${vms.map(vm => vmRowHtml(vm, { showGroup: true })).join('')}${pager}</tbody>
                 </table>`);
         } catch (error) {

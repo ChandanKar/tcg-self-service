@@ -103,10 +103,10 @@ const Locks = (function() {
                         if (onSuccess) onSuccess();
                     })
                     .fail(function(xhr) {
-                        Notifications.error(xhr.responseJSON?.message || 'Failed to release lock');
+                        Notifications.error(xhr.responseJSON?.message || "Couldn't release the lock");
                     });
             },
-            { confirmText: 'Release Lock', confirmClass: 'btn-warning', html: true }
+            { confirmText: 'Release the lock', confirmClass: 'btn-warning', html: true }
         );
     }
 

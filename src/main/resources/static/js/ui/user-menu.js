@@ -107,7 +107,7 @@ const UserMenu = (function() {
                     <a href="#" class="dropdown-item" id="my-account-btn" role="menuitem">
                         <i class="fas fa-user" aria-hidden="true"></i>
                         <span class="dropdown-item-text">
-                            <span>My Account</span>
+                            <span>My account</span>
                             <span class="dropdown-item-hint">Access, cost, notifications and profile</span>
                         </span>
                     </a>

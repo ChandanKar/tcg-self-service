@@ -643,4 +643,31 @@ class NotificationServiceTest {
         assertEquals("8 VMs changed outside the platform: b (stopped, now running); c (stopped, now running); "
                 + "d (stopped, now running); e (stopped, now running); f (running, now stopped); and 3 more.", open.getMessage());
     }
+
+    @Test
+    void aSpotInterruptionOpensTheVmForAdminsAndTheEnvironmentForAnOperatorHoldingTheLock() {
+        service.notifySpotInterrupted("env-A", "Env A", "vm-1", "web-1", "user-regular", "It will be back soon.");
+
+        ArgumentCaptor<com.tcgdigital.vmcontrol.model.Notification> saved =
+                ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.Notification.class);
+        verify(notificationRepository, atLeastOnce()).save(saved.capture());
+        java.util.Map<String, com.tcgdigital.vmcontrol.model.Notification> byUser = new java.util.HashMap<>();
+        saved.getAllValues().forEach(n -> byUser.put(n.getUserId(), n));
+
+        assertEquals(java.util.Set.of("user-envadmin", "user-admin", "user-regular"), byUser.keySet());
+        assertEquals("VM", byUser.get("user-admin").getEntityType());
+        assertEquals("vm-1", byUser.get("user-envadmin").getEntityId());
+        assertEquals("ENVIRONMENT", byUser.get("user-regular").getEntityType());
+        assertEquals("env-A", byUser.get("user-regular").getEntityId());
+    }
+
+    @Test
+    void anAdminHoldingTheLockGetsOneSpotNoticeAboutTheVm() {
+        service.notifySpotInterrupted("env-A", "Env A", "vm-1", "web-1", "user-envadmin", "");
+
+        ArgumentCaptor<com.tcgdigital.vmcontrol.model.Notification> saved =
+                ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.Notification.class);
+        verify(notificationRepository, times(2)).save(saved.capture());
+        assertTrue(saved.getAllValues().stream().allMatch(n -> "VM".equals(n.getEntityType())));
+    }
 }
