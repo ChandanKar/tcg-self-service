@@ -48,6 +48,15 @@ test('U23-T13: a topic about a switched-off feature is left out', () => {
     delete context.Capabilities;
 });
 
+test('U28: a page "?" still opens a switched-off feature topic; the role still decides', () => {
+    context.Capabilities = { has: f => f !== 'approvals' };
+    const approvals = HelpContent.find('approvals');
+    assert.equal(Help.visible(approvals), false, 'left out of the list');
+    assert.equal(Help.forRole(approvals), true, 'opened by its link');
+    assert.equal(approvals.optional, true, 'and says the feature may be off');
+    delete context.Capabilities;
+});
+
 // U27: help for every persona, written as tasks.
 test('every topic has sections with text, and related topics that exist', () => {
     const ids = new Set(HelpContent.all().map(t => t.id));

@@ -13,12 +13,17 @@ const Help = (function() {
     let query = '';
     let current = null;
 
-    function visible(topic) {
-        // A topic about a switched-off feature is left out (U23-T13), once the switches are known.
-        if (topic.feature && typeof Capabilities !== 'undefined' && !Capabilities.has(topic.feature)) return false;
+    /** The topic is for this person's role. */
+    function forRole(topic) {
         if (!topic.roles || !topic.roles.length) return true;
         if (typeof Auth === 'undefined') return false;
         return topic.roles.some(r => (r === 'ADMIN' && Auth.isAdmin()) || (r === 'ENV_ADMIN' && Auth.isEnvAdmin()));
+    }
+
+    /** In the list: for this role, and not about a switched-off feature (U23-T13), once the switches are known. */
+    function visible(topic) {
+        if (topic.feature && typeof Capabilities !== 'undefined' && !Capabilities.has(topic.feature)) return false;
+        return forRole(topic);
     }
 
     function text(topic) {
@@ -57,7 +62,9 @@ const Help = (function() {
     function load(params) {
         const id = params && params.topic;
         const topic = id ? HelpContent.find(id) : null;
-        current = topic && visible(topic) ? topic : (id ? 'missing' : null);
+        // A page's "?" or a link still opens a switched-off feature's topic (it says the feature may be off);
+        // only the list leaves it out. A topic for another role stays "not found" (U28).
+        current = topic && forRole(topic) ? topic : (id ? 'missing' : null);
         const search = `<label class="help-search">
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
@@ -128,7 +135,7 @@ const Help = (function() {
         drawList();
     }
 
-    return { load, search, visible, model: { grouped, sectionHtml, text }, LEGEND };
+    return { load, search, visible, forRole, model: { grouped, sectionHtml, text }, LEGEND };
 })();
 
 /** The '?' button in page headers (E29-T07). */
