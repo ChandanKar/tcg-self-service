@@ -79,6 +79,20 @@ test('Admin: all groups, every "?" resolves, Drift explains itself, signed-out t
   await helpFacts(page, 'admin');
   note('admin.pageTopicsMissing', await page.evaluate(() => Object.entries(HelpContent.PAGE_TOPICS)
     .filter(([, id]) => !HelpContent.find(id)).map(([p]) => p)));
+  // 0e5299e2: every page's "?" topic opens, even when its feature is switched off (it is then hidden from the list).
+  const notFound: string[] = [];
+  const hiddenButOpens: string[] = [];
+  for (const id of await page.evaluate(() => Array.from(new Set(Object.values(HelpContent.PAGE_TOPICS))) as string[])) {
+    await page.evaluate((h: string) => { location.hash = h; }, '#/help/' + id);
+    await page.waitForTimeout(600);
+    const r = await page.evaluate((t: string) => ({
+      missing: /Topic not found/.test(document.getElementById('help-topic')!.innerText),
+      listed: !!document.querySelector(`.help-topic-link[data-topic="${t}"]`),
+    }), id);
+    if (r.missing) notFound.push(id); else if (!r.listed) hiddenButOpens.push(id);
+  }
+  note('admin.pageTopicNotFound', notFound);
+  note('admin.switchedOffTopicsOpenFromQuestionMark', hiddenButOpens);
 
   // VM registry: open an environment with drift, if any, and its Drift list.
   const summary = await apiGet(page, '/api/v1/environments/review-summary');
