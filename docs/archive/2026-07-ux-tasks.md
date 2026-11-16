@@ -23,7 +23,7 @@ file in the project is brace-balanced. Two notes from implementation:
   through `/vendor/..` still returns `400`. This is the one part of the whole pass that was
   confirmed against a *running* app rather than source/syntax checks alone.
 
-Generated from [UX_REVIEW.md](UX_REVIEW.md). Task IDs continue the codebase's existing `TASK-NNN` convention (highest in use today is `TASK-033`, in `js/core/utils.js`/`dist/app.js`) — reference these IDs in commit messages and code comments the same way `TASK-021`, `TASK-031`, etc. are referenced today.
+Generated from [UX_REVIEW.md](2026-07-ux-review.md). Task IDs continue the codebase's existing `TASK-NNN` convention (highest in use today is `TASK-033`, in `js/core/utils.js`/`dist/app.js`) — reference these IDs in commit messages and code comments the same way `TASK-021`, `TASK-031`, etc. are referenced today.
 
 Each task lists the files to touch and a definition of done. Severity mirrors the review (HIGH = user-visible/trust-affecting, MEDIUM = noticeable inconsistency, LOW = maintenance/drift risk only).
 

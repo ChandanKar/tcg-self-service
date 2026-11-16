@@ -115,7 +115,7 @@ Set in `application.properties` (each reads an env var of the same name in upper
 
 ## Frontend
 
-Vanilla JS module/IIFE singletons — no build framework. Source files are in `src/main/resources/static/js/` and `static/css/`, listed in order in `static/index.html`. Gradle's `buildFrontend` concatenates them (order taken from index.html) into `build/generated/frontend/static/dist/`, and `processResources` packages `dist/app.js`, `dist/app.css` and a patched `index.html` that loads only the bundles — so `bootRun`, `bootJar` and tests all serve the bundle. New scripts only need adding to index.html. Bump the `?v=` asset stamp in index.html on UI changes (the bundle reuses it). `build-frontend.ps1` is just a wrapper around those Gradle tasks. API base URL and feature flags live in `static/js/config.js`. Playwright e2e specs live in `test/`.
+Vanilla JS module/IIFE singletons — no build framework. Source files are in `src/main/resources/static/js/` and `static/css/`, listed in order in `static/index.html`. Gradle's `buildFrontend` concatenates them (order taken from index.html) into `build/generated/frontend/static/dist/`, and `processResources` packages `dist/app.js`, `dist/app.css` and a patched `index.html` that loads only the bundles — so `bootRun`, `bootJar` and tests all serve the bundle. New scripts only need adding to index.html. Bump the `?v=` asset stamp in index.html on UI changes (the bundle reuses it). API base URL and feature flags live in `static/js/config.js`. Playwright e2e specs live in `test/`.
 
 The screens follow the approved mockup in `docs/design/mockup/` (75 boards; `test/ux-review/compare-mockup.mjs` renders each board next to its app screen). Shared pieces to reuse rather than rebuild:
 

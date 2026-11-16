@@ -1,6 +1,6 @@
 # UI Consistency Governance — Task List
 
-Generated from [`.ai/engineering/ui-consistency.md`](.ai/engineering/ui-consistency.md). This is a distinct list from [`UX_TASKS.md`](UX_TASKS.md): those tasks fix the specific inconsistencies `UX_REVIEW.md` found; these tasks build the mechanisms that stop new ones from accumulating the same way. Task IDs continue the same `TASK-NNN` sequence (last used: `TASK-056`).
+Generated from [`.ai/engineering/ui-consistency.md`](../../.ai/engineering/ui-consistency.md). This is a distinct list from [`UX_TASKS.md`](2026-07-ux-tasks.md): those tasks fix the specific inconsistencies `UX_REVIEW.md` found; these tasks build the mechanisms that stop new ones from accumulating the same way. Task IDs continue the same `TASK-NNN` sequence (last used: `TASK-056`).
 
 Do these roughly in order — the first two are foundational and make several `UX_TASKS.md` fixes more durable if done first (see the "Relationship to UX_TASKS.md" note on each).
 

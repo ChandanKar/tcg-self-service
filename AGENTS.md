@@ -123,7 +123,7 @@ Relevant paths:
 - Main HTML: `src/main/resources/static/index.html`
 - API base URL and feature flags: `src/main/resources/static/js/config.js`
 
-Edit source JS/CSS files. The bundle order comes from `index.html`, and `bootRun`, `bootJar` and tests rebuild `dist/app.js` / `dist/app.css` automatically (`.\build-frontend.ps1` is only a wrapper). Bump the `?v=` asset stamp in `index.html` on UI changes. Feature switches are listed in `CLAUDE.md`.
+Edit source JS/CSS files. The bundle order comes from `index.html`, and `bootRun`, `bootJar` and tests rebuild `dist/app.js` / `dist/app.css` automatically. Bump the `?v=` asset stamp in `index.html` on UI changes. Feature switches are listed in `CLAUDE.md`.
 
 ## Internal Docs
 

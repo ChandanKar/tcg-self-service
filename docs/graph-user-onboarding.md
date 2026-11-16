@@ -211,7 +211,7 @@ Existing unique constraints on `email` and `azure_ad_object_id` are the dedupe b
   yet"** badge when `lastLoginAt == null`, and an **"Unverified"** badge when the row
   is a manual onboard.
 - `config.js`: `directory: { search }`, `users.create`.
-- `build-frontend.ps1` after JS/CSS changes.
+- Bump the `?v=` asset stamp in `index.html` after JS/CSS changes (`bootRun` and `bootJar` rebuild the bundle).
 
 ## 7. Config keys
 

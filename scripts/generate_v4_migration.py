@@ -2,6 +2,10 @@
 """
 Generate V4 Migration SQL from vm-master.sql
 Parses VM master data and creates complete Flyway migration
+
+HISTORICAL - DO NOT RUN. V4 was generated with this in March 2026 and is applied on
+every database. Running it again rewrites V4__migrate_legacy_vms.sql, Flyway's checksum
+check then fails and the app refuses to start (see docs/runbook-flyway.md).
 """
 
 import re

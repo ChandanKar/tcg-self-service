@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Persona Prototypes</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e1ec;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+      --red: #dc2626;
+      --violet: #7c3aed;
+      --cyan: #0891b2;
+      --shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+    }
+
+    aside {
+      background: #111827;
+      color: #d1d5db;
+      padding: 18px 14px;
+    }
+
+    .brand {
+      color: #fff;
+      font-size: 17px;
+      font-weight: 750;
+      margin-bottom: 20px;
+      padding: 8px;
+    }
+
+    .persona-nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .persona-nav button {
+      width: 100%;
+      border: 0;
+      border-radius: 7px;
+      padding: 11px 12px;
+      background: transparent;
+      color: #d1d5db;
+      text-align: left;
+      cursor: pointer;
+      font-weight: 650;
+    }
+
+    .persona-nav button.active {
+      background: #1f2937;
+      color: #fff;
+      box-shadow: inset 3px 0 0 #60a5fa;
+    }
+
+    main {
+      min-width: 0;
+      padding: 18px 20px 24px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .title p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .filters {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 3px;
+      background: #fff;
+    }
+
+    .segmented button,
+    .ghost-btn {
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      padding: 7px 10px;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 650;
+      font-size: 12px;
+    }
+
+    .segmented button.active {
+      background: #eef4ff;
+      color: var(--blue);
+    }
+
+    .ghost-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .kpi, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi {
+      padding: 12px;
+      min-height: 86px;
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .kpi strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .kpi small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.8fr);
+      gap: 12px;
+    }
+
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      min-height: 46px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .panel-head small {
+      color: var(--muted);
+    }
+
+    .panel-body {
+      padding: 12px;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th, td {
+      padding: 9px 8px;
+      border-bottom: 1px solid #edf1f6;
+      text-align: left;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f9fbfd;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .status:before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .ok { color: var(--green); background: #ecfdf3; }
+    .warn { color: var(--amber); background: #fffbeb; }
+    .bad { color: var(--red); background: #fef2f2; }
+    .info { color: var(--blue); background: #eff6ff; }
+
+    .mini-bars {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 98px minmax(0, 1fr) 42px;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .bar-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #edf2f7;
+      overflow: hidden;
+    }
+
+    .bar-track div {
+      height: 100%;
+      border-radius: inherit;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .attention-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .attention-item {
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 9px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .attention-item strong,
+    .attention-item small {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attention-item small {
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .heatmap {
+      display: grid;
+      grid-template-columns: 160px repeat(5, minmax(64px, 1fr));
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .heatmap .head {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    .heat {
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+      font-weight: 750;
+    }
+
+    .h0 { background: #ecfdf3; color: var(--green); }
+    .h1 { background: #eff6ff; color: var(--blue); }
+    .h2 { background: #fffbeb; color: var(--amber); }
+    .h3 { background: #fef2f2; color: var(--red); }
+
+    .two-up {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .spark {
+      height: 58px;
+      width: 100%;
+    }
+
+    .spark path {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .chart-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      min-height: 168px;
+      overflow: hidden;
+    }
+
+    .chart-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .chart-title strong {
+      font-size: 13px;
+    }
+
+    .chart-title small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .chart {
+      width: 100%;
+      height: 104px;
+      display: block;
+    }
+
+    .echart {
+      width: 100%;
+      height: 220px;
+    }
+
+    .echart.compact {
+      height: 88px;
+    }
+
+    .admin-echarts-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .admin-echarts-grid .chart-card {
+      min-height: 292px;
+    }
+
+    .chart text {
+      font-family: inherit;
+      fill: var(--muted);
+      font-size: 10px;
+    }
+
+    .axis {
+      stroke: #e7edf5;
+      stroke-width: 1;
+    }
+
+    .line {
+      fill: none;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .area {
+      opacity: 0.12;
+    }
+
+    .bar {
+      rx: 4;
+      ry: 4;
+    }
+
+    .donut-label,
+    .gauge-label {
+      font-weight: 800;
+      fill: var(--ink) !important;
+      font-size: 18px !important;
+    }
+
+    .legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .legend-row span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .legend-row i {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .funnel-row {
+      display: grid;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .funnel-stage {
+      height: 24px;
+      border-radius: 6px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 750;
+      margin: 0 auto;
+    }
+
+    .radar polygon {
+      fill-opacity: 0.14;
+      stroke-width: 2;
+    }
+
+    .radar line,
+    .radar .ring {
+      stroke: #e7edf5;
+      stroke-width: 1;
+      fill: none;
+    }
+
+    .persona { display: none; }
+    .persona.active { display: block; }
+
+    @media (max-width: 1120px) {
+      .shell { grid-template-columns: 1fr; }
+      aside { position: sticky; top: 0; z-index: 2; }
+      .persona-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .admin-echarts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid, .two-up { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      main { padding: 12px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chart-grid { grid-template-columns: 1fr; }
+      .admin-echarts-grid { grid-template-columns: 1fr; }
+      .heatmap { grid-template-columns: 120px repeat(5, 58px); overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">VM Control Dashboard</div>
+      <div class="persona-nav" role="tablist">
+        <button class="active" data-persona="user">Normal User</button>
+        <button data-persona="env-admin">Env Admin</button>
+        <button data-persona="admin">Admin</button>
+      </div>
+    </aside>
+
+    <main>
+      <section id="user" class="persona active">
+        <div class="topbar">
+          <div class="title">
+            <h1>My Operations</h1>
+            <p>Accessible environments, active locks, and VMs needing attention.</p>
+          </div>
+          <div class="filters">
+            <div class="segmented"><button class="active">1h</button><button>6h</button><button>24h</button><button>7d</button></div>
+            <button class="ghost-btn">Refresh</button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><span>My Environments</span><strong>4</strong><small>2 active now</small></div>
+          <div class="kpi"><span>VMs I Can Operate</span><strong>28</strong><small>19 running</small></div>
+          <div class="kpi"><span>Idle VMs</span><strong>5</strong><small>Review before stop</small></div>
+          <div class="kpi"><span>Avg CPU</span><strong>18%</strong><small>Last 1h</small></div>
+          <div class="kpi"><span>Network IO</span><strong>8.4 GB</strong><small>In + Out</small></div>
+          <div class="kpi"><span>Locks</span><strong>1</strong><small>Owned by another user</small></div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title"><strong>VM Utilization</strong><small>multi-line</small></div>
+            <div id="userVmUtilization" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>My Fleet Health</strong><small>gauge</small></div>
+            <div id="userFleetHealth" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>VM State Mix</strong><small>donut</small></div>
+            <div id="userVmStateMix" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>Operation Activity</strong><small>bar</small></div>
+            <div id="userOperationActivity" class="echart"></div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="panel">
+            <div class="panel-head"><h2>My Environments</h2><small>Actionable view</small></div>
+            <div class="panel-body">
+              <table class="table">
+                <thead><tr><th>Environment</th><th>VMs</th><th>CPU</th><th>Idle</th><th>Lock</th><th>Action</th></tr></thead>
+                <tbody>
+                  <tr><td>adma-poc</td><td>12 / 14 running</td><td>21%</td><td>2</td><td><span class="status ok">Free</span></td><td>View</td></tr>
+                  <tr><td>billing-dev</td><td>4 / 6 running</td><td>9%</td><td>3</td><td><span class="status warn">Locked</span></td><td>View</td></tr>
+                  <tr><td>risk-qa</td><td>3 / 4 running</td><td>32%</td><td>0</td><td><span class="status ok">Free</span></td><td>View</td></tr>
+                  <tr><td>platform-test</td><td>0 / 4 running</td><td>-</td><td>0</td><td><span class="status ok">Free</span></td><td>View</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><h2>Attention Needed</h2><small>For my access</small></div>
+              <div class="panel-body attention-list">
+                <div class="attention-item"><span class="dot" style="background:var(--amber)"></span><div><strong>3 VMs idle more than 2h</strong><small>billing-dev group app-services</small></div><span class="status warn">Review</span></div>
+                <div class="attention-item"><span class="dot" style="background:var(--blue)"></span><div><strong>1 environment locked</strong><small>billing-dev by s.roy</small></div><span class="status info">Wait</span></div>
+                <div class="attention-item"><span class="dot" style="background:var(--red)"></span><div><strong>1 failed stop operation</strong><small>risk-qa db-02</small></div><span class="status bad">Failed</span></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Recent Activity</h2><small>Last 24h</small></div>
+              <div class="panel-body mini-bars">
+                <div class="bar-row"><span>Start ops</span><div class="bar-track"><div style="width:70%;background:var(--green)"></div></div><strong>7</strong></div>
+                <div class="bar-row"><span>Stop ops</span><div class="bar-track"><div style="width:50%;background:var(--blue)"></div></div><strong>5</strong></div>
+                <div class="bar-row"><span>Failures</span><div class="bar-track"><div style="width:10%;background:var(--red)"></div></div><strong>1</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="env-admin" class="persona">
+        <div class="topbar">
+          <div class="title">
+            <h1>Environment Health</h1>
+            <p>Operational health, utilization, idle waste, and sync coverage across managed environments.</p>
+          </div>
+          <div class="filters">
+            <div class="segmented"><button>1h</button><button class="active">6h</button><button>24h</button><button>7d</button></div>
+            <button class="ghost-btn">Trigger Sync</button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><span>Managed Envs</span><strong>9</strong><small>7 EC2, 2 EKS</small></div>
+          <div class="kpi"><span>Total VMs</span><strong>84</strong><small>61 running</small></div>
+          <div class="kpi"><span>Idle VMs</span><strong>14</strong><small>Potential savings</small></div>
+          <div class="kpi"><span>Drifted</span><strong>3</strong><small>Needs reconcile</small></div>
+          <div class="kpi"><span>Missing Metrics</span><strong>6</strong><small>Check CloudWatch</small></div>
+          <div class="kpi"><span>Allocated EBS</span><strong>9.8 TB</strong><small>Used not collected</small></div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title"><strong>Environment Score</strong><small>spider</small></div>
+            <div id="envAdminScore" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>Idle vs Active</strong><small>donut</small></div>
+            <div id="envAdminIdleActive" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>EBS By Type</strong><small>stacked bar</small></div>
+            <div id="envAdminEbsType" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>Optimization Funnel</strong><small>review flow</small></div>
+            <div id="envAdminOptimization" class="echart"></div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="panel">
+            <div class="panel-head"><h2>Utilization Heatmap</h2><small>Managed environments</small></div>
+            <div class="panel-body">
+              <div class="heatmap">
+                <div class="head">Environment</div><div class="head">CPU</div><div class="head">Network</div><div class="head">Disk</div><div class="head">Idle</div><div class="head">Drift</div>
+                <strong>adma-poc</strong><div class="heat h1">28%</div><div class="heat h2">High</div><div class="heat h1">Med</div><div class="heat h2">2</div><div class="heat h0">0</div>
+                <strong>billing-dev</strong><div class="heat h0">8%</div><div class="heat h0">Low</div><div class="heat h0">Low</div><div class="heat h3">6</div><div class="heat h1">1</div>
+                <strong>risk-qa</strong><div class="heat h2">52%</div><div class="heat h1">Med</div><div class="heat h3">High</div><div class="heat h0">0</div><div class="heat h2">2</div>
+                <strong>platform-test</strong><div class="heat h0">0%</div><div class="heat h0">Low</div><div class="heat h0">Low</div><div class="heat h1">1</div><div class="heat h0">0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><h2>Top Idle VMs</h2><small>Longest idle</small></div>
+              <div class="panel-body attention-list">
+                <div class="attention-item"><span class="dot" style="background:var(--amber)"></span><div><strong>billing-api-02</strong><small>Idle 7h 40m, CPU 2%</small></div><span>gp3 120GB</span></div>
+                <div class="attention-item"><span class="dot" style="background:var(--amber)"></span><div><strong>dev-worker-04</strong><small>Idle 5h 10m, CPU 1%</small></div><span>gp2 80GB</span></div>
+                <div class="attention-item"><span class="dot" style="background:var(--amber)"></span><div><strong>adma-cache-01</strong><small>Idle 3h 25m, low IO</small></div><span>gp3 60GB</span></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Busy VMs</h2><small>Outliers</small></div>
+              <div class="panel-body mini-bars">
+                <div class="bar-row"><span>risk-db-01</span><div class="bar-track"><div style="width:92%;background:var(--red)"></div></div><strong>92%</strong></div>
+                <div class="bar-row"><span>api-prod-02</span><div class="bar-track"><div style="width:74%;background:var(--amber)"></div></div><strong>74%</strong></div>
+                <div class="bar-row"><span>queue-01</span><div class="bar-track"><div style="width:58%;background:var(--blue)"></div></div><strong>58%</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-up">
+          <div class="panel">
+            <div class="panel-head"><h2>Group Health</h2><small>Partial states and sequence health</small></div>
+            <div class="panel-body">
+              <table class="table">
+                <thead><tr><th>Group</th><th>Env</th><th>Running</th><th>Idle</th><th>Recent Ops</th></tr></thead>
+                <tbody>
+                  <tr><td>app-services</td><td>adma-poc</td><td>8 / 9</td><td>1</td><td><span class="status ok">OK</span></td></tr>
+                  <tr><td>batch-workers</td><td>billing-dev</td><td>1 / 5</td><td>4</td><td><span class="status warn">Review</span></td></tr>
+                  <tr><td>database</td><td>risk-qa</td><td>3 / 3</td><td>0</td><td><span class="status bad">Failed</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Sync Coverage</h2><small>Inventory and metrics</small></div>
+            <div class="panel-body mini-bars">
+              <div class="bar-row"><span>Inventory</span><div class="bar-track"><div style="width:94%;background:var(--green)"></div></div><strong>94%</strong></div>
+              <div class="bar-row"><span>Metrics</span><div class="bar-track"><div style="width:88%;background:var(--blue)"></div></div><strong>88%</strong></div>
+              <div class="bar-row"><span>Idle summary</span><div class="bar-track"><div style="width:82%;background:var(--violet)"></div></div><strong>82%</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin" class="persona">
+        <div class="topbar">
+          <div class="title">
+            <h1>Platform Control Tower</h1>
+            <p>Global capacity, scheduler health, governance, and risk across all environments.</p>
+          </div>
+          <div class="filters">
+            <div class="segmented"><button>1h</button><button>6h</button><button class="active">24h</button><button>7d</button></div>
+            <button class="ghost-btn">Admin Actions</button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><span>Environments</span><strong>36</strong><small>31 active</small></div>
+          <div class="kpi"><span>Registered VMs</span><strong>412</strong><small>298 running</small></div>
+          <div class="kpi"><span>Idle VMs</span><strong>57</strong><small>14% of fleet</small></div>
+          <div class="kpi"><span>Allocated EBS</span><strong>47 TB</strong><small>1,204 volumes</small></div>
+          <div class="kpi"><span>Pending Access</span><strong>11</strong><small>Needs approval</small></div>
+          <div class="kpi"><span>Scheduler Health</span><strong>3 / 3</strong><small>Jobs healthy</small></div>
+        </div>
+
+        <div class="admin-echarts-grid">
+          <div class="chart-card">
+            <div class="chart-title"><strong>AWS Fleet Trend</strong><small>CPU / Network / Disk</small></div>
+            <div id="adminAwsTrend" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>VM State</strong><small>AWS EC2</small></div>
+            <div id="adminVmState" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>Region Distribution</strong><small>AWS only</small></div>
+            <div id="adminRegionDist" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>EBS Volume Types</strong><small>Allocated GiB</small></div>
+            <div id="adminEbsTypes" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>CloudWatch Coverage</strong><small>inventory / metrics / idle</small></div>
+            <div id="adminCoverage" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>Idle Age Funnel</strong><small>optimization candidates</small></div>
+            <div id="adminIdleFunnel" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>Operation Outcomes</strong><small>last 24h</small></div>
+            <div id="adminOpsOutcome" class="echart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title"><strong>Scheduler SLA</strong><small>job freshness</small></div>
+            <div id="adminSchedulerGauge" class="echart"></div>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title"><strong>Fleet Metrics</strong><small>multi-line</small></div>
+            <div id="adminFleetMetricsMini" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>Cloud Coverage</strong><small>AWS only</small></div>
+            <div id="adminCloudCoverage" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>Scheduler SLA</strong><small>gauge</small></div>
+            <div id="adminSchedulerMini" class="echart"></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title"><strong>Governance Funnel</strong><small>queue</small></div>
+            <div id="adminGovernanceMini" class="echart"></div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="panel">
+            <div class="panel-head"><h2>Global Utilization</h2><small>24h trends</small></div>
+            <div class="panel-body">
+              <div id="adminGlobalUtilizationTableTrend" class="echart compact"></div>
+              <table class="table" style="margin-top:10px">
+                <thead><tr><th>Provider</th><th>Envs</th><th>VMs</th><th>Metrics Coverage</th><th>Inventory Coverage</th><th>Risk</th></tr></thead>
+                <tbody>
+                  <tr><td>AWS</td><td>36</td><td>412</td><td>91%</td><td>96%</td><td><span class="status warn">Medium</span></td></tr>
+                  <tr><td>AWS EC2</td><td>31</td><td>386</td><td>93%</td><td>97%</td><td><span class="status warn">Medium</span></td></tr>
+                  <tr><td>AWS EBS</td><td>31</td><td>1,204 volumes</td><td>88%</td><td>96%</td><td><span class="status info">Track</span></td></tr>
+                  <tr><td>AWS EKS</td><td>5</td><td>26 nodes</td><td>72%</td><td>80%</td><td><span class="status info">Partial</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><h2>Risk & Compliance</h2><small>Global checks</small></div>
+              <div class="panel-body attention-list">
+                <div class="attention-item"><span class="dot" style="background:var(--red)"></span><div><strong>9 unencrypted EBS volumes</strong><small>Across 4 environments</small></div><span class="status bad">Risk</span></div>
+                <div class="attention-item"><span class="dot" style="background:var(--amber)"></span><div><strong>57 idle VMs</strong><small>Potential shutdown candidates</small></div><span class="status warn">Waste</span></div>
+                <div class="attention-item"><span class="dot" style="background:var(--blue)"></span><div><strong>11 access requests</strong><small>Pending admin decision</small></div><span class="status info">Queue</span></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Scheduler Health</h2><small>Last runs</small></div>
+              <div class="panel-body mini-bars">
+                <div class="bar-row"><span>State sync</span><div class="bar-track"><div style="width:100%;background:var(--green)"></div></div><strong>2m</strong></div>
+                <div class="bar-row"><span>Inventory</span><div class="bar-track"><div style="width:94%;background:var(--green)"></div></div><strong>18m</strong></div>
+                <div class="bar-row"><span>Metrics</span><div class="bar-track"><div style="width:98%;background:var(--green)"></div></div><strong>4m</strong></div>
+                <div class="bar-row"><span>Archive</span><div class="bar-track"><div style="width:80%;background:var(--blue)"></div></div><strong>2h</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-up">
+          <div class="panel">
+            <div class="panel-head"><h2>Governance Queue</h2><small>Admin-only</small></div>
+            <div class="panel-body">
+              <table class="table">
+                <thead><tr><th>Item</th><th>Count</th><th>Oldest</th><th>Action</th></tr></thead>
+                <tbody>
+                  <tr><td>Pending access requests</td><td>11</td><td>2d</td><td>Review</td></tr>
+                  <tr><td>Long-running locks</td><td>2</td><td>5h</td><td>Inspect</td></tr>
+                  <tr><td>Failed operations</td><td>6</td><td>18h</td><td>Audit</td></tr>
+                  <tr><td>Unacknowledged discovered VMs</td><td>4</td><td>1d</td><td>Assign</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Top Storage Consumers</h2><small>Allocated EBS</small></div>
+            <div class="panel-body mini-bars">
+              <div class="bar-row"><span>risk-prod</span><div class="bar-track"><div style="width:96%;background:var(--violet)"></div></div><strong>8.2TB</strong></div>
+              <div class="bar-row"><span>billing-prod</span><div class="bar-track"><div style="width:72%;background:var(--blue)"></div></div><strong>6.1TB</strong></div>
+              <div class="bar-row"><span>data-qa</span><div class="bar-track"><div style="width:48%;background:var(--cyan)"></div></div><strong>4.0TB</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+    const chartRegistry = new Map();
+    const colors = ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2'];
+    const textStyle = { fontFamily: 'Inter, Segoe UI, Arial, sans-serif', color: '#667085' };
+
+    function initChart(id, option) {
+      if (!window.echarts) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (chartRegistry.has(id)) {
+        chartRegistry.get(id).resize();
+        return;
+      }
+      const chart = echarts.init(el, null, { renderer: 'svg' });
+      chart.setOption(option);
+      chartRegistry.set(id, chart);
+    }
+
+    function baseGrid(bottom = 42) {
+      return { left: 34, right: 10, top: 18, bottom };
+    }
+
+    function initUserCharts() {
+      if (!window.echarts) return;
+      initChart('userVmUtilization', {
+        color: colors,
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle },
+        grid: baseGrid(),
+        xAxis: { type: 'category', boundaryGap: false, data: ['00', '10', '20', '30', '40', '50', '60'], axisLabel: textStyle },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [
+          { name: 'app-01', type: 'line', smooth: true, data: [12, 26, 18, 42, 36, 44, 31] },
+          { name: 'worker-02', type: 'line', smooth: true, data: [6, 8, 9, 12, 10, 14, 11] },
+          { name: 'db-01', type: 'line', smooth: true, data: [22, 20, 33, 28, 18, 31, 26] }
+        ]
+      });
+
+      initChart('userFleetHealth', {
+        color: ['#059669'],
+        series: [{
+          type: 'gauge',
+          min: 0,
+          max: 100,
+          progress: { show: true, width: 14 },
+          axisLine: { lineStyle: { width: 14 } },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          pointer: { width: 4 },
+          detail: { formatter: '{value}%', fontSize: 24, color: '#172033' },
+          data: [{ value: 84, name: 'healthy' }],
+          title: { color: '#667085', fontSize: 12 }
+        }]
+      });
+
+      initChart('userVmStateMix', {
+        color: ['#059669', '#dc2626', '#667085'],
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, textStyle },
+        series: [{
+          type: 'pie',
+          radius: ['44%', '68%'],
+          center: ['50%', '42%'],
+          label: { formatter: '{b}\n{c}', fontSize: 11 },
+          data: [
+            { value: 19, name: 'Running' },
+            { value: 9, name: 'Stopped' },
+            { value: 0, name: 'Unknown' }
+          ]
+        }]
+      });
+
+      initChart('userOperationActivity', {
+        color: ['#059669', '#2563eb', '#d97706', '#dc2626'],
+        tooltip: { trigger: 'axis' },
+        grid: baseGrid(30),
+        xAxis: { type: 'category', data: ['Start', 'Stop', 'Lock', 'Fail'], axisLabel: textStyle },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [{ type: 'bar', data: [7, 5, 2, 1], barWidth: 22 }]
+      });
+    }
+
+    function initEnvAdminCharts() {
+      if (!window.echarts) return;
+      initChart('envAdminScore', {
+        color: ['#2563eb'],
+        tooltip: { trigger: 'item' },
+        radar: {
+          indicator: [
+            { name: 'CPU', max: 100 },
+            { name: 'Network', max: 100 },
+            { name: 'Disk', max: 100 },
+            { name: 'Idle', max: 100 },
+            { name: 'Drift', max: 100 }
+          ],
+          radius: 70,
+          center: ['50%', '48%'],
+          axisName: textStyle
+        },
+        series: [{ type: 'radar', data: [{ name: 'Health', value: [74, 62, 68, 38, 28] }] }]
+      });
+
+      initChart('envAdminIdleActive', {
+        color: ['#059669', '#d97706'],
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, textStyle },
+        series: [{
+          type: 'pie',
+          radius: ['44%', '68%'],
+          center: ['50%', '42%'],
+          label: { formatter: '{b}\n{c}', fontSize: 11 },
+          data: [{ value: 70, name: 'Active' }, { value: 14, name: 'Idle' }]
+        }]
+      });
+
+      initChart('envAdminEbsType', {
+        color: ['#2563eb', '#059669', '#d97706'],
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle },
+        grid: baseGrid(),
+        xAxis: { type: 'category', data: ['Volumes', 'GiB'], axisLabel: textStyle },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [
+          { name: 'gp3', type: 'bar', stack: 'ebs', data: [128, 6200] },
+          { name: 'gp2', type: 'bar', stack: 'ebs', data: [46, 2500] },
+          { name: 'io2', type: 'bar', stack: 'ebs', data: [14, 1100] }
+        ]
+      });
+
+      initChart('envAdminOptimization', {
+        color: ['#2563eb', '#0891b2', '#d97706', '#059669'],
+        tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+        series: [{
+          type: 'funnel',
+          left: '8%',
+          top: 16,
+          bottom: 18,
+          width: '84%',
+          label: { position: 'inside', formatter: '{b}: {c}', color: '#fff', fontWeight: 700 },
+          data: [
+            { value: 84, name: 'Observed' },
+            { value: 31, name: 'Candidates' },
+            { value: 14, name: 'Idle' },
+            { value: 8, name: 'Safe actions' }
+          ]
+        }]
+      });
+    }
+
+    function initAdminCharts() {
+      if (!window.echarts) return;
+
+      initChart('adminAwsTrend', {
+        color: colors,
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle },
+        grid: baseGrid(),
+        xAxis: { type: 'category', boundaryGap: false, data: ['00', '04', '08', '12', '16', '20', '24'], axisLabel: textStyle },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [
+          { name: 'CPU', type: 'line', smooth: true, data: [22, 18, 30, 42, 36, 28, 33] },
+          { name: 'Network', type: 'line', smooth: true, data: [14, 19, 22, 31, 47, 39, 34] },
+          { name: 'Disk IO', type: 'line', smooth: true, data: [12, 10, 28, 24, 44, 30, 38] }
+        ]
+      });
+
+      initChart('adminVmState', {
+        color: ['#059669', '#dc2626', '#d97706', '#667085'],
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, textStyle },
+        series: [{
+          type: 'pie',
+          radius: ['44%', '68%'],
+          center: ['50%', '42%'],
+          label: { formatter: '{b}\n{c}', fontSize: 11 },
+          data: [
+            { value: 298, name: 'Running' },
+            { value: 86, name: 'Stopped' },
+            { value: 18, name: 'Pending' },
+            { value: 10, name: 'Unknown' }
+          ]
+        }]
+      });
+
+      initChart('adminRegionDist', {
+        color: ['#2563eb'],
+        tooltip: { trigger: 'axis' },
+        grid: { left: 40, right: 10, top: 18, bottom: 36 },
+        xAxis: { type: 'category', data: ['ap-south-1', 'us-east-1', 'eu-west-1', 'us-west-2'], axisLabel: { ...textStyle, rotate: 18 } },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [{ type: 'bar', data: [184, 96, 72, 60], barWidth: 24 }]
+      });
+
+      initChart('adminEbsTypes', {
+        color: ['#2563eb', '#059669', '#d97706', '#7c3aed'],
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, textStyle },
+        series: [{
+          type: 'pie',
+          radius: '68%',
+          center: ['50%', '42%'],
+          label: { formatter: '{b}\n{d}%', fontSize: 11 },
+          data: [
+            { value: 32200, name: 'gp3' },
+            { value: 9800, name: 'gp2' },
+            { value: 3600, name: 'io2' },
+            { value: 1400, name: 'st1' }
+          ]
+        }]
+      });
+
+      initChart('adminCoverage', {
+        color: ['#059669', '#2563eb', '#7c3aed'],
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle },
+        radar: {
+          indicator: [
+            { name: 'Inventory', max: 100 },
+            { name: 'Metrics', max: 100 },
+            { name: 'Idle', max: 100 },
+            { name: 'EBS', max: 100 },
+            { name: 'Drift', max: 100 }
+          ],
+          radius: 70,
+          center: ['50%', '45%'],
+          axisName: textStyle
+        },
+        series: [{ type: 'radar', data: [{ name: 'Coverage', value: [96, 91, 82, 88, 74] }] }]
+      });
+
+      initChart('adminIdleFunnel', {
+        color: ['#2563eb', '#0891b2', '#d97706', '#059669'],
+        tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+        series: [{
+          type: 'funnel',
+          left: '8%',
+          top: 16,
+          bottom: 18,
+          width: '84%',
+          label: { position: 'inside', formatter: '{b}: {c}', color: '#fff', fontWeight: 700 },
+          data: [
+            { value: 412, name: 'Observed' },
+            { value: 163, name: 'Low activity' },
+            { value: 57, name: 'Idle' },
+            { value: 24, name: 'Actionable' }
+          ]
+        }]
+      });
+
+      initChart('adminOpsOutcome', {
+        color: ['#059669', '#dc2626', '#d97706'],
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle },
+        grid: baseGrid(),
+        xAxis: { type: 'category', data: ['Start', 'Stop', 'Sync', 'Lock'], axisLabel: textStyle },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [
+          { name: 'Success', type: 'bar', stack: 'ops', data: [42, 38, 96, 18] },
+          { name: 'Failed', type: 'bar', stack: 'ops', data: [2, 4, 1, 0] },
+          { name: 'Partial', type: 'bar', stack: 'ops', data: [3, 2, 0, 1] }
+        ]
+      });
+
+      initChart('adminSchedulerGauge', {
+        color: ['#059669'],
+        series: [{
+          type: 'gauge',
+          min: 0,
+          max: 100,
+          progress: { show: true, width: 14 },
+          axisLine: { lineStyle: { width: 14 } },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          pointer: { width: 4 },
+          detail: { valueAnimation: true, formatter: '{value}%', fontSize: 24, color: '#172033' },
+          data: [{ value: 96, name: 'freshness' }],
+          title: { color: '#667085', fontSize: 12 }
+        }]
+      });
+
+      initChart('adminFleetMetricsMini', {
+        color: ['#2563eb', '#059669', '#d97706'],
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, textStyle },
+        grid: baseGrid(),
+        xAxis: { type: 'category', boundaryGap: false, data: ['00', '04', '08', '12', '16', '20'], axisLabel: textStyle },
+        yAxis: { type: 'value', axisLabel: textStyle, splitLine: { lineStyle: { color: '#edf1f6' } } },
+        series: [
+          { name: 'CPU', type: 'line', smooth: true, areaStyle: { opacity: 0.06 }, data: [22, 18, 30, 42, 36, 28] },
+          { name: 'Network', type: 'line', smooth: true, areaStyle: { opacity: 0.06 }, data: [14, 19, 22, 31, 47, 39] },
+          { name: 'Disk', type: 'line', smooth: true, areaStyle: { opacity: 0.06 }, data: [12, 10, 28, 24, 44, 30] }
+        ]
+      });
+
+      initChart('adminCloudCoverage', {
+        color: ['#2563eb', '#059669', '#d97706', '#7c3aed'],
+        tooltip: { trigger: 'item', formatter: '{b}: {c}%' },
+        legend: { bottom: 0, textStyle },
+        series: [{
+          type: 'pie',
+          radius: ['42%', '68%'],
+          center: ['50%', '42%'],
+          label: { formatter: '{b}\n{c}%', fontSize: 11 },
+          data: [
+            { value: 96, name: 'Inventory' },
+            { value: 91, name: 'Metrics' },
+            { value: 88, name: 'EBS' },
+            { value: 82, name: 'Idle' }
+          ]
+        }]
+      });
+
+      initChart('adminSchedulerMini', {
+        color: ['#059669'],
+        series: [{
+          type: 'gauge',
+          min: 0,
+          max: 100,
+          progress: { show: true, width: 14 },
+          axisLine: { lineStyle: { width: 14 } },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          pointer: { width: 4 },
+          detail: { valueAnimation: true, formatter: '{value}%', fontSize: 24, color: '#172033' },
+          data: [{ value: 96, name: 'SLA' }],
+          title: { color: '#667085', fontSize: 12 }
+        }]
+      });
+
+      initChart('adminGovernanceMini', {
+        color: ['#2563eb', '#0891b2', '#d97706', '#059669'],
+        tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+        series: [{
+          type: 'funnel',
+          left: '8%',
+          top: 16,
+          bottom: 18,
+          width: '84%',
+          label: { position: 'inside', formatter: '{b}: {c}', color: '#fff', fontWeight: 700 },
+          data: [
+            { value: 38, name: 'Signals' },
+            { value: 21, name: 'Triaged' },
+            { value: 11, name: 'Assigned' },
+            { value: 6, name: 'Closed' }
+          ]
+        }]
+      });
+
+      initChart('adminGlobalUtilizationTableTrend', {
+        color: ['#2563eb', '#059669', '#d97706'],
+        tooltip: { trigger: 'axis' },
+        grid: { left: 24, right: 8, top: 8, bottom: 18 },
+        xAxis: { type: 'category', boundaryGap: false, data: ['00', '04', '08', '12', '16', '20', '24'], axisLabel: { ...textStyle, fontSize: 10 } },
+        yAxis: { type: 'value', show: false, splitLine: { show: false } },
+        series: [
+          { name: 'CPU', type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3 }, data: [43, 20, 45, 27, 13, 25, 18] },
+          { name: 'Network', type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3 }, data: [50, 46, 35, 41, 18, 30, 35] },
+          { name: 'Disk', type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3 }, data: [30, 32, 18, 24, 44, 20, 26] }
+        ]
+      });
+    }
+
+    function initPersonaCharts(persona) {
+      if (persona === 'user') initUserCharts();
+      if (persona === 'env-admin') initEnvAdminCharts();
+      if (persona === 'admin') initAdminCharts();
+      setTimeout(() => chartRegistry.forEach(chart => chart.resize()), 30);
+    }
+
+    const buttons = document.querySelectorAll('.persona-nav button');
+    const personas = document.querySelectorAll('.persona');
+    buttons.forEach(button => {
+      button.addEventListener('click', () => {
+        buttons.forEach(item => item.classList.remove('active'));
+        personas.forEach(item => item.classList.remove('active'));
+        button.classList.add('active');
+        document.getElementById(button.dataset.persona).classList.add('active');
+        setTimeout(() => initPersonaCharts(button.dataset.persona), 0);
+      });
+    });
+    initPersonaCharts('user');
+    window.addEventListener('resize', () => chartRegistry.forEach(chart => chart.resize()));
+  </script>
+</body>
+</html>
