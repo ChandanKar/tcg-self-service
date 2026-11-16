@@ -87,3 +87,6 @@ graphify-out/.graphify_semantic_marker
 *.stackdump
 *.log
 .env.bak
+
+# Python bytecode
+__pycache__/
