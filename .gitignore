@@ -66,3 +66,24 @@ test/node_modules/
 test/test-results/
 test/playwright-report/
 test/.env
+# run output of the staging and data checks (the *.ts scripts stay tracked)
+test/uat/*/
+test/datachecks/results*/
+
+# local tool folders
+**/.agents
+**/.codex
+.claude/settings.local.json
+.claude/worktrees/
+
+# code graph: graph.json and GRAPH_REPORT.md are tracked, the rest is rebuilt by `graphify update .`
+graphify-out/cache/
+graphify-out/20*/
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_semantic_marker
+
+# local junk
+**/puttygen-*
+*.stackdump
+*.log
+.env.bak

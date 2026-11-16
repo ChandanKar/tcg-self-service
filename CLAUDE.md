@@ -40,17 +40,17 @@ HTTP → Controllers (/api/v1/**) → Services → Repositories (Spring Data JPA
 
 | Sub-package | Purpose |
 |---|---|
-| `controller` | 19 REST controllers + `GlobalExceptionHandler` |
+| `controller` | 49 REST controllers + `GlobalExceptionHandler` |
 | `service` | Business logic, orchestration, cloud integration, schedulers |
 | `repository` | Spring Data JPA repositories |
-| `model` | JPA entities and enums (~49 classes) |
-| `dto` | Request/Response contracts (~70) — never expose entities directly |
+| `model` | JPA entities and enums (~120 classes) |
+| `dto` | Request/Response contracts (~145) — never expose entities directly |
 | `config` | AWS clients, async executors, app configuration |
 | `security` | Security chains (`EntraidSecurityConfig`, `DefaultSecurityConfig`, `SecurityModeGuard`), `CustomOAuth2UserService`, CSRF/CSP/header filters |
 | `scheduler` | Scheduled job entry points (each takes a DB job lock) |
 | `exception` | Domain exceptions mapped by `GlobalExceptionHandler` |
 
-Controllers: AccessGrant, Audit, Auth, AutomationRule, CostManagement, Dashboard, Directory, Ec2, Environment, EnvironmentAccess, Home, IdleStop, Lock, Monitoring, Notification, User, VmGroup, VmMgmt, VmOperations.
+Controllers: AccessGrant, AdminApiToken, ApiToken, ApprovalPolicy, ApprovalRequest, Assistant, Audit, Auth, AutomationRule, AwsAccount, Budget, Capabilities, Carbon, ChatAction, ChatChannel, CostAnomaly, CostManagement, CostSplitRule, Dashboard, Directory, Discovery, Ec2, Environment, EnvironmentAccess, EnvironmentCostAnomaly, HolidayCalendar, Home, IdleStop, Integration, Lease, Lock, Mcp, Monitoring, Notification, ProvisioningRequest, Rds, RegionsHealth, Savings, ServiceAccount, Settings, Spot, Team, Template, User, VmGroup, VmMgmt, VmOperations, Waste, Webhook.
 
 ## Key Domain Concepts
 
@@ -75,7 +75,7 @@ Two mutually exclusive security configs, toggled by `entraid.enabled`:
 ## Database & Migrations
 
 - **MySQL 8 only** (no H2), configured via `.env`.
-- **Flyway** runs `migrate` on startup with `validate-on-migrate=true` and **no automatic repair**: an edited, already-applied migration stops startup. Migrations live in `src/main/resources/db/migration/` (V1–V95, plus the Java migration `V24__secure_legacy_passwords` in `src/main/java/db/migration`). Never edit an existing migration; add the next free version. Manual repair procedure: `docs/runbook-flyway.md`.
+- **Flyway** runs `migrate` on startup with `validate-on-migrate=true` and **no automatic repair**: an edited, already-applied migration stops startup. Migrations live in `src/main/resources/db/migration/` (V1–V104, plus the Java migration `V24__secure_legacy_passwords` in `src/main/java/db/migration`). Never edit an existing migration; add the next free version. Manual repair procedure: `docs/runbook-flyway.md`.
 - Integration tests (`AbstractIntegrationTest`) use MySQL: a local schema from `TEST_DB_URL` in `.env` (its name must end in `_test`; the tests wipe it) or, when unset, a Testcontainers MySQL (Docker required). `src/test/resources/db/reset-test-data.sql` reseeds before each test. Tests run with `ddl-auto=validate`, so entity/schema drift fails the build.
 - `SecuredWebTestBase` runs the real Entra security chain so `@PreAuthorize` rules can be tested per role.
 
