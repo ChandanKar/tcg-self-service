@@ -254,25 +254,6 @@ class AuditFilterIntegrationTest extends SecuredWebTestBase {
         }
     }
 
-    @Test
-    void theActorBackfillUsesOnlyTheExplicitByUserPattern() throws Exception {
-        String byActor = UUID.randomUUID().toString();
-        String bySubject = UUID.randomUUID().toString();
-        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, action_type, target_type, target_id, action_status, details) "
-                + "VALUES (?, NULL, 'ACCESS_GRANTED', 'test', 't', 'succeeded', ?)", byActor, "Access granted by user: " + operator.getUserId());
-        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, action_type, target_type, target_id, action_status, details) "
-                + "VALUES (?, NULL, 'ACCESS_GRANTED', 'test', 't', 'succeeded', ?)", bySubject, "Access granted to " + operator.getUserId());
-
-        String sql = new String(new org.springframework.core.io.ClassPathResource("db/migration/V40__backfill_audit_actor.sql")
-                .getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        jdbcTemplate.update(sql.replaceAll("(?m)^--.*$", "").trim().replaceAll(";$", ""));
-
-        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM audit_log WHERE audit_id = ?",
-                String.class, byActor)).isEqualTo(operator.getUserId());
-        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM audit_log WHERE audit_id = ?",
-                String.class, bySubject)).isNull();
-    }
-
     // ---- U12-T01: action categories
 
     private void rowOf(String action, Environment env, String status) {

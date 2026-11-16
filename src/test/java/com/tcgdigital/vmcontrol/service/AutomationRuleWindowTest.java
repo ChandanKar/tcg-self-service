@@ -18,12 +18,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -218,36 +216,4 @@ class AutomationRuleWindowTest extends AbstractIntegrationTest {
         assertThat(windowRows(rule.getRuleId())).hasSize(1);
     }
 
-    @Test
-    void theMigrationCopiesALegacyRuleIntoOneWindowOnce() throws Exception {
-        String ruleId = UUID.randomUUID().toString();
-        jdbcTemplate.update("INSERT INTO automation_rule (rule_id, name, environment_id, scope_type, trigger_type, "
-                        + "days_of_week, stop_time, start_time, timezone, skip_if_already_in_target_state, enabled, "
-                        + "created_by_user_id, created_at, updated_at, last_stop_fired_on) "
-                        + "VALUES (?, 'Legacy', ?, 'ENVIRONMENT', 'SCHEDULE', 'MON,WED', '20:00', '08:00', 'Asia/Kolkata', "
-                        + "TRUE, TRUE, ?, NOW(), NOW(), ?)",
-                ruleId, env.getEnvironmentId(), creator.getUserId(), Date.valueOf(FRIDAY));
-        String accessRuleId = UUID.randomUUID().toString();
-        jdbcTemplate.update("INSERT INTO automation_rule (rule_id, name, environment_id, scope_type, trigger_type, "
-                        + "access_grant_mode, skip_if_already_in_target_state, enabled, created_by_user_id, created_at, updated_at) "
-                        + "VALUES (?, 'Access', ?, 'ENVIRONMENT', 'ACCESS_GRANT', 'LOCK_ACQUIRE', TRUE, TRUE, ?, NOW(), NOW())",
-                accessRuleId, env.getEnvironmentId(), creator.getUserId());
-
-        String sql = new String(new ClassPathResource("db/migration/V48__automation_rule_windows.sql")
-                .getInputStream().readAllBytes(), StandardCharsets.UTF_8).replaceAll("(?m)^--.*$", "");
-        String copy = Arrays.stream(sql.split(";")).map(String::trim)
-                .filter(s -> s.startsWith("INSERT INTO automation_rule_window")).findFirst().orElseThrow();
-        jdbcTemplate.update(copy);
-        jdbcTemplate.update(copy); // re-running adds nothing
-
-        List<Map<String, Object>> rows = windowRows(ruleId);
-        assertThat(rows).singleElement().satisfies(w -> {
-            assertThat(w.get("days_of_week")).isEqualTo("MON,WED");
-            assertThat(w.get("start_time")).isEqualTo("08:00");
-            assertThat(w.get("stop_time")).isEqualTo("20:00");
-            assertThat(w.get("last_stop_fired_on")).isEqualTo(Date.valueOf(FRIDAY));
-        });
-        assertThat(windowRows(accessRuleId)).isEmpty();
-        assertThat(automationRuleService.getRule(ruleId).getScheduleSummary()).isEqualTo("Mon, Wed 08:00-20:00");
-    }
 }

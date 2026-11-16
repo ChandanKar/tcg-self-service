@@ -75,7 +75,7 @@ Two mutually exclusive security configs, toggled by `entraid.enabled`:
 ## Database & Migrations
 
 - **MySQL 8 only** (no H2), configured via `.env`.
-- **Flyway** runs `migrate` on startup with `validate-on-migrate=true` and **no automatic repair**: an edited, already-applied migration stops startup. Migrations live in `src/main/resources/db/migration/` (V1–V104, plus the Java migration `V24__secure_legacy_passwords` in `src/main/java/db/migration`). Never edit an existing migration; add the next free version. Manual repair procedure: `docs/runbook-flyway.md`.
+- **Flyway** runs `migrate` on startup with `validate-on-migrate=true` and **no automatic repair**: an edited, already-applied migration stops startup. Migrations live in `src/main/resources/db/migration/`: a clean baseline, `V1__baseline_schema.sql` (whole schema) and `V2__default_data.sql` (default rows only; no users, environments or VMs), then V3 onwards. The old V1–V104 are at git tag `pre-baseline-v104`; a database that ran them is not upgraded but moved by loading its data into a new install (`docs/runbook-new-install.md`). Never edit an existing migration; add the next free version. `FLYWAY_BASELINE_ON_MIGRATE` defaults to false. Manual repair procedure: `docs/runbook-flyway.md`.
 - Integration tests (`AbstractIntegrationTest`) use MySQL: a local schema from `TEST_DB_URL` in `.env` (its name must end in `_test`; the tests wipe it) or, when unset, a Testcontainers MySQL (Docker required). `src/test/resources/db/reset-test-data.sql` reseeds before each test. Tests run with `ddl-auto=validate`, so entity/schema drift fails the build.
 - `SecuredWebTestBase` runs the real Entra security chain so `@PreAuthorize` rules can be tested per role.
 
@@ -128,7 +128,7 @@ Rules the tests hold: no page scrollbar at 1440×900 for any persona (lists page
 
 ## Internal Docs
 
-- `docs/` — runbooks and setup guides (`runbook-flyway.md`, `cost-management-setup.md`, `aws-iam-permissions.md`).
+- `docs/` — runbooks and setup guides (`runbook-flyway.md`, `runbook-new-install.md`, `cost-management-setup.md`, `aws-iam-permissions.md`).
 - The `.ai/` directory (local, currently gitignored) holds design documents:
   - `.ai/brain/architecture.md` — data flows and auth flows
   - `.ai/brain/domain-model.md` — entity relationships

@@ -50,7 +50,7 @@ public class AuthenticationService {
 
     /**
      * Authenticate user by username and password. Only bcrypt hashes are accepted; plain-text
-     * values were hashed or cleared by migration V24 and never authenticate.
+     * values (left by the pre-baseline legacy import, cleared by its old V24) never authenticate.
      */
     @Transactional
     public User authenticateUser(String username, String password) throws UnauthorizedException {

@@ -10,13 +10,10 @@ import com.tcgdigital.vmcontrol.repository.TeamRepository;
 import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,28 +69,6 @@ class TeamServiceTest extends AbstractIntegrationTest {
         jdbcTemplate.update("UPDATE environment SET is_active = FALSE WHERE environment_id = ?", env.getEnvironmentId());
         assertThat(teams.deactivate(platform.getTeamId(), "admin-001").active()).isFalse();
         assertThat(teams.list(false)).extracting(TeamDTO::teamId).doesNotContain(platform.getTeamId());
-    }
-
-    @Test
-    void theBackfillGroupsOwnerTeamVariantsIntoOneTeam() throws Exception {
-        Environment a = newEnvironment("Backfill A");
-        Environment b = newEnvironment("Backfill B");
-        Environment c = newEnvironment("Backfill C");
-        jdbcTemplate.update("UPDATE environment SET metadata = ? WHERE environment_id = ?", "{\"ownerTeam\":\"Platform Team\"}", a.getEnvironmentId());
-        jdbcTemplate.update("UPDATE environment SET metadata = ? WHERE environment_id = ?", "{\"ownerTeam\":\"Platform Team \"}", b.getEnvironmentId());
-        jdbcTemplate.update("UPDATE environment SET metadata = ? WHERE environment_id = ?", "not json", c.getEnvironmentId());
-
-        String sql = new String(new ClassPathResource("db/migration/V57__add_team.sql").getInputStream().readAllBytes(),
-                StandardCharsets.UTF_8).replaceAll("(?m)^--.*$", "");
-        Arrays.stream(sql.split(";")).map(String::trim)
-                .filter(s -> s.startsWith("INSERT INTO team") || s.startsWith("UPDATE environment"))
-                .forEach(jdbcTemplate::update);
-
-        Team platform = teamRepository.findByName("platform-team").orElseThrow();
-        assertThat(platform.getDisplayName()).isEqualTo("Platform Team");
-        assertThat(environments.findById(a.getEnvironmentId()).orElseThrow().getTeamId()).isEqualTo(platform.getTeamId());
-        assertThat(environments.findById(b.getEnvironmentId()).orElseThrow().getTeamId()).isEqualTo(platform.getTeamId());
-        assertThat(environments.findById(c.getEnvironmentId()).orElseThrow().getTeamId()).isNull();
     }
 
     @Test

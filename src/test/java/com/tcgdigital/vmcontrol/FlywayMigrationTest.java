@@ -31,22 +31,50 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
 
     @Test
     void testFlywayMigrationApplied() {
-        // Verify flyway_schema_history table exists and has V1 migration
-        Integer count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1'",
-            Integer.class
-        );
-        assertNotNull(count);
-        assertEquals(1, count, "V1 migration should be applied");
+        // The clean baseline: V1 (schema) and V2 (default rows) start every install.
+        List<String> versions = jdbcTemplate.queryForList(
+            "SELECT version FROM flyway_schema_history WHERE success = TRUE ORDER BY installed_rank", String.class);
+        assertTrue(versions.size() >= 2, "V1 and V2 should be applied");
+        assertEquals(List.of("1", "2"), versions.subList(0, 2), "the history starts with the baseline V1 and V2");
+        assertEquals("baseline schema", jdbcTemplate.queryForObject(
+            "SELECT description FROM flyway_schema_history WHERE version = '1'", String.class));
     }
 
     @Test
-    void testJavaPasswordMigrationApplied() {
-        Integer count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '24' AND type = 'JDBC' AND success = TRUE",
-            Integer.class
-        );
-        assertEquals(1, count, "V24 Java migration (secure legacy passwords) should be applied");
+    void theBaselineHasNoJavaMigrationsAndNoLegacyImportTables() {
+        assertEquals(0, jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE type = 'JDBC'", Integer.class),
+            "the legacy password migration (old V24) is gone with the baseline");
+        assertEquals(0, jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()"
+                + " AND TABLE_NAME IN ('temp_vm_master', 'temp_instance_parsed')", Integer.class),
+            "the old V4 import's helper tables are not part of the baseline");
+    }
+
+    @Test
+    void theDefaultAwsAccountIsSeeded() {
+        assertEquals(1, jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM aws_account WHERE aws_account_ref = '00000000-0000-0000-0000-000000000001'"
+                + " AND is_default = TRUE AND source = 'DEFAULT'", Integer.class));
+    }
+
+    /**
+     * A new install holds no people or infrastructure: those are loaded after it
+     * (docs/runbook-new-install.md). No migration may seed them, so legacy data such as the old
+     * V3 users (plain-text passwords) and V4 environments cannot come back through a migration.
+     */
+    @Test
+    void noMigrationSeedsPeopleOrInfrastructure() throws Exception {
+        java.util.regex.Pattern seeding = java.util.regex.Pattern.compile(
+            "(?i)\\b(INSERT\\s+(IGNORE\\s+)?INTO|REPLACE\\s+INTO)\\s+`?(app_user|environment|environment_access"
+                + "|vm|vm_group|vm_provider_details|team|team_member)`?\\b");
+        org.springframework.core.io.Resource[] files = new org.springframework.core.io.support
+            .PathMatchingResourcePatternResolver().getResources("classpath:db/migration/*.sql");
+        assertTrue(files.length >= 2, "migrations are on the classpath");
+        for (org.springframework.core.io.Resource f : files) {
+            String sql = new String(f.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            assertFalse(seeding.matcher(sql).find(), f.getFilename() + " seeds people or infrastructure");
+        }
     }
 
     @Test

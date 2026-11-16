@@ -95,7 +95,7 @@ Method-level security uses `@PreAuthorize`. Use `SecurityService` (in `service`)
 
 - MySQL 8 only (no H2), configured through `.env`.
 - Flyway runs `migrate` on startup with validation and no automatic repair; an edited applied migration stops startup (see `docs/runbook-flyway.md`).
-- Migrations live in `src/main/resources/db/migration/` (V1-V41, plus the Java `V24__secure_legacy_passwords`).
+- Migrations live in `src/main/resources/db/migration/`: baseline `V1__baseline_schema.sql` and `V2__default_data.sql`, then V3 onwards (old V1-V104 at tag `pre-baseline-v104`; see `docs/runbook-new-install.md`).
 - Do not edit existing migrations. Add a new versioned migration instead.
 - Integration tests (`AbstractIntegrationTest`) use a local MySQL schema from `TEST_DB_URL` (name must end in `_test`; it is wiped) or a Testcontainers MySQL (Docker). `reset-test-data.sql` reseeds before each test; tests run with `ddl-auto=validate`.
 

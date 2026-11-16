@@ -1,5 +1,10 @@
 # Runbook: Flyway validation failures and manual repair
 
+> **Baseline (Nov 2026):** the migrations now start from `V1__baseline_schema.sql` and
+> `V2__default_data.sql`; the old V1-V104 are at git tag `pre-baseline-v104`. A database that ran the
+> old migrations fails validation with this build **by design**: it is not repaired, it moves over by
+> loading its data into a new install (`docs/runbook-new-install.md`).
+
 The application no longer runs `flyway.repair()` on startup. Spring Boot runs a plain
 `migrate()` with `spring.flyway.validate-on-migrate=true`, so the app **refuses to start** when the
 database's migration history does not match the migration files in the build.
