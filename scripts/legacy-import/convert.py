@@ -243,6 +243,50 @@ class Conversion:
             if len(ls) > 1:
                 self.notes['instances listed under several legacy VMs (imported once)'].append(
                     f"{i}: listed in #{', #'.join(map(str, sorted(ls)))}; imported in #{owner[i]}")
+        # Shortcuts (owner's option B): an active legacy VM that lists a server held by ANOTHER active one. In the
+        # holding environment that server goes into a group named after the shortcut (first claim wins), and the
+        # shortcut's people get access to just that group (04-access.sql). A shortcut left without servers of its
+        # own becomes inactive; one that still has servers stays active.
+        claim = {}                                   # instance -> shortcut legacy id whose group holds it
+        wanted = collections.defaultdict(list)       # shortcut legacy id -> [(holder legacy id, claiming shortcut)]
+        for e in sorted((x for x in info.values() if x['active']), key=lambda x: int(x['row']['id'])):
+            sid = e['row']['id']
+            for i in e['ids']:
+                holder = owner[i]
+                if holder != sid and info[holder]['active']:
+                    claim.setdefault(i, sid)
+                    if (holder, claim[i]) not in wanted[sid]:
+                        wanted[sid].append((holder, claim[i]))
+        # A shortcut that covers ALL of the holder's servers needs no group of its own: the servers stay in the
+        # holder's Default Group and the shortcut's people get access to that group (same access, natural name).
+        whole = set()
+        for holder in sorted({h for pairs in wanted.values() for h, _ in pairs}, key=int):
+            own_h = [i for i in info[holder]['ids'] if owner[i] == holder]
+            if own_h and all(i in claim for i in own_h) and len({claim[i] for i in own_h}) == 1:
+                whole.add(holder)
+                for i in own_h:
+                    del claim[i]
+        self.whole_env_shortcuts = collections.defaultdict(list)
+        self.shortcut_targets = collections.defaultdict(list)   # shortcut legacy id -> [(holder legacy id, group id)]
+        for sid, pairs in wanted.items():
+            for holder, claimant in pairs:
+                gid = uid('group', holder) if holder in whole else uid('group', f'{holder}:shortcut:{claimant}')
+                if (holder, gid) not in self.shortcut_targets[sid]:
+                    self.shortcut_targets[sid].append((holder, gid))
+                if holder in whole and sid not in self.whole_env_shortcuts[holder]:
+                    self.whole_env_shortcuts[holder].append(sid)
+        for sid, targets in self.shortcut_targets.items():
+            e = info[sid]
+            if not any(owner[i] == sid for i in e['ids']):
+                e['active'] = False
+                e['reason'] = 'shortcut: its servers are in ' + ', '.join(
+                    f"#{h} ({clean(info[h]['row']['vm_name'])})" for h, _ in targets)
+            self.notes['shortcuts turned into group access (option B)'].append(
+                f"#{sid} {clean(e['row']['vm_name'])}: " + '; '.join(
+                    (f"Default Group of #{h} {clean(info[h]['row']['vm_name'])} (the shortcut covers all its servers)"
+                     if g == uid('group', h) else f"own group in #{h} {clean(info[h]['row']['vm_name'])}")
+                    for h, g in targets)
+                + ('' if e['active'] else ' (environment imported inactive)'))
         env_rows, group_rows, vm_rows, detail_rows = [], [], [], []
         self.env_by_legacy, self.env_match = {}, {}
         self.active_env_ids = {uid('env', vid) for vid, e in info.items() if e['active']}
@@ -270,27 +314,62 @@ class Conversion:
                 meta['projectCode'] = codes[0]
             elif codes:
                 meta['projectCodes'] = codes
+            own = [i for i in e['ids'] if owner[i] == vid]
+            shortcut_ids = sorted({claim[i] for i in own if i in claim}, key=int)
+            if vid in self.shortcut_targets:
+                meta['shortcutTo'] = [{'legacyVmId': int(h), 'groupId': g} for h, g in self.shortcut_targets[vid]]
+            if shortcut_ids:
+                meta['shortcutGroups'] = [{'legacyVmId': int(s), 'name': clean(info[s]['row']['vm_name'])}
+                                          for s in shortcut_ids]
+            if vid in self.whole_env_shortcuts:
+                meta['shortcutsToDefaultGroup'] = [{'legacyVmId': int(s), 'name': clean(info[s]['row']['vm_name'])}
+                                                   for s in sorted(self.whole_env_shortcuts[vid], key=int)]
             if e['reason']:
                 meta['importedInactiveReason'] = e['reason']
             created = valid_timestamp(v['create_date']) or self.as_of
             display = clean(v['vm_name']) or e['name']
             env_rows.append([env_id, e['name'], display, f"{MARK} (legacy VM #{vid})", e['active'], created, created,
                              jsn(meta), DEFAULT_ACCOUNT])
-            group_rows.append([group_id, env_id, 'default-group', 'Default Group', f'Default group for {display}', 1,
-                               created, created, jsn({'isDefault': True, 'legacyVmId': int(vid)})])
-            counts['environments active' if e['active'] else f"environments inactive ({e['reason']})"] += 1
-            vm_names, seq = set(), 0
+            counts['environments active' if e['active'] else
+                   ('environments inactive (shortcut, its servers are in other environments)'
+                    if e['reason'].startswith('shortcut') else f"environments inactive ({e['reason']})")] += 1
+            # groups: the Default Group (unless every server went to a shortcut group), then one per shortcut
+            group_of, position, group_names = {}, 0, set()
+            if any(i not in claim for i in own) or not shortcut_ids:
+                position += 1
+                group_rows.append([group_id, env_id, 'default-group', 'Default Group', f'Default group for {display}',
+                                   position, created, created, jsn({'isDefault': True, 'legacyVmId': int(vid)})])
+                group_names.add('default-group')
+            for s in shortcut_ids:
+                position += 1
+                gid = uid('group', f'{vid}:shortcut:{s}')
+                sname = clean(info[s]['row']['vm_name']) or info[s]['name']
+                gname, gbase, n = env_slug(sname), env_slug(sname), 2
+                while gname in group_names:
+                    gname = f'{gbase}-{n}'
+                    n += 1
+                group_names.add(gname)
+                group_rows.append([gid, env_id, gname, sname,
+                                   f"{MARK}: the legacy shortcut #{s} '{sname}' pointed at these servers of {display}",
+                                   position, created, created,
+                                   jsn({'isDefault': False, 'legacyShortcutVmId': int(s), 'legacyVmId': int(vid)})])
+                counts['shortcut groups'] += 1
+                for i in own:
+                    if claim.get(i) == s:
+                        group_of[i] = gid
+            vm_names, seq = collections.defaultdict(set), collections.Counter()
             for pos, i in enumerate(e['ids'], 1):
                 if owner[i] != vid:
                     continue
-                seq += 1
+                vm_group = group_of.get(i, group_id)
+                seq[vm_group] += 1
                 a = self.aws_found.get(i)
                 display_vm = (clean(a.get('name')) if a else None) or unnamed(i)
                 vm_name, base, n = vm_slug(display_vm), vm_slug(display_vm), 2
-                while vm_name in vm_names:
+                while vm_name in vm_names[vm_group]:
                     vm_name = f'{base}-{n}'
                     n += 1
-                vm_names.add(vm_name)
+                vm_names[vm_group].add(vm_name)
                 region = a['region'] if a else (regions[0] if len(regions) == 1 else FALLBACK_REGION)
                 if not a:
                     counts['VMs not found in AWS'] += 1
@@ -301,8 +380,8 @@ class Conversion:
                     vm_meta['alsoListedIn'] = [x for x in sorted(listed[i]) if x != int(vid)]
                 vm_meta['awsLookup'] = {'at': self.aws_at, 'found': bool(a), 'state': a['state'] if a else None}
                 vm_id = uid('vm', i)
-                vm_rows.append([vm_id, group_id, vm_name, display_vm, f"{MARK} (legacy VM #{vid}, instance {pos})",
-                                'AWS', region, i, 'DEV', seq, status, created, created, jsn(vm_meta), e['active'],
+                vm_rows.append([vm_id, vm_group, vm_name, display_vm, f"{MARK} (legacy VM #{vid}, instance {pos})",
+                                'AWS', region, i, 'DEV', seq[vm_group], status, created, created, jsn(vm_meta), e['active'],
                                 DEFAULT_ACCOUNT])
                 detail_rows.append([uid('vmpd', i), vm_id, 'AWS', region, a.get('az') if a else None,
                                     a.get('type') if a else None, a.get('privateIp') if a else None,
@@ -318,8 +397,9 @@ class Conversion:
         self.report['environments'] = {'legacy VM rows': len(legacy), **dict(sorted(counts.items())),
                                        'groups': len(group_rows), 'VMs (each instance once)': len(vm_rows),
                                        'AWS lookup': f'{self.aws_at}, {self.aws_regions} regions searched'}
-        out = ['-- 2. Environments (one per legacy VM row), one Default Group each, a VM per instance with its AWS details.',
-               '--    Active = active in the legacy portal AND at least one instance still in AWS.']
+        out = ['-- 2. Environments (one per legacy VM row), a Default Group each, a VM per instance with its AWS details.',
+               '--    Active = active in the legacy portal AND at least one instance still in AWS. A legacy shortcut (an entry',
+               '--    listing a server held by another active entry) becomes a group in the holding environment.']
         out += inserts('environment', ['environment_id', 'name', 'display_name', 'description', 'is_active',
                                        'created_at', 'updated_at', 'metadata', 'aws_account_ref'], env_rows)
         out += inserts('vm_group', ['group_id', 'environment_id', 'name', 'display_name', 'description',
@@ -400,17 +480,27 @@ class Conversion:
                 self.notes['grants not imported (missing user or environment)'].append(f"mapping #{m['id']}")
                 continue
             status = 'ACTIVE' if m['is_active'] in ('Y', 'y') else 'REVOKED'
-            rows.append([uid('access', m['id']), env_id, user_id, 'USER', self.service_user,
-                         valid_timestamp(m['create_date']) or self.as_of, status,
+            granted = valid_timestamp(m['create_date']) or self.as_of
+            rows.append([uid('access', m['id']), env_id, user_id, 'USER', self.service_user, granted, status,
                          f"{MARK} (mapping #{m['id']})", 'ENVIRONMENT', env_id, 'DIRECT'])
             counts[status] += 1
-        on_active = sum(1 for r in rows if r[1] in self.active_env_ids)
-        self.report['access'] = {'legacy mapping rows': len(self.t['vm_user_mapping']), 'imported (Operator)': len(rows),
-                                 'on active environments': on_active, 'on inactive environments': len(rows) - on_active,
+            for holder, gid in self.shortcut_targets.get(m['vm_id'], []):
+                rows.append([uid('access', f"{m['id']}:group:{gid}"), self.env_by_legacy[holder], user_id, 'USER',
+                             self.service_user, granted, status,
+                             f"{MARK} (mapping #{m['id']}, legacy shortcut #{m['vm_id']}: this group only)",
+                             'GROUP', gid, 'DIRECT'])
+        env_rows = [r for r in rows if r[8] == 'ENVIRONMENT']
+        on_active = sum(1 for r in env_rows if r[1] in self.active_env_ids)
+        self.report['access'] = {'legacy mapping rows': len(self.t['vm_user_mapping']), 'access rows': len(rows),
+                                 'environment grants (Operator)': len(env_rows),
+                                 'group grants for shortcuts': len(rows) - len(env_rows),
+                                 'environment grants on active environments': on_active,
+                                 'environment grants on inactive environments': len(env_rows) - on_active,
                                  **{f'status {k}': n for k, n in sorted(counts.items())},
                                  **{f'not imported: {k}': n for k, n in sorted(skipped.items())}}
         return ['-- 4. Access: each legacy grant (auth = 1) becomes Operator (USER) on the whole environment, no expiry.',
-                '--    Grants on inactive environments are kept; they apply again if the environment is reactivated.'] + inserts(
+                '--    Grants on inactive environments are kept; they apply again if the environment is reactivated.',
+                '--    The grants of a legacy shortcut also become GROUP grants on its group in the holding environment.'] + inserts(
             'environment_access', ['access_id', 'environment_id', 'user_id', 'access_level', 'granted_by_user_id',
                                    'granted_at', 'status', 'notes', 'scope_type', 'scope_id', 'initiation'], rows)
 

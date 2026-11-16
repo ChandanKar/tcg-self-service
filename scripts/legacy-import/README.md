@@ -24,8 +24,16 @@ for f in 01-users 02-environments 03-audit 04-access 05-audit-links; do mysql <d
 | `01-users.sql` | all legacy users (active, no password), the old portal registrations (inactive), the inactive "Legacy import" service account |
 | `02-environments.sql` | an environment per legacy VM row (active = active in the portal and an instance still in AWS), one Default Group each, a VM per instance (each instance once) with its AWS details and tags |
 | `03-audit.sql` | start/stop history (sign-in/sign-out and project codes are not imported), times converted to UTC |
-| `04-access.sql` | each legacy grant (`auth = 1`) as Operator on the whole environment |
+| `04-access.sql` | each legacy grant (`auth = 1`) as Operator on the whole environment; a shortcut's grants also as Operator on its group |
 | `05-audit-links.sql` | links the history to users and environments |
+
+**Shortcuts.** Some legacy entries list a server that another active entry also lists (for example a
+"database server" entry inside a bigger "dev servers" entry). A server can live in only one environment,
+so it stays with the lowest-numbered active entry. People who had the shortcut get Operator access to
+just that server: it moves into a group named after the shortcut in the holding environment, and the
+shortcut's grants become GROUP grants on it. If the shortcut covers all of the holder's servers, the
+servers stay in the Default Group and the grants point there. A shortcut left without servers of its own
+is imported inactive (its original grants are kept on it).
 
 `report.md` lists every count, rule, conflict and fallback; `manifest.json` has the sha256 of each file.
 Ids are UUIDv5 of the legacy ids and nothing depends on the time of the run, so the same input gives

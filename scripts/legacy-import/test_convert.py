@@ -56,7 +56,7 @@ CREATE TABLE `vm_registration_master` (
   `is_active` char(3) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-INSERT INTO `vm_registration_master` VALUES (10,'Env One','https://api/start10','https://api/stop10','[\'i-0000000000000000a\',\'i-0000000000000000b\']','2023-01-01 00:00:00','Y'),(11,'Env-One','https://api/start11','https://api/stop11','[\'i-0000000000000000c\']','2023-01-02 00:00:00','Y'),(12,'Gone','','','[\'i-0000000000000000d\']','2023-01-03 00:00:00','Y'),(13,'Old','','','["i-0000000000000000b","i-0000000000000000e"]','2023-01-04 00:00:00','N');
+INSERT INTO `vm_registration_master` VALUES (10,'Env One','https://api/start10','https://api/stop10','[\'i-0000000000000000a\',\'i-0000000000000000b\']','2023-01-01 00:00:00','Y'),(11,'Env-One','https://api/start11','https://api/stop11','[\'i-0000000000000000c\']','2023-01-02 00:00:00','Y'),(12,'Gone','','','[\'i-0000000000000000d\']','2023-01-03 00:00:00','Y'),(13,'Old','','','["i-0000000000000000b","i-0000000000000000e"]','2023-01-04 00:00:00','N'),(14,'Web Shortcut','','','[\'i-0000000000000000a\']','2023-01-05 00:00:00','Y'),(15,'Partial','','','[\'i-0000000000000000f\',\'i-0000000000000000b\']','2023-01-06 00:00:00','Y'),(16,'Whole Shortcut','','','[\'i-0000000000000000c\']','2023-01-07 00:00:00','Y');
 CREATE TABLE `vm_user_mapping` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) DEFAULT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE `vm_user_mapping` (
   `is_active` char(3) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-INSERT INTO `vm_user_mapping` VALUES (100,1,10,1,'2023-03-01 00:00:00','Y'),(101,1,11,0,'2023-03-01 00:00:00','Y'),(102,2,13,1,'2023-03-02 00:00:00','Y'),(103,3,10,1,'2023-03-03 00:00:00','N');
+INSERT INTO `vm_user_mapping` VALUES (100,1,10,1,'2023-03-01 00:00:00','Y'),(101,1,11,0,'2023-03-01 00:00:00','Y'),(102,2,13,1,'2023-03-02 00:00:00','Y'),(103,3,10,1,'2023-03-03 00:00:00','N'),(104,2,14,1,'2023-03-04 00:00:00','Y'),(105,3,15,1,'2023-03-05 00:00:00','Y'),(106,1,16,1,'2023-03-06 00:00:00','Y');
 """
 
 AWS = {
@@ -83,6 +83,8 @@ AWS = {
         'i-0000000000000000e': {'region': 'ap-south-1', 'az': 'ap-south-1a', 'type': 't3.micro', 'state': 'stopped',
                                 'name': 'old-db', 'privateIp': None, 'vpcId': None, 'subnetId': None,
                                 'tags': {'Name': 'old-db', 'Project Code': 'LVSA'}},
+        'i-0000000000000000f': {'region': 'ap-south-1', 'az': 'ap-south-1a', 'type': 't3.micro', 'state': 'running',
+                                'name': 'partial-vm', 'privateIp': None, 'vpcId': None, 'subnetId': None, 'tags': {}},
     },
 }
 
@@ -103,7 +105,10 @@ class ConvertTest(unittest.TestCase):
             json.dump(AWS, f)
         cls.out = os.path.join(d, 'out')
         convert.main(['--dump', cls.dump, '--aws', cls.aws, '--out', cls.out])
-        cls.f = {n: open(os.path.join(cls.out, n), encoding='utf-8').read() for n in os.listdir(cls.out)}
+        cls.f = {}
+        for n in os.listdir(cls.out):
+            with open(os.path.join(cls.out, n), encoding='utf-8') as fh:
+                cls.f[n] = fh.read()
         cls.manifest = json.loads(cls.f['manifest.json'])
 
     @classmethod
@@ -149,8 +154,8 @@ class ConvertTest(unittest.TestCase):
 
     def test_environments_active_rule_names_and_metadata(self):
         envs = self.rows('02-environments.sql', 'environment')
-        self.assertEqual(4, len(envs))
-        by = {k: next(r for r in envs if E(k) in r) for k in ['10', '11', '12', '13']}
+        self.assertEqual(7, len(envs))
+        by = {k: next(r for r in envs if E(k) in r) for k in ['10', '11', '12', '13', '14', '15', '16']}
         self.assertIn("'env-one', 'Env One'", by['10'])
         self.assertIn("'env-one-2', 'Env-One'", by['11'])                     # slug collision gets -2
         self.assertRegex(by['10'], r"\(legacy VM #10\)', 1,")                 # active: legacy Y and an instance in AWS
@@ -164,14 +169,33 @@ class ConvertTest(unittest.TestCase):
         self.assertIn('"legacyStartApi":"https://api/start10"', by['10'])
         self.assertIn('"legacyInstanceIds":["i-0000000000000000a","i-0000000000000000b"]', by['10'])
         self.assertIn('"region":"ap-south-1"', by['10'])
-        self.assertEqual(4, len(self.rows('02-environments.sql', 'vm_group')))
+        self.assertRegex(by['14'], r"\(legacy VM #14\)', 0,")                 # pure shortcut -> inactive
+        self.assertIn('"importedInactiveReason":"shortcut: its servers are in #10 (Env One)"', by['14'])
+        self.assertIn(f'"shortcutTo":[{{"legacyVmId":10,"groupId":"{convert.uid("group", "10:shortcut:14")}"}}]', by['14'])
+        self.assertRegex(by['15'], r"\(legacy VM #15\)', 1,")                 # has its own server -> stays active
+        self.assertIn('"shortcutGroups":[{"legacyVmId":14,"name":"Web Shortcut"},{"legacyVmId":15,"name":"Partial"}]', by['10'])
+        groups = self.rows('02-environments.sql', 'vm_group')
+        self.assertEqual(8, len(groups))                                       # 10: two shortcut groups, no empty default
+        self.assertFalse(any(convert.uid('group', '10') in g for g in groups))
+        g14 = next(g for g in groups if convert.uid('group', '10:shortcut:14') in g)
+        self.assertIn(f"'{E('10')}', 'web-shortcut', 'Web Shortcut'", g14)
+        self.assertRegex(g14, r"', 1, '2023")                                  # first group of env 10
+        g15 = next(g for g in groups if convert.uid('group', '10:shortcut:15') in g)
+        self.assertRegex(g15, r"', 2, '2023")
+        # #16 covers ALL of #11's servers: no extra group, #11 keeps its Default Group, #16 becomes inactive
+        self.assertFalse(any(convert.uid('group', '11:shortcut:16') in g for g in groups))
+        self.assertTrue(any(convert.uid('group', '11') in g and 'default-group' in g for g in groups))
+        self.assertIn('"shortcutsToDefaultGroup":[{"legacyVmId":16,"name":"Whole Shortcut"}]', by['11'])
+        self.assertRegex(by['16'], r"\(legacy VM #16\)', 0,")
 
     def test_vms_each_instance_once(self):
         vms = self.rows('02-environments.sql', 'vm')
-        self.assertEqual(5, len(vms))                                          # a, b, c, d, e
+        self.assertEqual(6, len(vms))                                          # a, b, c, d, e, f
         vm = lambda i: next(r for r in vms if f"'{i}'" in r)
-        self.assertIn(convert.uid('group', '10'), vm('i-0000000000000000b'))   # shared b goes to the active env 10
-        self.assertIn('"alsoListedIn":[13]', vm('i-0000000000000000b'))
+        self.assertIn(convert.uid('group', '10:shortcut:15'), vm('i-0000000000000000b'))  # held by 10, group of shortcut 15
+        self.assertIn('"alsoListedIn":[13,15]', vm('i-0000000000000000b'))
+        self.assertIn(convert.uid('group', '10:shortcut:14'), vm('i-0000000000000000a'))
+        self.assertIn(convert.uid('group', '15'), vm('i-0000000000000000f'))
         self.assertIn(convert.unnamed('i-0000000000000000b'), vm('i-0000000000000000b'))  # no Name tag
         self.assertIn("'web', 'web'", vm('i-0000000000000000a'))
         self.assertIn("'RUNNING'", vm('i-0000000000000000a'))
@@ -179,7 +203,7 @@ class ConvertTest(unittest.TestCase):
         self.assertIn("'NOT_FOUND'", vm('i-0000000000000000d'))
         self.assertRegex(vm('i-0000000000000000d'), r"'NOT_FOUND', .*', 0, '")  # inactive
         self.assertIn(convert.uid('group', '13'), vm('i-0000000000000000e'))
-        self.assertEqual(5, len(self.rows('02-environments.sql', 'vm_provider_details')))
+        self.assertEqual(6, len(self.rows('02-environments.sql', 'vm_provider_details')))
         self.assertIn('"ProjectCode":"CDMC"', self.f['02-environments.sql'])  # AWS tags kept as they are
 
     def test_audit_mapping_skips_and_time(self):
@@ -199,13 +223,22 @@ class ConvertTest(unittest.TestCase):
 
     def test_access(self):
         access = self.rows('04-access.sql', 'environment_access')
-        self.assertEqual(3, len(access))                                       # 100, 102, 103 (101 is auth = 0)
+        self.assertEqual(9, len(access))           # 100, 102, 103, 104, 105, 106 + group grants for 104, 105, 106
         a = lambda n: next(r for r in access if convert.uid('access', n) in r)
         self.assertIn(f"'{E('10')}', '{U('1')}', 'USER', '{convert.uid('user', 'legacy-import')}'", a('100'))
         self.assertIn("'ACTIVE'", a('100'))
         self.assertIn(f"'{E('13')}', '{U('2')}', 'USER'", a('102'))            # grant on an inactive environment kept
         self.assertIn("'REVOKED'", a('103'))                                   # legacy mapping not active
-        self.assertEqual(1, self.manifest['counts']['access']['on active environments'] - 1)
+        g = lambda n, grp: next(r for r in access if convert.uid('access', f"{n}:group:{convert.uid('group', grp)}") in r)
+        self.assertIn(f"'{E('14')}', '{U('2')}', 'USER'", a('104'))            # the shortcut's own grant is kept
+        self.assertIn(f"'{E('10')}', '{U('2')}', 'USER'", g('104', '10:shortcut:14'))  # plus: env 10, that group only
+        self.assertIn(f"'GROUP', '{convert.uid('group', '10:shortcut:14')}', 'DIRECT'", g('104', '10:shortcut:14'))
+        self.assertIn(f"'GROUP', '{convert.uid('group', '10:shortcut:15')}'", g('105', '10:shortcut:15'))
+        counts = self.manifest['counts']['access']
+        self.assertIn(f"'{E('11')}', '{U('1')}', 'USER'", g('106', '11'))      # whole-environment shortcut: Default Group
+        self.assertIn(f"'GROUP', '{convert.uid('group', '11')}', 'DIRECT'", g('106', '11'))
+        self.assertEqual(3, counts['group grants for shortcuts'])
+        self.assertEqual(6, counts['environment grants (Operator)'])
 
     def test_links(self):
         links = self.f['05-audit-links.sql']
