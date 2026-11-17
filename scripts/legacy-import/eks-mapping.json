@@ -1,0 +1,33 @@
+{
+  "_comment": [
+    "Which legacy portal entries (vm_registration_master ids) drive which EKS cluster node groups.",
+    "Validated on 2026-11-17 against the clusters' scaling history (eks ListUpdates/DescribeUpdate):",
+    "when an entry was stopped on its own, exactly its node groups scaled down. 'wholeCluster' entries",
+    "become EKS environments themselves; 'perNodeGroup' clusters become one new EKS environment whose",
+    "node groups are groups, and each entry's people get access to their node groups only.",
+    "Blue-suit (#195) is left out: its start/stop never scaled slb-saas-eks node groups."
+  ],
+  "wholeCluster": [
+    { "cluster": "mcube-dev-eks", "region": "ap-south-1", "legacyVmId": 132 },
+    { "cluster": "taiho-dev-eks", "region": "ap-south-1", "legacyVmId": 321 },
+    { "cluster": "backlog-analysis-dev-eks", "region": "us-east-1", "legacyVmId": 309 }
+  ],
+  "perNodeGroup": [
+    { "cluster": "nxtgen-54-eks", "region": "ap-south-1", "entries": {
+        "266": ["mcube-bi", "mcube-ingest", "mcube-es-data", "mcube-es-master", "mcube-streaming"],
+        "267": ["mcube-ai", "mcube-executor", "asmaka-stack", "asmaka-executor"],
+        "268": ["dl-stack-1", "mcube-minio"],
+        "269": ["mcube-semantx"] } },
+    { "cluster": "northstar-dev-54-eks", "region": "ap-south-1", "entries": {
+        "301": ["mcube-bi"], "302": ["mcube-ingest"], "316": ["mcube-ats"], "319": ["mcube-semantx"] } },
+    { "cluster": "ld-hpmcgsm-dev-54-eks", "region": "ap-south-1", "entries": {
+        "294": ["mcube-ai"], "295": ["mcube-bi"], "296": ["mcube-ingest"], "297": ["mcube-morphex"], "298": ["solutions"] } },
+    { "cluster": "mcube-SIT-56-eks", "region": "ap-south-1", "entries": {
+        "310": ["mcube-bi", "mcube-stack", "mcube-es-data", "mcube-es-master", "mcube-agentic-plane", "mcube-ai-stack",
+                "mcube-ai-executor", "dl-minio", "dl-stack-1", "morphex-stack"],
+        "311": ["mcube-ai-gpu"], "313": ["morphex-executor"], "312": ["mcube-semantx"] } },
+    { "cluster": "mcubeqa-55-eks", "region": "ap-south-1", "entries": {
+        "304": ["lva-ai"], "303": ["lva-bi"] } }
+  ],
+  "registerOnly": ["fedramp-eks", "hpl-prod-mcube-54-eks", "northstar-mcube-prod-eks", "slb-saas-eks"]
+}

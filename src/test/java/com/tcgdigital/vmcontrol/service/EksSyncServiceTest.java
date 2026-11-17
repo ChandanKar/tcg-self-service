@@ -522,6 +522,7 @@ class EksSyncServiceTest {
         VmGroup staleGroup = new VmGroup();
         staleGroup.setGroupId("grp-stale");
         staleGroup.setName("old-workers");
+        staleGroup.setMetadata("{\"clusterName\":\"" + CLUSTER + "\",\"nodeGroupName\":\"old-workers\",\"region\":\"" + REGION + "\"}");
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID))
                 .thenReturn(List.of(staleGroup));
 
@@ -541,6 +542,40 @@ class EksSyncServiceTest {
         boolean deactivated = vmCaptor.getAllValues().stream()
                 .anyMatch(v -> "vm-stale".equals(v.getVmId()) && Boolean.FALSE.equals(v.getIsActive()));
         assertTrue(deactivated, "Stale VM must be deactivated");
+    }
+
+    /** U29: a group that is not a node group (EC2 helper VMs started with the cluster) survives a sync. */
+    @Test
+    void syncEksEnvironment_leavesGroupsThatAreNotNodeGroupsAlone() {
+        Environment env = buildEnvironment();
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(1, 1));
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.empty());
+
+        VmGroup helpers = new VmGroup();
+        helpers.setGroupId("grp-helpers");
+        helpers.setName("helper-vms");
+        helpers.setMetadata("{\"isDefault\":true,\"legacyVmId\":132}");
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of(helpers));
+
+        ArgumentCaptor<Vm> vmCaptor = ArgumentCaptor.forClass(Vm.class);
+        when(vmRepository.save(vmCaptor.capture())).thenAnswer(i -> i.getArgument(0));
+
+        service.syncEksEnvironment(env);
+
+        verify(vmRepository, never()).findByGroupGroupIdOrderBySequencePositionAsc("grp-helpers");
+        assertTrue(vmCaptor.getAllValues().stream().noneMatch(v -> Boolean.FALSE.equals(v.getIsActive())),
+                "nothing is deactivated");
+        assertTrue(EksSyncService.isNodeGroup(groupWithMetadata("{\"clusterName\":\"c\",\"nodeGroupName\":\"ng\",\"region\":\"r\"}")));
+        assertFalse(EksSyncService.isNodeGroup(groupWithMetadata(null)));
+    }
+
+    private static VmGroup groupWithMetadata(String metadata) {
+        VmGroup g = new VmGroup();
+        g.setMetadata(metadata);
+        return g;
     }
 
     @Test

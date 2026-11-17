@@ -12,7 +12,7 @@ The backup and the generated files contain personal data: keep them outside the 
 python scripts/legacy-import/convert.py --dump <legacy.sql> --print-instance-ids > <work>/instance-ids.txt
 node   scripts/legacy-import/aws-lookup.cjs <work>/aws-instances.json <work>/instance-ids.txt
 
-# 2. convert (legacy DATETIME values are India time by default: --tz-offset +05:30)
+# 2. convert (the legacy clock is UTC: validated against the EKS scaling history; --tz-offset to change)
 python scripts/legacy-import/convert.py --dump <legacy.sql> --aws <work>/aws-instances.json --out <work>/dataset
 
 # 3. load in order into an install that holds only V1+V2, with the app stopped
@@ -40,3 +40,21 @@ Ids are UUIDv5 of the legacy ids and nothing depends on the time of the run, so 
 byte-identical files (a refresh at go-live produces the same records).
 
 Tests (made-up data): `cd scripts/legacy-import && python -m unittest -v test_convert`
+
+## EKS clusters (after a load)
+
+`eks-mapping.json` says which legacy entries drive which EKS cluster node groups (validated on
+2026-11-17 against the clusters' scaling history). `eks_patch.py` turns it into a data patch for a
+loaded install (rows only, every statement guarded so a second run changes nothing):
+
+```bash
+python scripts/legacy-import/eks_patch.py --mapping scripts/legacy-import/eks-mapping.json --out <work>/eks-patch
+mysql <db> < <work>/eks-patch/fix-01-utc-times.sql        # only for data imported as India time (staging, 16 Nov)
+mysql <db> < <work>/eks-patch/eks-01-environments.sql     # EKS environments, "Helper VMs", merged entries inactive
+# then System health > "Sync EKS now" (or wait 5 min): node groups become groups; registerOnly clusters registered
+mysql <db> < <work>/eks-patch/eks-02-nodegroup-access.sql # each entry's people: their node groups (its last query checks they exist)
+```
+
+Whole-cluster entries become EKS environments; per-node-group entries are merged into one EKS
+environment per cluster (the old entries become inactive) and their people get "Helper VMs" plus
+their node groups only. The EKS sync leaves groups that are not node groups (Helper VMs) alone.

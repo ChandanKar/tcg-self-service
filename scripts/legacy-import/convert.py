@@ -15,7 +15,7 @@ Nothing in the schema changes: the files hold rows only. Same input -> byte-iden
 because every id is a UUIDv5 of a legacy id and nothing depends on the time of the run.
 
 Usage: python convert.py --dump <legacy.sql> --aws <instances.json> --out <dir>
-                         [--tz-offset +05:30] [--as-of 2026-11-15]
+                         [--tz-offset +00:00] [--as-of 2026-11-15]
 See docs/runbook-new-install.md for loading the files.
 """
 import argparse
@@ -141,6 +141,7 @@ class Conversion:
         self.aws_regions = aws.get('regionsSearched')
         self.source = source
         self.tz = tz_offset_minutes
+        self.clock = 'UTC' if tz_offset_minutes == 0 else ('India time' if tz_offset_minutes == 330 else f'UTC{tz_offset_minutes:+d} min')
         self.as_of = as_of + ' 00:00:00'
         self.report = collections.OrderedDict()
         self.notes = collections.defaultdict(list)
@@ -434,7 +435,7 @@ class Conversion:
             audit_id = uid('audit', a['ID'])
             server = clean(a['SERVER_NAME'])
             actor = clean(a['USER_ID'])
-            details = f"{MARK} (audit #{a['ID']}, {action} at {a['ACTION_DATE']} India time)"
+            details = f"{MARK} (audit #{a['ID']}, {action} at {a['ACTION_DATE']} {self.clock})"
             if (a['SERVER_NAME'] or '') != (server or ''):
                 details += f" [legacy server name: {a['SERVER_NAME']!r}]"
             if a['USER_NAME'] and clean(a['USER_NAME']) != actor:
@@ -576,7 +577,8 @@ def main(argv=None):
     p.add_argument('--out')
     p.add_argument('--print-instance-ids', action='store_true',
                    help='print the distinct instance ids of the dump (input for aws-lookup.cjs) and stop')
-    p.add_argument('--tz-offset', default='+05:30', help='legacy server local time offset from UTC (default +05:30)')
+    p.add_argument('--tz-offset', default='+00:00',
+                   help='legacy clock offset from UTC (default +00:00: validated 2026-11-17 against EKS scaling history)')
     p.add_argument('--as-of', default=None, help='date used where the legacy data has none (default: from the file name)')
     args = p.parse_args(argv)
     if args.print_instance_ids:

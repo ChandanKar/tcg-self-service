@@ -104,7 +104,7 @@ class ConvertTest(unittest.TestCase):
         with open(cls.aws, 'w', encoding='utf-8') as f:
             json.dump(AWS, f)
         cls.out = os.path.join(d, 'out')
-        convert.main(['--dump', cls.dump, '--aws', cls.aws, '--out', cls.out])
+        convert.main(['--dump', cls.dump, '--aws', cls.aws, '--out', cls.out, '--tz-offset', '+05:30'])
         cls.f = {}
         for n in os.listdir(cls.out):
             with open(os.path.join(cls.out, n), encoding='utf-8') as fh:
@@ -252,10 +252,19 @@ class ConvertTest(unittest.TestCase):
 
     def test_same_input_same_bytes(self):
         out2 = os.path.join(self.tmp.name, 'out2')
-        convert.main(['--dump', self.dump, '--aws', self.aws, '--out', out2])
+        convert.main(['--dump', self.dump, '--aws', self.aws, '--out', out2, '--tz-offset', '+05:30'])
         for name in sorted(os.listdir(self.out)):
             with open(os.path.join(self.out, name), 'rb') as a, open(os.path.join(out2, name), 'rb') as b:
                 self.assertEqual(a.read(), b.read(), name)
+
+
+    def test_the_default_legacy_clock_is_utc(self):
+        out3 = os.path.join(self.tmp.name, 'out3')
+        convert.main(['--dump', self.dump, '--aws', self.aws, '--out', out3])
+        with open(os.path.join(out3, '03-audit.sql'), encoding='utf-8') as f:
+            audit = f.read()
+        self.assertIn("'2023-05-01 10:00:00'", audit)                      # unchanged: the legacy clock is UTC
+        self.assertIn('STARTED at 2023-05-01 10:00:00 UTC)', audit)
 
 
 if __name__ == '__main__':

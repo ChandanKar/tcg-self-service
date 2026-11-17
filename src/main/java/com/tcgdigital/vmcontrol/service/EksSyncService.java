@@ -335,7 +335,10 @@ public class EksSyncService {
         List<VmGroup> existingGroups = groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(
                 environment.getEnvironmentId());
         for (VmGroup group : existingGroups) {
-            if (!liveNames.contains(group.getName())) {
+            // U29: only node groups this sync created are removed when the cluster no longer has
+            // them; other groups of an EKS environment (e.g. "Helper VMs", EC2 control or status
+            // VMs the legacy portal started with the cluster) are left alone.
+            if (!liveNames.contains(group.getName()) && isNodeGroup(group)) {
                 try {
                     changes.removed += self.deactivateNodeGroup(group, clusterName);
                 } catch (Exception e) {
@@ -511,6 +514,12 @@ public class EksSyncService {
             changes.created++;
         }
         return changes;
+    }
+
+    /** A group this sync made for a node group: its metadata names the node group (buildVmGroupMetadata). */
+    static boolean isNodeGroup(VmGroup group) {
+        String metadata = group.getMetadata();
+        return metadata != null && metadata.contains("\"nodeGroupName\"");
     }
 
     private String buildVmGroupMetadata(String clusterName, String nodeGroupName, String region) {
