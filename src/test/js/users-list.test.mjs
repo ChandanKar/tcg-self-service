@@ -49,12 +49,25 @@ test('filters: search, role (environment admins who are not administrators), sta
     assert.equal(M.filterList(people, '', 'USER', 'active').length, 3);
 });
 
-test('U25-T04: Reset password asks first, then shows the generated password once', () => {
+test('U29: the Password dialog generates one (shown once) or takes a typed one', () => {
     const copy = plain(M.resetPasswordCopy(people[2]));
     assert.equal(copy.title + ' ' + copy.question,
-        'Reset the password for Ops service? They will be signed out everywhere and choose a new password at their next sign-in.');
+        'Password for Ops service They will be signed out everywhere and choose a new password at their next sign-in.');
     assert.equal(copy.doneTitle, 'New password for Ops service');
     assert.equal(copy.note, 'Shown once. Pass it on; they choose their own at next sign-in.');
-    assert.equal(M.resetPasswordCopy({ email: 'no.name@x.com' }).title, 'Reset the password for no.name@x.com?');
-    assert.equal(M.passwordChecks, undefined, 'the typed-password dialog is gone');
+    assert.equal(copy.typedNote, 'Pass on the password you typed; they choose their own at next sign-in.');
+    assert.equal(M.resetPasswordCopy({ email: 'no.name@x.com' }).title, 'Password for no.name@x.com');
+});
+
+test('U29: a typed password needs 12 to 72 characters and the same twice', () => {
+    assert.equal(M.typedPasswordProblem('', ''), 'The password needs 12 to 72 characters.');
+    assert.equal(M.typedPasswordProblem('short-pass', 'short-pass'), 'The password needs 12 to 72 characters.');
+    assert.equal(M.typedPasswordProblem('x'.repeat(73), 'x'.repeat(73)), 'The password needs 12 to 72 characters.');
+    assert.equal(M.typedPasswordProblem('long-enough-pw', 'long-enough-pX'), "The two passwords don't match.");
+    assert.equal(M.typedPasswordProblem('long-enough-pw', 'long-enough-pw'), null);
+});
+
+test('U29: the username to pass on is theirs, or their email in lower case', () => {
+    assert.equal(M.signInUsername({ username: 'legacy.login', email: 'A@x.com' }), 'legacy.login');
+    assert.equal(M.signInUsername({ email: ' Imported.Person@Example.com ' }), 'imported.person@example.com');
 });

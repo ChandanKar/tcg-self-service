@@ -69,7 +69,7 @@ const HelpContent = (function() {
             title: "Signing in and out",
             roles: null,
             summary: "Sign in with your Microsoft account, or with the username and password an administrator gave you.",
-            keywords: ['sign in', 'login', 'log in', 'password', 'forgot', 'reset', 'microsoft', 'username', 'signed out', 'session', 'expired', 'first sign-in'],
+            keywords: ['sign in', 'login', 'log in', 'password', 'forgot', 'reset', 'change password', 'microsoft', 'username', 'signed out', 'session', 'expired', 'first sign-in'],
             sections: [
                 {
                     heading: "Signing in",
@@ -90,6 +90,15 @@ const HelpContent = (function() {
                     heading: "Forgot your password?",
                     paragraphs: [
                         "There is no reset link and nothing is emailed. Ask your platform administrator: they reset it, give you a new one-time password, and you choose your own at the next sign-in. A reset also signs you out everywhere."
+                    ]
+                },
+                {
+                    heading: "Changing your password",
+                    steps: [
+                        "Open My account from your name at the top right, then the “Profile” tab.",
+                        "Press “Change password”. It shows only if you sign in with a password; people who sign in with Microsoft change theirs with Microsoft.",
+                        "Type your current password, then the new one twice (12 to 72 characters), and press “Change password”.",
+                        "You stay signed in here; your other sessions are signed out."
                     ]
                 },
                 {
@@ -492,7 +501,7 @@ const HelpContent = (function() {
                         ["Access", "Running environments you can extend, requests waiting for a decision, and each grant with its level, end date and who granted it. “Request an extension” appears when one is ending."],
                         ["Cost", "Month to date across the environments you can use."],
                         ["Notifications", "What reaches you in the app and by email."],
-                        ["Profile", "How you sign in, your role, team and previous sign-in, and “Sign out”."],
+                        ["Profile", "How you sign in, your role, team and previous sign-in, “Change password” if you sign in with a password, and “Sign out”."],
                         ["API tokens", "Shown when tokens are switched on: tokens for your scripts."]
                     ]
                 }
@@ -936,7 +945,7 @@ const HelpContent = (function() {
             title: "Users and adding people",
             roles: ['ADMIN'],
             summary: "Everyone who can sign in, their role, and how to add people and reset passwords.",
-            keywords: ['users', 'add people', 'invite', 'role', 'deactivate', 'reset password', 'password', 'onboard', 'microsoft', 'directory'],
+            keywords: ['users', 'add people', 'invite', 'role', 'deactivate', 'reset password', 'set password', 'type a password', 'password', 'onboard', 'microsoft', 'directory'],
             sections: [
                 {
                     heading: "Adding people",
@@ -953,7 +962,8 @@ const HelpContent = (function() {
                     heading: "Passwords",
                     paragraphs: [
                         "With password sign-in, each person gets a generated password, shown once on the result screen. “Copy all” copies them; pass each one on yourself. Nothing is emailed. They choose their own at first sign-in.",
-                        "To reset one for someone who signs in with a password only: “Reset password” on their row, then confirm. They are signed out everywhere; the new one-time password is shown once. People who sign in with Microsoft reset theirs with Microsoft."
+                        "To give someone a password, including people who have none yet: “Password” on their row. Choose “Generate one” (shown once, with a Copy button) or “Type one” (12 to 72 characters, typed twice), then confirm. Either way they are signed out everywhere and choose their own at the next sign-in. Nothing is emailed: pass it on with the username the dialog shows.",
+                        "People can change their own password later in My account > Profile. People who sign in with Microsoft change theirs with Microsoft."
                     ]
                 },
                 {

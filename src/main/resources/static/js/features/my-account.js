@@ -725,14 +725,90 @@ const MyAccount = (function() {
         if (!p) return loadingHtml();
         const teams = p.teamNames && p.teamNames.length ? p.teamNames.join(', ') : 'None';
         const row = (label, value) => Utils.html`<div class="ma-profile-row"><span class="ma-profile-label">${label}</span><span>${value}</span></div>`;
+        let password = '';
+        if (p.canChangePassword) {
+            password = state.password ? passwordFormHtml()
+                : `<div class="ma-profile-row"><span class="ma-profile-label">Password</span><span>
+                       <button type="button" class="ma-link" id="ma-change-password" data-ma-action="change-password">Change password</button></span></div>`;
+        }
         return `<div class="ma-profile">
                 ${row('Signed in with', signInText(p))}
+                ${password}
                 ${row('Role', roleDetail(p))}
                 ${row(p.teamNames && p.teamNames.length > 1 ? 'Teams' : 'Team', teams)}
                 ${row('Previous sign-in', p.previousLoginAt ? new Date(p.previousLoginAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Not recorded yet')}
                 <div class="ma-profile-row"><span class="ma-profile-label">Keyboard shortcuts</span><span><kbd>?</kbd> to see them</span></div>
                 <button type="button" class="ma-link ma-sign-out" data-ma-action="sign-out">Sign out</button>
             </div>`;
+    }
+
+    /**
+     * U29: change my own password, inline on the Profile tab (like Extend on an access card). Only
+     * shown to people who sign in with a password; the fields are emptied whenever the form closes.
+     */
+    function passwordFormHtml() {
+        const pw = state.password;
+        return `
+            <form class="ma-password" id="ma-password-form" novalidate aria-labelledby="ma-password-title">
+                <h3 class="ma-section-title" id="ma-password-title">Change password</h3>
+                <label for="ma-pw-current" class="form-label">Current password</label>
+                <input type="password" id="ma-pw-current" class="form-control form-control-sm" autocomplete="current-password" required>
+                <label for="ma-pw-new" class="form-label">New password</label>
+                <input type="password" id="ma-pw-new" class="form-control form-control-sm" autocomplete="new-password"
+                       minlength="12" maxlength="72" aria-describedby="ma-pw-hint" required>
+                <p class="ma-hint" id="ma-pw-hint">12 to 72 characters. You stay signed in here; your other sessions are signed out.</p>
+                <label for="ma-pw-again" class="form-label">New password again</label>
+                <input type="password" id="ma-pw-again" class="form-control form-control-sm" autocomplete="new-password" maxlength="72" required>
+                <div class="ma-extend-error" id="ma-pw-error" role="alert">${pw.error ? Utils.escapeHtml(pw.error) : ''}</div>
+                <div class="ma-extend-actions">
+                    <button type="button" class="btn btn-light btn-sm" data-ma-action="password-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm"${pw.sending ? ' disabled' : ''}>
+                        ${pw.sending ? 'Changing…' : 'Change password'}</button>
+                </div>
+            </form>`;
+    }
+
+    /** The check before sending: what's wrong with the three fields, or null. */
+    function passwordProblem(current, next, again) {
+        if (!current) return 'Enter your current password.';
+        if (!next || next.length < 12 || next.length > 72) return 'The new password needs 12 to 72 characters.';
+        if (next === current) return 'Choose a password other than your current one.';
+        if (next !== again) return "The two new passwords don't match.";
+        return null;
+    }
+
+    function onPasswordSubmit(e) {
+        e.preventDefault();
+        if (!state || !state.password || state.password.sending) return;
+        const current = $('#ma-pw-current').val();
+        const next = $('#ma-pw-new').val();
+        const again = $('#ma-pw-again').val();
+        const problem = passwordProblem(current, next, again);
+        if (problem) {
+            $('#ma-pw-error').text(problem);
+            return;
+        }
+        state.password.sending = true;
+        $('#ma-password-form [type="submit"]').prop('disabled', true).text('Changing…');
+        $('#ma-pw-error').text('');
+        const owner = state;
+        ApiClient.post(Config.API.users.myPassword, { currentPassword: current, newPassword: next }, { suppressGlobalError: true })
+            .done(function() {
+                if (state !== owner) return;
+                state.password = null;
+                render();
+                $('#ma-change-password').trigger('focus');
+                Notifications.success('Password changed. Your other sessions are signed out.');
+            })
+            .fail(function(xhr) {
+                if (state !== owner || !state.password) return;
+                state.password.sending = false;
+                $('#ma-password-form [type="submit"]').prop('disabled', false).text('Change password');
+                const message = (xhr && xhr.responseJSON && xhr.responseJSON.message)
+                    || "Your password wasn't changed. Try again.";
+                $('#ma-pw-error').text(message);
+                if (/current password/i.test(message)) $('#ma-pw-current').val('').trigger('focus');
+            });
     }
 
     // ============= Events =============
@@ -744,6 +820,7 @@ const MyAccount = (function() {
         $(document).on('keydown', `${ROOT} [role="tab"]`, onTabKeydown);
         $(document).on('click', `${ROOT} [data-ma-action]`, onAction);
         $(document).on('submit', `${ROOT} .ma-extend`, onExtendSubmit);
+        $(document).on('submit', `${ROOT} #ma-password-form`, onPasswordSubmit);
         $(document).on('change', `${ROOT} [data-ma-pref]`, onPrefChange);
         $(document).on('input change', `${ROOT} .ma-extend select, ${ROOT} .ma-extend textarea`, function() {
             if (!state || !state.extendDraft) return;
@@ -760,6 +837,7 @@ const MyAccount = (function() {
         if (state.tab === 'notifications' && prefChanged()
             && !window.confirm('Discard your unsaved notification changes?')) return;
         if (state.tab === 'notifications') state.prefDraft = {};
+        state.password = null; // typed passwords never outlive the form
         state.tab = tab;
         if (tab === 'cost') loadCost();
         if (tab === 'notifications') loadPrefs();
@@ -816,6 +894,16 @@ const MyAccount = (function() {
             case 'sign-out':
                 Slideout.close();
                 Auth.logout();
+                break;
+            case 'change-password':
+                state.password = { sending: false, error: null };
+                render();
+                $('#ma-pw-current').trigger('focus');
+                break;
+            case 'password-cancel':
+                state.password = null;
+                render();
+                $('#ma-change-password').trigger('focus');
                 break;
             case 'extend':
                 startExtension($btn.data('access-id'));
@@ -926,6 +1014,6 @@ const MyAccount = (function() {
         init,
         open,
         refresh,
-        model: { initials, levelText, untilText, roleText, roleDetail, signInText, costTotal, endedText, shortDate, emptyAccessHtml }
+        model: { initials, levelText, untilText, roleText, roleDetail, signInText, costTotal, endedText, shortDate, emptyAccessHtml, passwordProblem }
     };
 })();

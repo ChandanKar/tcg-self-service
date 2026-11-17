@@ -59,6 +59,15 @@ test('role and sign-in', () => {
     assert.equal(M.signInText({ authMethod: 'LOCAL' }), 'Username and password');
 });
 
+test('U29: Change password checks the three fields before sending', () => {
+    assert.equal(M.passwordProblem('', 'a-new-password', 'a-new-password'), 'Enter your current password.');
+    assert.equal(M.passwordProblem('current-one', 'short', 'short'), 'The new password needs 12 to 72 characters.');
+    assert.equal(M.passwordProblem('current-password', 'current-password', 'current-password'),
+        'Choose a password other than your current one.');
+    assert.equal(M.passwordProblem('current-one', 'a-new-password', 'a-new-passw0rd'), "The two new passwords don't match.");
+    assert.equal(M.passwordProblem('current-one', 'a-new-password', 'a-new-password'), null);
+});
+
 test('the cost total leaves out group-only rows', () => {
     assert.equal(M.costTotal([{ monthToDateEstimated: 186.4 }, { monthToDateEstimated: '121.75' },
         { scope: 'GROUPS', monthToDateEstimated: 99 }]), 308.15);

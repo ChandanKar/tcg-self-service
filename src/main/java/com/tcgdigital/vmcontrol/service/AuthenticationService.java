@@ -188,6 +188,45 @@ public class AuthenticationService {
         auditService.logUserPasswordSet(performedByUserId, userId, user.getEmail());
     }
 
+    /**
+     * U29: a signed-in person changes their own password (My account). Only for someone who has a
+     * password; people who sign in with Microsoft change theirs there. The current password is
+     * checked like a sign-in (bcrypt only), the new one must be 12 to 72 characters and differ from
+     * it. The new passwordUpdatedAt ends every other session of theirs; the caller renews the
+     * current one.
+     *
+     * @throws UnauthorizedException if the current password is wrong (the caller counts it as a failed attempt)
+     * @throws ValidationException   if password sign-in is off, the person has no password, or the new one is not allowed
+     */
+    @Transactional
+    public User changeOwnPassword(String userId, String currentPassword, String newPassword) {
+        if (!isPasswordLoginEnabled()) {
+            throw new ValidationException("Password sign-in is switched off.");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (user.isServiceAccount()) {
+            throw new ValidationException("A service account signs in with API tokens, not a password");
+        }
+        if (!isBcryptHash(user.getPassword())) {
+            throw new ValidationException("You sign in with Microsoft. Change your password there.");
+        }
+        if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new UnauthorizedException("The current password is not right.");
+        }
+        validateLength(newPassword);
+        if (newPassword.equals(currentPassword)) {
+            throw new ValidationException("Choose a password other than your current one.");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPasswordUpdatedAt(new Timestamp(System.currentTimeMillis()));
+        user.setPasswordChangeRequired(false);
+        User saved = userRepository.save(user);
+        auditService.logUserPasswordChanged(saved.getUserId(), saved.getEmail());
+        log.info("{} changed their own password; their other sessions end", saved.getUserId());
+        return saved;
+    }
+
     /** What a reset gives the administrator, once: the username to sign in with and the generated password. */
     public record PasswordReset(String username, String password) {
         /** Never in logs. */

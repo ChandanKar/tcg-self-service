@@ -126,19 +126,21 @@ test.describe('Users list', () => {
     await expect(page).toHaveURL(/#\/user-management\?page=2$/);
   });
 
-  test('row text and actions: role names, Reset password for password sign-in, Access to Grant access', async ({ page }) => {
+  test('row text and actions: role names, Access and Password for everyone active', async ({ page }) => {
     await openList(page, crowd());
     await page.locator('#user-search').fill('Ops service');
     const ops = page.locator('#users-table-body tr', { hasText: 'Ops service' });
     await expect(ops.locator('td').nth(2)).toHaveText('Password');
-    await expect(ops.getByRole('button', { name: 'Reset password for Ops service' })).toBeVisible();
-    await expect(ops.getByRole('link', { name: /^Access for/ })).toHaveCount(0);
+    await expect(ops.getByRole('button', { name: 'Password for Ops service' })).toBeVisible();
+    await expect(ops.getByRole('link', { name: 'Access for Ops service' })).toBeVisible();
 
     await page.locator('#user-search').fill('Divya');
     const divya = page.locator('#users-table-body tr', { hasText: 'Divya Ghosh' });
     await expect(divya.locator('.um-not-yet')).toHaveText('Not signed in yet');
     await expect(divya.getByRole('link', { name: 'Access for Divya Ghosh' }))
       .toHaveAttribute('href', '#/access-management/grant?email=person6%40x.com&name=Divya%20Ghosh');
+    // U29: people who sign in with Microsoft (and imported people with no password yet) can be given one too.
+    await expect(divya.getByRole('button', { name: 'Password for Divya Ghosh' })).toBeVisible();
 
     await page.locator('#user-search').fill('Meera');
     const meera = page.locator('#users-table-body tr', { hasText: 'Meera Iyer' });
@@ -204,9 +206,10 @@ test.describe('Users list', () => {
         body: JSON.stringify({ username: 'person5@x.com', password: 'Kq7-hT2m.Wx9_pRz' }) });
     });
     await page.locator('#user-search').fill('Ops');
-    await page.getByRole('button', { name: 'Reset password for Ops service' }).click();
+    await page.getByRole('button', { name: 'Password for Ops service' }).click();
     const dialog = page.locator('#resetPasswordModal');
-    await expect(dialog.locator('.modal-title')).toHaveText('Reset the password for Ops service?');
+    await expect(dialog.locator('.modal-title')).toHaveText('Password for Ops service');
+    await expect(dialog.locator('input[value="generate"]')).toBeChecked();
     await expect(dialog).toContainText('They will be signed out everywhere and choose a new password at their next sign-in.');
     await expect(dialog.locator('#um-reset-password')).toBeHidden();
     expect(calls).toEqual([]);
@@ -225,6 +228,44 @@ test.describe('Users list', () => {
     await expect(page.getByText('Kq7-hT2m.Wx9_pRz')).toHaveCount(0);
   });
 
+  /** U29: email does not work, so an administrator can type the password to pass on. */
+  test('Password: Type one checks both fields, sends one request and shows the username only', async ({ page }) => {
+    await openList(page, crowd());
+    const sent: any[] = [];
+    await page.route(/\/api\/v1\/users\/u-6\/password$/, route => {
+      sent.push({ method: route.request().method(), body: route.request().postDataJSON() });
+      return route.fulfill({ status: 204 });
+    });
+    await page.locator('#user-search').fill('Divya');
+    await page.getByRole('button', { name: 'Password for Divya Ghosh' }).click();
+    const dialog = page.locator('#resetPasswordModal');
+    await expect(dialog.locator('#um-pw-typed')).toBeHidden();
+    await dialog.locator('input[value="type"]').check();
+    await expect(dialog.locator('#um-pw-typed')).toBeVisible();
+    const confirm = dialog.locator('#um-reset-confirm');
+    await expect(confirm).toHaveText('Set password');
+
+    await dialog.getByLabel('Password', { exact: true }).fill('too-short');
+    await dialog.getByLabel('Password again').fill('too-short');
+    await confirm.click();
+    await expect(dialog.locator('#um-reset-error')).toHaveText('The password needs 12 to 72 characters.');
+    await dialog.getByLabel('Password', { exact: true }).fill('a-long-enough-one');
+    await dialog.getByLabel('Password again').fill('a-long-enough-two');
+    await confirm.click();
+    await expect(dialog.locator('#um-reset-error')).toHaveText("The two passwords don't match.");
+    expect(sent).toEqual([]);
+
+    await dialog.getByLabel('Password again').fill('a-long-enough-one');
+    await confirm.click();
+    await expect(dialog.locator('.modal-title')).toHaveText('New password for Divya Ghosh');
+    await expect(dialog.locator('#um-reset-username')).toHaveText('person6@x.com');
+    await expect(dialog.locator('#um-reset-password')).toBeHidden();
+    await expect(dialog).toContainText('Pass on the password you typed; they choose their own at next sign-in.');
+    expect(sent).toEqual([{ method: 'PUT', body: { password: 'a-long-enough-one' } }]);
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('Reset password: Cancel changes nothing; a refusal shows in the dialog', async ({ page }) => {
     await openList(page, crowd());
     let calls = 0;
@@ -234,13 +275,13 @@ test.describe('Users list', () => {
         body: JSON.stringify({ error: 'Validation', message: 'This person has no email address to sign in with' }) });
     });
     await page.locator('#user-search').fill('Ops');
-    await page.getByRole('button', { name: 'Reset password for Ops service' }).click();
+    await page.getByRole('button', { name: 'Password for Ops service' }).click();
     const dialog = page.locator('#resetPasswordModal');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toHaveCount(0);
     expect(calls).toBe(0);
 
-    await page.getByRole('button', { name: 'Reset password for Ops service' }).click();
+    await page.getByRole('button', { name: 'Password for Ops service' }).click();
     await dialog.getByRole('button', { name: 'Reset password' }).click();
     await expect(dialog.locator('#um-reset-error')).toHaveText('This person has no email address to sign in with');
     await expect(dialog.getByRole('button', { name: 'Reset password' })).toBeEnabled();
@@ -253,7 +294,7 @@ test.describe('Users list', () => {
     await page.route(/\/api\/v1\/users\/u-5\/password\/reset$/, route => route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ username: 'a-very-long-username-for-a-phone@example-company.co.uk', password: 'Kq7-hT2m.Wx9_pRz' }) }));
     await page.locator('#user-search').fill('Ops');
-    await page.getByRole('button', { name: 'Reset password for Ops service' }).click();
+    await page.getByRole('button', { name: 'Password for Ops service' }).click();
     const dialog = page.locator('#resetPasswordModal');
     await dialog.getByRole('button', { name: 'Reset password' }).click();
     await expect(dialog.locator('#um-reset-password')).toHaveText('Kq7-hT2m.Wx9_pRz');

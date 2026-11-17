@@ -263,6 +263,19 @@
     font-size: var(--fs-small);
 }
 
+/* Password dialog (U29): a typed password and its repeat, under the two choices. */
+.um-pw-typed {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.um-pw-typed .form-label {
+    margin: 4px 0 0;
+    font-size: var(--fs-small);
+}
+
 /* Reset password (U25-T04): the username and the generated password, shown once. */
 .um-reset-result {
     display: grid;

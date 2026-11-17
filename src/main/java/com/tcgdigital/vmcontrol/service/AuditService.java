@@ -806,6 +806,12 @@ public class AuditService {
                 "Password set by user: " + resolveUsername(performedByUserId));
     }
 
+    /** U29: a person changed their own password from My account (never the password itself). */
+    public void logUserPasswordChanged(String userId, String email) {
+        logAction(auditUserId(userId), AuditAction.USER_UPDATED, "user", userId, email,
+                "Password changed by the person themselves; their other sessions end");
+    }
+
     /** U25-T04: an administrator reset a person's password (never the password itself). */
     public void logUserPasswordReset(String performedByUserId, String targetUserId, String email) {
         logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, email,

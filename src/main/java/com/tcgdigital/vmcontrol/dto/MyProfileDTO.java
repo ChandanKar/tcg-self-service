@@ -35,7 +35,9 @@ public record MyProfileDTO(
         int extensionWindowDays,
         int requestMaxDurationDays,
         boolean leasesEnabled,
-        List<String> teamNames
+        List<String> teamNames,
+        /** U29: the person has a password and password sign-in is on, so My account offers "Change password". */
+        boolean canChangePassword
 ) {
     public record EnvironmentRef(String environmentId, String name) {}
 }

@@ -39,6 +39,7 @@ const Config = (function() {
             capabilities: `${API_BASE_URL}/users/me/capabilities`,
             notificationPreferences: `${API_BASE_URL}/users/me/notification-preferences`,
             myLeases: `${API_BASE_URL}/users/me/leases`,
+            myPassword: `${API_BASE_URL}/users/me/password`, // U29: POST {currentPassword, newPassword}
             listAll: `${API_BASE_URL}/users?includeInactive=true`,
             create: `${API_BASE_URL}/users`,
             get: (id) => `${API_BASE_URL}/users/${id}`,

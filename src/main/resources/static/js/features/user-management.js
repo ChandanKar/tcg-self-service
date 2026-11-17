@@ -228,10 +228,13 @@ const UserManagement = (function() {
         const notYet = !last && !user.serviceAccount;
         let middle = '';
         if (user.active && !user.serviceAccount) {
-            middle = signsInWithPasswordOnly(user)
-                ? Utils.html`<button type="button" class="um-act" data-action="reset-password" data-user-id="${user.userId}" aria-label="Reset password for ${name}">Reset password</button>`
-                : Utils.html`<a class="um-act" href="#/access-management/grant?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(name)}"
-                    data-user-id="${user.userId}" aria-label="Access for ${name}">Access</a>`;
+            // U29: every active person can be given a password (imported people have none yet), not only
+            // those who already sign in with one; email does not work, so the admin passes it on.
+            middle = Utils.html`<a class="um-act" href="#/access-management/grant?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(name)}"
+                    data-user-id="${user.userId}" aria-label="Access for ${name}">Access</a>`
+                + (user.email
+                    ? Utils.html`<button type="button" class="um-act" data-action="reset-password" data-user-id="${user.userId}" aria-label="Password for ${name}">Password</button>`
+                    : '');
         }
         const status = user.active
             ? Utils.html`<button type="button" class="um-act um-danger" data-action="deactivate" data-user-id="${user.userId}" aria-label="Deactivate ${name}">Deactivate</button>`
@@ -426,30 +429,56 @@ const UserManagement = (function() {
     function resetPasswordCopy(user) {
         const name = (user && (user.displayName || user.email)) || '';
         return {
-            title: `Reset the password for ${name}?`,
+            title: `Password for ${name}`,
             question: 'They will be signed out everywhere and choose a new password at their next sign-in.',
             doneTitle: `New password for ${name}`,
-            note: 'Shown once. Pass it on; they choose their own at next sign-in.'
+            note: 'Shown once. Pass it on; they choose their own at next sign-in.',
+            typedNote: 'Pass on the password you typed; they choose their own at next sign-in.'
         };
+    }
+
+    /** U29: what's wrong with a typed password and its repeat, or null (12 to 72 characters, as the server). */
+    function typedPasswordProblem(password, again) {
+        if (!password || password.length < 12 || password.length > 72) return 'The password needs 12 to 72 characters.';
+        if (password !== again) return "The two passwords don't match.";
+        return null;
+    }
+
+    /** The username they sign in with: theirs, or their email, which the server makes their username. */
+    function signInUsername(user) {
+        return (user && (user.username || (user.email || '').trim().toLowerCase())) || '';
     }
 
     function showResetPasswordModal(user) {
         if (!user) return;
         const copy = resetPasswordCopy(user);
-        let reset = false;
+        let done = false;
+        const confirmText = how => (how === 'type' ? 'Set password' : 'Reset password');
         Modals.show({
             id: 'resetPasswordModal',
             title: copy.title,
             body: Utils.html`<p class="um-dialog-text" id="um-reset-question">${copy.question}</p>
+                <div class="um-roles" id="um-pw-how" role="radiogroup" aria-label="How to give the password">
+                    <label class="um-role-choice"><input type="radio" name="um-pw-how" value="generate" checked>
+                        <span><b>Generate one</b><span>Shown once, for you to pass on.</span></span></label>
+                    <label class="um-role-choice"><input type="radio" name="um-pw-how" value="type">
+                        <span><b>Type one</b><span>12 to 72 characters, for you to pass on.</span></span></label>
+                </div>
+                <div class="um-pw-typed" id="um-pw-typed" hidden>
+                    <label for="um-pw-new" class="form-label">Password</label>
+                    <input type="password" id="um-pw-new" class="form-control form-control-sm" autocomplete="new-password" maxlength="72">
+                    <label for="um-pw-again" class="form-label">Password again</label>
+                    <input type="password" id="um-pw-again" class="form-control form-control-sm" autocomplete="new-password" maxlength="72">
+                </div>
                 <div class="um-reset-result" id="um-reset-result" hidden>
                     <span class="um-reset-label">Username</span>
                     <code class="um-reset-value" id="um-reset-username"></code>
-                    <span class="um-reset-label">Password</span>
-                    <span class="um-reset-secret">
+                    <span class="um-reset-label" id="um-reset-password-label">Password</span>
+                    <span class="um-reset-secret" id="um-reset-secret">
                         <code class="um-reset-value" id="um-reset-password"></code>
                         <button type="button" class="btn btn-secondary um-reset-btn" id="um-reset-copy" aria-label="Copy the password">Copy</button>
                     </span>
-                    <p class="um-dialog-note um-reset-note">${copy.note}</p>
+                    <p class="um-dialog-note um-reset-note" id="um-reset-note">${copy.note}</p>
                 </div>
                 <div class="re-error" id="um-reset-error" role="alert" hidden></div>`,
             buttons: [
@@ -459,14 +488,42 @@ const UserManagement = (function() {
             ],
             onShow: function() {
                 $('#resetPasswordModal').attr('role', 'alertdialog').attr('aria-describedby', 'um-reset-question');
-                const $confirm = $('#um-reset-confirm').trigger('focus');
-                $confirm.off('click').on('click', function() {
-                    $confirm.prop('disabled', true);
+                const $confirm = $('#um-reset-confirm');
+                $('#um-pw-how input[value="generate"]').trigger('focus');
+                $('#um-pw-how input').off('change').on('change', function() {
+                    const how = $('#um-pw-how input:checked').val();
+                    $('#um-pw-typed').prop('hidden', how !== 'type');
+                    $confirm.text(confirmText(how));
                     $('#um-reset-error').prop('hidden', true);
+                });
+                $confirm.off('click').on('click', function() {
+                    const how = $('#um-pw-how input:checked').val();
+                    $('#um-reset-error').prop('hidden', true);
+                    if (how === 'type') {
+                        const password = $('#um-pw-new').val();
+                        const problem = typedPasswordProblem(password, $('#um-pw-again').val());
+                        if (problem) {
+                            $('#um-reset-error').text(problem).prop('hidden', false);
+                            $('#um-pw-new').trigger('focus');
+                            return;
+                        }
+                        $confirm.prop('disabled', true);
+                        ApiClient.put(Config.API.users.setPassword(user.userId), { password: password }, { suppressGlobalError: true })
+                            .done(function() {
+                                done = true;
+                                showResetResult(copy, { username: signInUsername(user) }, true);
+                            })
+                            .fail(function(xhr) {
+                                dialogError('#um-reset-error', xhr, 'The password was not set. Try again.');
+                                $confirm.prop('disabled', false);
+                            });
+                        return;
+                    }
+                    $confirm.prop('disabled', true);
                     ApiClient.post(Config.API.users.resetPassword(user.userId), null, { suppressGlobalError: true })
                         .done(function(res) {
-                            reset = true;
-                            showResetResult(copy, res || {});
+                            done = true;
+                            showResetResult(copy, res || {}, false);
                         })
                         .fail(function(xhr) {
                             dialogError('#um-reset-error', xhr, 'The password was not reset. Try again.');
@@ -476,24 +533,31 @@ const UserManagement = (function() {
                 $('#um-reset-copy').off('click').on('click', copyResetPassword);
             },
             onHide: function() {
-                // The password leaves the page with the dialog; the list shows the new sign-in state.
+                // Passwords leave the page with the dialog; the list shows the new sign-in state.
                 $('#um-reset-password').text('');
-                if (reset) fetchUsers();
+                $('#um-pw-new, #um-pw-again').val('');
+                if (done) fetchUsers();
             }
         });
     }
 
-    /** The same dialog, now with the username and the password shown once. */
-    function showResetResult(copy, res) {
+    /**
+     * The same dialog, now with the username, and the generated password shown once. A typed
+     * password is not shown again: the administrator already knows it.
+     */
+    function showResetResult(copy, res, typed) {
         $('#resetPasswordModal .modal-title').text(copy.doneTitle);
         $('#resetPasswordModal').attr('role', 'dialog').removeAttr('aria-describedby');
-        $('#um-reset-question').prop('hidden', true);
+        $('#um-reset-question, #um-pw-how, #um-pw-typed').prop('hidden', true);
+        $('#um-pw-new, #um-pw-again').val('');
         $('#um-reset-username').text(res.username || '');
-        $('#um-reset-password').text(res.password || '');
+        $('#um-reset-password').text(typed ? '' : (res.password || ''));
+        $('#um-reset-password-label, #um-reset-secret').prop('hidden', typed);
+        $('#um-reset-note').text(typed ? copy.typedNote : copy.note);
         $('#um-reset-result').prop('hidden', false);
         $('#um-reset-cancel, #um-reset-confirm').prop('hidden', true);
         $('#um-reset-done').prop('hidden', false);
-        $('#um-reset-copy').trigger('focus');
+        (typed ? $('#um-reset-done') : $('#um-reset-copy')).trigger('focus');
     }
 
     function copyResetPassword() {
@@ -526,7 +590,7 @@ const UserManagement = (function() {
     // Public API
     return {
         load: load,
-        model: { roleLabel, signInLabel, signsInWithPasswordOnly, counts, lastSignIn, filterList, resetPasswordCopy }
+        model: { roleLabel, signInLabel, signsInWithPasswordOnly, counts, lastSignIn, filterList, resetPasswordCopy, typedPasswordProblem, signInUsername }
     };
 })();
 

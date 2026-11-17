@@ -180,6 +180,49 @@ public class UserController {
     }
 
     @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.LoginThrottleService loginThrottleService;
+
+    /**
+     * U29: change my own password from My account. Only for people who sign in with a password
+     * (Microsoft users change theirs in Microsoft). A wrong current password answers 400, not 401:
+     * a 401 would end the session in the browser. Wrong attempts are throttled like sign-in. On
+     * success the person's other sessions end (passwordUpdatedAt) and this one is renewed: a new
+     * session id and a start time after the change.
+     */
+    @PostMapping("/me/password")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Change my password",
+            description = "Current password and a new one of 12 to 72 characters. 204 when changed; 400 with a "
+                    + "message when the current password is wrong or the new one is not allowed; 429 after too many "
+                    + "wrong attempts.")
+    public ResponseEntity<?> changeMyPassword(@RequestBody com.tcgdigital.vmcontrol.dto.ChangeOwnPasswordRequest body,
+                                              jakarta.servlet.http.HttpServletRequest request) {
+        String userId = userService.getCurrentUserId();
+        String throttleKey = "my-password:" + userId;
+        String ip = request.getRemoteAddr();
+        java.util.Optional<java.time.Duration> blocked = loginThrottleService.blockedFor(throttleKey, ip);
+        if (blocked.isPresent()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header(org.springframework.http.HttpHeaders.RETRY_AFTER,
+                            String.valueOf(Math.max(1, blocked.get().toSeconds())))
+                    .body(java.util.Map.of("message", "Too many wrong attempts. Try again later."));
+        }
+        try {
+            authenticationService.changeOwnPassword(userId, body.getCurrentPassword(), body.getNewPassword());
+        } catch (com.tcgdigital.vmcontrol.exception.UnauthorizedException e) {
+            loginThrottleService.recordFailure(throttleKey, ip);
+            throw new ValidationException("The current password is not right.");
+        }
+        loginThrottleService.recordSuccess(throttleKey);
+        if (request.getSession(false) != null) {
+            request.changeSessionId();
+            request.getSession().setAttribute(com.tcgdigital.vmcontrol.security.CurrentUserRefreshFilter.ISSUED_AT,
+                    System.currentTimeMillis());
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
     private com.tcgdigital.vmcontrol.service.NotificationPreferenceService notificationPreferenceService;
 
     /** Which notifications reach me, by type, in the bell and by email (E29-T05). */

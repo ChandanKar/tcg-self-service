@@ -115,7 +115,18 @@ public class MyAccountService {
                 accessService.getExtensionWindowDays(),
                 accessService.getRequestMaxDurationDays(),
                 leaseService != null && leaseService.isFeatureEnabled(),
-                teamNames(userId));
+                teamNames(userId),
+                canChangePassword(user));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private AuthenticationService authenticationService;
+
+    /** U29: a person with a password (not a service account) while password sign-in is on. */
+    private boolean canChangePassword(User user) {
+        return !user.isServiceAccount() && user.getPassword() != null && user.getPassword().startsWith("$2")
+                && authenticationService != null && authenticationService.isPasswordLoginEnabled();
     }
 
     /** The active teams the user belongs to, by display name (U09-T05, the Profile tab). */

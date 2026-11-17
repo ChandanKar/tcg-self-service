@@ -259,7 +259,8 @@
     align-self: flex-start;
 }
 
-.ma-extend {
+.ma-extend,
+.ma-password {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -278,7 +279,8 @@
     width: auto;
 }
 
-.ma-extend .form-label {
+.ma-extend .form-label,
+.ma-password .form-label {
     margin: 4px 0 0;
     font-size: 13px;
 }
