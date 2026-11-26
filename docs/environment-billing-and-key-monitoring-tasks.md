@@ -44,6 +44,7 @@ For one billing period, cost basis, currency, and account scope: **directly attr
 - **Task:** Agree billing account scope, currency, time zone, cost basis (currently `UnblendedCost`), project identity, period boundaries, and handling of credits, taxes, support, refunds, and adjustments.
 - **Acceptance:** Finance/product approve worked examples for direct, shared, and unallocated charges; all reporting surfaces use the same definition.
 - **Validation:** Every included charge is counted once. Conflicting currency/account data or an unresolved reconciliation blocks finalization.
+- **Draft contract:** [environment-billing-contract.md](environment-billing-contract.md). A1 remains open until its decision and approval checklist is completed.
 
 ### A2 — Define the service and usage taxonomy
 
