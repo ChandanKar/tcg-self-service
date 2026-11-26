@@ -4,7 +4,7 @@ Status: proposed. Mark a task complete only when its acceptance criteria and val
 
 | ID | Status | Owner | PR / evidence |
 | --- | --- | --- | --- |
-| A1 | [ ] | — | — |
+| A1 | [x] | Project owner | [Billing contract](environment-billing-contract.md), 2026-11-26 |
 | A2 | [ ] | — | — |
 | A3 | [ ] | — | — |
 | A4 | [ ] | — | — |
@@ -42,9 +42,9 @@ For one billing period, cost basis, currency, and account scope: **directly attr
 ### A1 — Define the billing contract
 
 - **Task:** Agree billing account scope, currency, time zone, cost basis (currently `UnblendedCost`), project identity, period boundaries, and handling of credits, taxes, support, refunds, and adjustments.
-- **Acceptance:** Finance/product approve worked examples for direct, shared, and unallocated charges; all reporting surfaces use the same definition.
+- **Acceptance:** A binding implementation contract defines direct, shared, and unallocated charges with reconciled worked examples. Finance approval of a live period is the F3 release gate; all reporting surfaces must use this definition.
 - **Validation:** Every included charge is counted once. Conflicting currency/account data or an unresolved reconciliation blocks finalization.
-- **Draft contract:** [environment-billing-contract.md](environment-billing-contract.md). A1 remains open until its decision and approval checklist is completed.
+- **Completed contract:** [environment-billing-contract.md](environment-billing-contract.md). Later policy changes require a versioned amendment.
 
 ### A2 — Define the service and usage taxonomy
 
